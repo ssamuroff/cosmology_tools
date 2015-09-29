@@ -20,17 +20,18 @@ class Cl_class:
 			self.C_ne={}
 
 		# Survey parameters
+		survey = config['survey']
+		self.Nzbin= int(block[survey,'nzbin'])
+		self.A = ( np.pi*np.pi / (180*180) ) * block[survey, 'area'] # Survey area in sr
+
 		self.lbin_edges = block[self.types[0][1],'l_bin_edges']
 		self.l_bins = block[self.types[0][1],'l_bins']
 		self.dl = self.lbin_edges[1:] - self.lbin_edges[:-1]
 		
 		self.Nlbin = len(self.lbin_edges)-1 
 
-		self.Nzbin= block['wl_number_density','nbin']
-		self.zbin_edges = [ block['wl_number_density', 'edge_%d'%i] for i in range(1, self.Nzbin + 1) ]
-
-		self.A = ( np.pi*np.pi / (180*180) ) * block['number_density_params', 'survey_area'] # Survey area in sr
-
+		self.zbin_edges = [ block[survey, 'edge_%d'%i] for i in range(1, self.Nzbin + 1) ]
+		
 	def load_Cls(self, block):
 
 		for i in range(1,self.Nzbin+1):
@@ -168,22 +169,21 @@ class Cl_class:
 			outfile = pyfits.open(filename, mode='update')
 		except:
 			hdu=pyfits.PrimaryHDU( self.lbin_edges )
-			hdulist = pyfits.HDUList([hdu])
-			hdulist.writeto(filename)
-			hdulist.close()
+			outfile = pyfits.HDUList([hdu])
+			outfile.writeto(filename)
+
 			outfile = pyfits.open(filename, mode='update')
 
-		
-			hdu = pyfits.PrimaryHDU(np.array(cov))
-			hdu.header['omega_m'] = block['cosmological_parameters', 'omega_m']
-			hdu.header['omega_de'] = block['cosmological_parameters', 'omega_de']
-			hdu.header['h0'] = block['cosmological_parameters', 'h0'] 
-			hdu.header['w0'] = block['cosmological_parameters', 'w0']
-			hdu.header['wa'] = block['cosmological_parameters', 'wa']
-			hdu.header['sigma_8'] = block['cosmological_parameters', 'sigma_8']
+		hdu = pyfits.PrimaryHDU(np.array(cov))
+		hdu.header['omega_m'] = block['cosmological_parameters', 'omega_m']
+		hdu.header['omega_de'] = block['cosmological_parameters', 'omega_de']
+		hdu.header['h0'] = block['cosmological_parameters', 'h0'] 
+		hdu.header['w0'] = block['cosmological_parameters', 'w']
+		hdu.header['wa'] = block['cosmological_parameters', 'wa']
+		hdu.header['sigma_8'] = block['cosmological_parameters', 'sigma_8']
 
-			outfile.append(hdu)
-			oufile.flush()
+		outfile.append(hdu)
+		outfile.flush()
 
 #		cospar = {'omega_m' : block['cosmological_parameters', 'omega_m'], 
 #			  'omega_de': block['cosmological_parameters', 'omega_de'],

@@ -7,12 +7,10 @@ import matplotlib.pyplot as plt
 def setup(options):
 	shear = options[option_section, "shear"]
 	position = options[option_section, "clustering"]
-	Nl = options[option_section, "Nl"]
-	lmin = options[option_section, "lmin"]
-	lmax = options[option_section, "lmax"]
+	survey = options[option_section, "survey"]
 	
-	opt= {'shear': shear, 'clustering': position, 'Nl': Nl, 'lmin': lmin, 'lmax': lmax }
-	return opt
+	config= {'shear': shear, 'clustering': position, 'survey': survey }
+	return config
 
 def execute(block, config):
 
@@ -23,7 +21,7 @@ def execute(block, config):
 	# Then do the calculation
 	Cl.calculate_all(block)
 
-	Cl.output_covariance_matrix(block)
+	#Cl.output_covariance_matrix(block)
 
 	#import pdb ; pdb.set_trace()
 

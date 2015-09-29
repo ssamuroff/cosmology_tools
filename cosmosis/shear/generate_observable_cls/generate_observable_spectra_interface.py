@@ -9,27 +9,28 @@ def setup(options):
 	intrinsic_alignments= options[option_section, "intrinsic_alignments"]
 	clustering= options[option_section, "clustering"]
 	magnification= options[option_section, "magnification"]
-	Nl = options[option_section, "Nl"]
-	lmin = options[option_section, "lmin"]
-	lmax = options[option_section, "lmax"]
 	noise = options[option_section, "noise"]
+
+	survey = options[option_section, "survey"]
 	
-	opt= {'shear': shear, 'intrinsic_alignments': intrinsic_alignments, 'clustering': clustering, 'magnification': magnification, 'noise': noise, 'Nl': Nl, 'lmin': lmin, 'lmax': lmax }
+	opt= {'shear': shear, 'intrinsic_alignments': intrinsic_alignments, 'clustering': clustering, 'magnification': magnification, 'noise': noise, 'survey': survey}
 	return opt
 
 def execute(block, config):
 	
+	survey = config['survey']
+
 	# Survey parameters
-	Nl = config['Nl']
-	lmax = config['lmax']
-	lmin = config['lmin']
+	Nl = int(block[survey, 'nlbin'])
+	lmax = block.get_double(survey, 'lmax')
+	lmin = block.get_double(survey, 'lmin')
 
 	# Defines whether to add noise 
 	noise = config['noise']
 	
-	Cl = functions.Cl_class()
-	Cl.load_and_generate_observable_cls(block, names, config)
-	Cl.save_cls(block, config)
+	Cl = functions.Cl_class(block, config)
+	Cl.load_and_generate_observable_cls(block, names)
+	Cl.save_cls(block)
 
 	return 0
 

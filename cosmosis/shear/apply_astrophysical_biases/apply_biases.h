@@ -189,3 +189,12 @@ int get_all_spectra(c_datablock * block, biases * b, bias_config * config){
 
 	return status;
 }
+
+void free_memory(biases *b){
+	free(b->b_I);
+	free(b->r_I);
+	free(b->b_g);
+	free(b->r_g);
+	free(b->P_nl);
+	free(b->k_h);
+}

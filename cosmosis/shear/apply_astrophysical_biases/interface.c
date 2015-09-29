@@ -33,9 +33,10 @@ int execute(c_datablock * block, void * config_in)
 	
 	status|=load_biases(block, &b, config);
 
-	status|=get_all_spectra(block, &b, config);		
+	status|=get_all_spectra(block, &b, config);	
+	free_memory(&b);	
 
-  return status;
+	return status;
 
 }
 
