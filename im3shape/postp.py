@@ -1,4 +1,5 @@
 import glob
+import argparse
 import re
 import errno
 import sys
@@ -27,7 +28,7 @@ def find_tilename(name):
     return m.group()
 
 
-import os, argparse
+import os
 
 def process_dir(indir, outdir):
     main_text_files = glob.glob("{0}/main/*.txt".format(indir))
@@ -53,23 +54,42 @@ def process_dir(indir, outdir):
         out_epoch = "{0}/epoch/{1}.fits".format(outdir, tilename)
         if os.path.exists(out_main) and os.path.exists(out_epoch):
             continue
-
-        process_text(main_text_file, epoch_text_file, out_main, out_epoch, "r", blind=False, quiet=False, report=report)
+        try:
+            process_text(main_text_file, epoch_text_file, out_main, out_epoch, "r", blind=False, quiet=False, report=report)
+        except:
+            print "{} did not work".format(out_main)
         if report: 
             return
 
-def check_dirs(dirname):
-    import os
-    print "Checking directories. Will create if they don't exist."
-    os.system("mkdir -p %s/main"%dirname)
-    os.system("mkdir -p %s/epoch"%dirname)
+def mkdir(path):
+    try:
+        os.makedirs(path)
+    except OSError as error:
+        if error.errno == errno.EEXIST:
+            if os.path.isdir(path):
+                pass
+            else:
+                raise ValueError("Tried to create directory %s but file with name exists already"%path)
+        elif error.errno == errno.ENOTDIR: 
+            raise ValueError("Tried to create directory %s but some part of the path already exists as a file"%path)
+        else:
+            raise ValueError("Could not write to %s"%path)
 
 def main():
-    parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument('-i', '--input_dir', type=str, action='store', default="disc")
-    parser.add_argument('-o', '--output_dir', type=str, action='store', default="fits/disc")
+
+    description = 'im3shape postprocessor.'
+    parser = argparse.ArgumentParser(description=description, add_help=False)
+    parser.add_argument('-d', '--indir', type=str, action='store', default="disc")
+    parser.add_argument('-o', '--outdir', type=str, action='store', default="fits/disc")
+
     args = parser.parse_args()
-    check_dirs(args.output_dir)
-    process_dir(args.input_dir, args.output_dir)
+
+    if not os.path.exists(args.outdir):
+        mkdir(args.outdir+"/main")
+        mkdir(args.outdir+"/epoch")
+
+    process_dir(args.indir, args.outdir)
+
 main()
+
 

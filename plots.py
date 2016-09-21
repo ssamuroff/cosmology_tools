@@ -6,6 +6,7 @@ from tools import fisher as fi
 from samplers import sampler
 import tools.emcee as mc
 import tools.diagnostics as di
+import tools.arrays as arr
 
 import matplotlib.colors
 import matplotlib
@@ -762,7 +763,7 @@ def generate_fig4_samples(c,number=10,xmin=0.02, xmax=0.1, write_script=True, ol
 
 
 
-labels={'snr' : ("$SNR$", "snr"), "rgpp":("$R_{gpp}/R_{p}$", "mean_rgpp_rp"), "e1": ("$e_1$", "e1"), "e2": ("$e_2$", "e2") }
+labels={'snr' : ("$SNR$", "snr"), "rgpp":("$R_{gpp}/R_{p}$", "mean_rgpp_rp"), "e1": ("$e_1$", "e1"), "e2": ("$e_2$", "e2"), "dphi": (r"misalignment angle $\Delta \phi$ / $\pi$ rad", "dphi"), "m":("$m \equiv (m_1+m_2)/2$", "m"), "c":("$c \equiv (c_1+c_2)/2$", "c")  }
 
 class im3shape_results_plots:
 	def obs_vs_obs(self, name1, name2, nbins, binning="equal_number", xlabel=None, ylabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", scatter=False, mean=True, return_vals=False,logscale=False,refline=None):
@@ -992,6 +993,178 @@ class im3shape_results_plots:
 		else:
 			return 0
 
+	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0):
+		import pylab as plt
+		col1=None
+		lab1=None
+		xmin=None
+		xmax=None
+		ymin=None
+		ymax=None
+
+		# Do the labelling
+		try:
+			lab1,col1=labels[name]
+		except:
+			print "No label for %s found"%name
+			lab1,col1=name,name
+		lab2,col2=labels["m"]
+
+		if xlabel is not None:
+			lab1 = xlabel
+
+		plt.xlabel(lab1)
+		plt.ylabel(lab2)
+
+		# Deal with the axis bounds
+		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
+
+		data = self.res[axis_lower & axis_upper]
+		if hasattr(self, "truth"):
+			tr = self.truth[axis_lower & axis_upper]
+			data = arr.add_col(data,"true_g1",tr["true_g1"])
+			data = arr.add_col(data,"true_g2",tr["true_g2"])
+			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
+			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
+
+
+		print "Total galaxies:%d"%data.size
+
+		#Now the binning
+		if binning=="equal_number":
+			bin_edges=di.find_bin_edges(data[col1], nbins)
+		else:
+			bin_edges=np.array(binning)
+		x=(bin_edges[1:]+bin_edges[:-1])/2.
+		y=[]
+		err=[]
+		n=[]
+
+		for i,bounds in enumerate(zip(bin_edges[:-1],bin_edges[1:])):
+			upper = bounds[1]
+			lower = bounds[0]
+			print "bin %d [%f,%f]"%((i+1),lower,upper)
+			bin = (data[col1]>lower) & (data[col1]<upper)
+			# Case where we are calculating biases
+			if bias not in data.dtype.names:
+				# Do the linear fits
+				# Should return a dictionary, each element of which is a value then an uncertainty
+				b = di.get_bias(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
+				# Repeat them if the errorbars need to come from bootstrapping
+				if error_type=="bootstrap":
+					error = di.bootstrap_error(6, data[bin], di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+				else:
+					error = b[name][1]
+
+			# Case where we have precomputed biases
+			else:
+				b = {bias:( np.mean(data[bias]), np.std(data[bias])/ (data[bias].size**0.5) ) }
+					
+			y.append(b[bias][0])
+			err.append(error)
+
+		print x
+		print y
+		print err
+
+		plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
+		plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
+		if logscale:
+			plt.xscale("log")
+		if refline is not None:
+			plt.axhline(refline,color="k")
+
+		if return_vals:
+			return np.array(x),np.array(y),np.array(err),np.array(n)
+		else:
+			return 0
+
+	def alpha_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0):
+		import pylab as plt
+		col1=None
+		lab1=None
+		xmin=None
+		xmax=None
+		ymin=None
+		ymax=None
+
+		# Do the labelling
+		try:
+			lab1,col1=labels[name]
+		except:
+			print "No label for %s found"%name
+			lab1,col1=name,name
+		lab2,col2=labels["m"]
+
+		if xlabel is not None:
+			lab1 = xlabel
+
+		plt.xlabel(lab1)
+		plt.ylabel(lab2)
+
+		# Deal with the axis bounds
+		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
+
+		data = self.res[axis_lower & axis_upper]
+		if hasattr(self, "truth"):
+			tr = self.truth[axis_lower & axis_upper]
+			data = arr.add_col(data,"true_g1",tr["true_g1"])
+			data = arr.add_col(data,"true_g2",tr["true_g2"])
+			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
+			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
+
+
+		print "Total galaxies:%d"%data.size
+
+		#Now the binning
+		if binning=="equal_number":
+			bin_edges=di.find_bin_edges(data[col1], nbins)
+		else:
+			bin_edges=np.array(binning)
+		x=(bin_edges[1:]+bin_edges[:-1])/2.
+		y=[]
+		err=[]
+		n=[]
+
+		for i,bounds in enumerate(zip(bin_edges[:-1],bin_edges[1:])):
+			upper = bounds[1]
+			lower = bounds[0]
+			print "bin %d [%f,%f]"%((i+1),lower,upper)
+			bin = (data[col1]>lower) & (data[col1]<upper)
+			# Case where we are calculating biases
+			if bias not in data.dtype.names:
+				# Do the linear fits
+				# Should return a dictionary, each element of which is a value then an uncertainty
+				b = di.get_alpha(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["alpha","c","alpha11","alpha22","c11","c22"])
+				# Repeat them if the errorbars need to come from bootstrapping
+				if error_type=="bootstrap":
+					error = di.bootstrap_error(6, data[bin], di.get_alpha, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+				else:
+					error = b[bias][1]
+
+			# Case where we have precomputed biases
+			else:
+				b = {bias:( np.mean(data[bias]), np.std(data[bias])/ (data[bias].size**0.5) ) }
+					
+			y.append(b[bias][0])
+			err.append(error)
+
+		print x
+		print y
+		print err
+
+		plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
+		plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
+		if logscale:
+			plt.xscale("log")
+		if refline is not None:
+			plt.axhline(refline,color="k")
+
+		if return_vals:
+			return np.array(x),np.array(y),np.array(err),np.array(n)
+		else:
+			return 0
+
 
 	def whisker_plot(self, nobj=None, thin=None, etype="galaxies", positions="world", colour="purple", lw=0.5, label=None, newplot=1, zoom=None, unit_length=None):
 
@@ -1067,6 +1240,35 @@ class im3shape_results_plots:
 		plt.title(label)
 
 		return 0
+
+
+def axis_bounds(xlim,ylim,xdata):
+	if xlim is not None:
+		xmin=xlim[0]
+		xmax=xlim[1]
+		plt.xlim(xmin=xmin,xmax=xmax)
+	else:
+		xmin=None
+		xmax=None
+	
+	if ylim is not None:
+		ymin=ylim[0]
+		ymax=ylim[1]
+		plt.ylim(ymin=ymin,ymax=ymax)
+	else:
+		ymin=None
+		ymax=None
+
+	if xmin is not None:
+		sel1 = (xdata>xmin)
+	else:
+		sel1 = np.ones_like(xdata).astype(bool)
+	if xmax is not None:
+		sel2 = (xdata<xmax)
+	else:
+		sel2 = np.ones_like(xdata).astype(bool)
+
+	return sel1, sel2
 
 
 

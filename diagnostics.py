@@ -133,7 +133,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
         i1 = i0 + len(dat)
         res[i0:i1] = dat
         ind+=[(i0,i1)]
-        if res[i1-1]!=dat[-1]:
+        if res[i1]!=dat[-1]:
             print "ERROR: Data overflow. %d %d"%(i1, len(res))
         print Nf, f
         Nf+=1
@@ -195,7 +195,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         list_res=[os.path.basename(m)[:12] for m in match]
         print "matching to tilelist ", list_res
             
-        filelist=np.empty(len(list_res),dtype="S100")
+        filelist=np.empty(len(list_res),dtype="S190")
         for f in files:
             if os.path.basename(f)[:12] in list_res:
                 i=np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0]
@@ -207,7 +207,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         filelist=files
  
     dt = fio.read(filelist[0]).dtype
-    truth = np.empty(len(filelist)*10000, dtype=dt)
+    truth = np.empty(len(filelist)*46000, dtype=dt)
     for i, f in enumerate(filelist):
         fits = fio.FITS(f) 
         if cols:
@@ -222,8 +222,9 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         i0 = np.argwhere(truth['DES_id']==0)[0,0]
         i1 = i0 + len(dat)
         truth[i0:i1] = dat
+        print i+1, f, "%d/%d"%(i1, len(filelist)*10000)
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
-    print i+1, f, "%d/%d"%(i1, len(filelist)*10000)
+    
                 
     truth = truth[truth["DES_id"]!=0]
 
@@ -1062,6 +1063,209 @@ def find_bin_edges(x,nbins,w=None):
 
     return r
 
+
+def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+
+    g1 = catalogue['true_g1']
+    g2 = catalogue['true_g2']
+    sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
+    g1 = g1[sel]
+    g2 = g2[sel]
+
+    e1 = catalogue["%s1"%ellipticity_name][sel]
+    e2 = catalogue["%s2"%ellipticity_name][sel]
+
+    if "w" in catalogue.dtype.names:
+        w = catalogue["w"][sel]
+    else:
+        w = np.ones_like(e1)
+
+    if isinstance(binning,str):
+        if binning=="equal_number":
+            bins = find_bin_edges(g1, nbins)
+    else:
+        bins = binning
+
+    x = (bins[1:]+bins[:-1])/2.0
+
+    y11,y22,y12,y21=[],[],[],[]
+    variance_y11,variance_y22,variance_y12,variance_y21=[],[],[],[]
+    
+    for i, bounds in enumerate(zip(bins[:-1],bins[1:])):
+        lower = bounds[0]
+        upper = bounds[1]
+        sel1 = (g1>lower) & (g1<upper)
+        sel2 = (g2>lower) & (g2<upper)
+
+        y11.append( np.mean(w[sel1] * e1[sel1]) )
+        y22.append( np.mean(w[sel2] * e2[sel2]) )
+        y12.append( np.mean(w[sel1] * e2[sel1]) )
+        y21.append( np.mean(w[sel2] * e1[sel2]) )
+       
+        variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
+        variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
+        variance_y12.append( np.std(e2[sel1]) / (e2[sel1].size**0.5) )
+        variance_y21.append( np.std(e1[sel2]) / (e1[sel2].size**0.5) )
+
+    d1 = np.array(y11)-x
+    d2 = np.array(y22)-x
+
+    # Four linear fits to do here
+
+    # m11, c11
+    p11, cov11 = np.polyfit(x,y11-x, 1, w=1./np.array(variance_y11)/np.array(variance_y11), cov=True, full=False)
+    if not np.isfinite(cov11).all():
+        p11,cov11 = stabilised_fit(x,d1,1.0/np.array(variance_y11)/np.array(variance_y11))
+    m11,c11 = p11
+
+    # m22, c22
+    p22, cov22 = np.polyfit(x,y22-x, 1, w=1./np.array(variance_y22)/np.array(variance_y22), cov=True, full=False)
+    if not np.isfinite(cov22).all():
+        p22,cov22 = stabilised_fit(x,d2,1.0/np.array(variance_y22)/np.array(variance_y22))
+    m22,c22 = p22
+
+    # m12, c12
+    p12, cov12 = np.polyfit(x,y12, 1, w=1./np.array(variance_y12)/np.array(variance_y12), cov=True, full=False)
+    if not np.isfinite(cov12).all():
+        p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
+    m12,c12 = p12
+
+    # m21, c21
+    p21, cov21 = np.polyfit(x,y21, 1, w=1./np.array(variance_y21)/np.array(variance_y21), cov=True, full=False)
+    if not np.isfinite(cov21).all():
+        p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
+    m21,c21 = p21
+
+    if not silent:
+        print 'm11=%f +- %f'%(m11,cov11[0,0]**0.5)
+        print 'm22=%f +- %f'%(m22,cov22[0,0]**0.5)
+        print 'm12=%f +- %f'%(m12,cov12[0,0]**0.5)
+        print 'm21=%f +- %f'%(m21,cov21[0,0]**0.5)
+        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
+        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
+        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
+        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
+
+    m = (m11+m22)/2
+    c = (c11+c22)/2
+    error_m = np.sqrt(cov11[0,0] + cov22[0,0])
+    error_c = np.sqrt(cov11[1,1] + cov22[1,1])
+
+    biases_dict = {"m":(m,error_m), "c":(c,error_c), "m11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "m22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "m12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "m21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
+
+    # Decide how to package the results
+    # Either as a dictionary, including the fit covariances
+    # Or as a single value (probably for when using bootstrap errors)
+    out={}
+    if not isinstance(names, str):
+        for name in names:
+            out[name] = biases_dict[name]
+    else:
+        out = biases_dict[names][0]
+
+    return out
+
+
+def get_alpha(catalogue, nbins=5, ellipticity_name="e", names=["alpha","c"], binning="equal_number", silent=False):
+
+    g1 = catalogue['mean_psf_e1_sky']
+    g2 = catalogue['mean_psf_e2_sky']
+    sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
+    g1 = g1[sel]
+    g2 = g2[sel]
+
+    e1 = catalogue["%s1"%ellipticity_name][sel]
+    e2 = catalogue["%s2"%ellipticity_name][sel]
+
+    if "w" in catalogue.dtype.names:
+        w = catalogue["w"][sel]
+    else:
+        w = np.ones_like(e1)
+
+    if isinstance(binning,str):
+        if binning=="equal_number":
+            bins = find_bin_edges(g1, nbins)
+    else:
+        bins = binning
+
+    x = (bins[1:]+bins[:-1])/2.0
+
+    y11,y22,y12,y21=[],[],[],[]
+    variance_y11,variance_y22,variance_y12,variance_y21=[],[],[],[]
+    
+    for i, bounds in enumerate(zip(bins[:-1],bins[1:])):
+        lower = bounds[0]
+        upper = bounds[1]
+        sel1 = (g1>lower) & (g1<upper)
+        sel2 = (g2>lower) & (g2<upper)
+
+        y11.append( np.mean(w[sel1] * e1[sel1]) )
+        y22.append( np.mean(w[sel2] * e2[sel2]) )
+        y12.append( np.mean(w[sel1] * e2[sel1]) )
+        y21.append( np.mean(w[sel2] * e1[sel2]) )
+       
+        variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
+        variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
+        variance_y12.append( np.std(e2[sel1]) / (e2[sel1].size**0.5) )
+        variance_y21.append( np.std(e1[sel2]) / (e1[sel2].size**0.5) )
+
+    d1 = np.array(y11)
+    d2 = np.array(y22)
+
+    # Four linear fits to do here
+
+    # m11, c11
+    p11, cov11 = np.polyfit(x,y11, 1, w=1./np.array(variance_y11)/np.array(variance_y11), cov=True, full=False)
+    if not np.isfinite(cov11).all():
+        p11,cov11 = stabilised_fit(x,d1,1.0/np.array(variance_y11)/np.array(variance_y11))
+    m11,c11 = p11
+
+    # m22, c22
+    p22, cov22 = np.polyfit(x,y22, 1, w=1./np.array(variance_y22)/np.array(variance_y22), cov=True, full=False)
+    if not np.isfinite(cov22).all():
+        p22,cov22 = stabilised_fit(x,d2,1.0/np.array(variance_y22)/np.array(variance_y22))
+    m22,c22 = p22
+
+    # m12, c12
+    p12, cov12 = np.polyfit(x,y12, 1, w=1./np.array(variance_y12)/np.array(variance_y12), cov=True, full=False)
+    if not np.isfinite(cov12).all():
+        p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
+    m12,c12 = p12
+
+    # m21, c21
+    p21, cov21 = np.polyfit(x,y21, 1, w=1./np.array(variance_y21)/np.array(variance_y21), cov=True, full=False)
+    if not np.isfinite(cov21).all():
+        p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
+    m21,c21 = p21
+
+    if not silent:
+        print 'alpha11=%f +- %f'%(m11,cov11[0,0]**0.5)
+        print 'alpha22=%f +- %f'%(m22,cov22[0,0]**0.5)
+        print 'alpha12=%f +- %f'%(m12,cov12[0,0]**0.5)
+        print 'alpha21=%f +- %f'%(m21,cov21[0,0]**0.5)
+        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
+        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
+        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
+        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
+
+    m = (m11+m22)/2
+    c = (c11+c22)/2
+    error_m = np.sqrt(cov11[0,0] + cov22[0,0])
+    error_c = np.sqrt(cov11[1,1] + cov22[1,1])
+
+    biases_dict = {"alpha":(m,error_m), "c":(c,error_c), "alpha11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "alpha22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "alpha12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "alpha21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
+
+    # Decide how to package the results
+    # Either as a dictionary, including the fit covariances
+    # Or as a single value (probably for when using bootstrap errors)
+    out={}
+    if not isinstance(names, str):
+        for name in names:
+            out[name] = biases_dict[name]
+    else:
+        out = biases_dict[names][0]
+
+    return out
 
 relevant_parameters = ['ra_as', 'dec_as', 'e1', 'e2', 'radius', 'radius_ratio', 'bulge_a', 'disc_a', 'coadd_objects_id', 'time', 'bulge_flux', 'disc_flux', 'flux_ratio', 'snr', 'old_snr', 'min_residuals', 'max_residuals', 'model_min', 'model_max', 'likelihood', 'levmar_start_error', 'levmar_end_error', 'levmar_resid_grad', 'levmar_vector_diff', 'levmar_error_diff', 'levmar_comp_grad', 'levmar_iterations', 'levmar_reason', 'levmar_like_evals', 'levmar_grad_evals', 'levmar_sys_evals', 'mean_flux', 'n_exposure', 'stamp_size', 'mean_rgpp_rp', 'mean_psf_e1_sky', 'mean_psf_e2_sky', 'fails_psf_e2_sky', 'mean_psf_fwhm', 'mean_unmasked_flux_frac', 'fails_unmasked_flux_frac', 'mean_model_edge_mu', 'mean_model_edge_sigma', 'mean_edge_mu', 'fails_edge_mu', 'mean_edge_sigma', 'mean_hsm_psf_e1_sky', 'mean_hsm_psf_e2_sky', 'mean_hsm_psf_sigma', 'mean_hsm_psf_rho4', 'mean_mask_fraction',  'round_snr',  'round_snr_mw', 'ra', 'dec', 'chi2_pixel', 'mag_auto_g', 'mag_auto_r', 'mag_auto_i', 'mag_auto_z', 'desdm_zp']
     
