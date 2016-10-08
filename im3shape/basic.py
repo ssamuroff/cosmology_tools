@@ -246,20 +246,26 @@ class toy_model:
 
         return samples, alpha
 
+def plot_alpha(filename, sim):
 
-gs = gridspec.GridSpec(3,1)
-ax1 = plt.subplot(gs[:2,:])
-ax2 = plt.subplot(gs[2:,:])
-ax1.plot(x,alpha, "-",lw=2.5,color="purple")
-ax2.hist(sim.res["mean_psf_fwhm"], bins=np.linspace(x[0],x[-1],50), histtype="step", color="steelblue", lw=2.5, normed=1)
-plt.subplots_adjust(wspace=0, hspace=0)
-t=[1,2,3,4,5]
-ax1.xticks([],[])
-ax2.xticks(t,["%1.1f"%i for i in t])
-ax2.yticks([],[])
-ax2.add_ylabel(r"PSF leakage $\alpha _1$")
-ax2.add_xlabel(r"PSF FWHM / pixels")
-plt.show()
+    x,alpha=np.loadtxt(filename).T
+    gs = gridspec.GridSpec(3,1)
+
+    ax1 = plt.subplot(gs[:2,:])
+    ax2 = plt.subplot(gs[2:,:])
+    ax1.plot(x,alpha, "-",lw=2.5,color="purple")
+    ax2.hist(sim.res["mean_psf_fwhm"], bins=np.linspace(x[0],x[-1],45), histtype="step", color="steelblue", lw=2.5, normed=1)
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+
+    t=[1,2,3,4,5]
+    ax1.set_xticks([],[])
+    ax2.set_xticks(t,["%1.1f"%i for i in t])
+    ax2.set_yticks([],[])
+    ax1.set_ylabel(r"PSF leakage $\alpha _1$")
+    ax2.set_xlabel(r"PSF FWHM / pixels")
+
+    plt.show()
 
 
 
