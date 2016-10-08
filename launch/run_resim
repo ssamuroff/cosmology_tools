@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=60:00:00
+#PBS -N resim-modelbias
+#PBS -o /home/samuroff/shear_pipeline/end-to-end/end-to-end_code/launch/logs/resim-v2_16-noisebias.log
+#PBS -j oe
+
+BIASTYPE=model
+DIR="/share/des/disc6/samuroff/y1/hoopoe/y1a1-v2.2_10/meds/"
+cd $DIR
+python -m tools.im3shape.resimulate --output $DIR/$BIASTYPE --truth /share/des/disc3/samuroff/y1/sims/v2.2/y1a1_16tiles/truth --mode $BIASTYPE
+

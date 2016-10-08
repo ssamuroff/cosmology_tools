@@ -35,6 +35,15 @@ def merge_main(bulge_filename, disc_filename, bord_filename):
     cat_d = Table.read(disc_filename)
     print bulge_filename,len(cat_b)
     print disc_filename,len(cat_d)
+    import pdb ; pdb.set_trace()
+
+    if cat_b["covmat_0_1"][0].dtype is not float:
+        nparam = cat_b["nparam_varied"]
+        for i in xrange(nparam):
+            for j in xrange(nparam):
+                cat_b["covmat_%d_%d"%(i,j)]=cat_b["covmat_%d_%d"%(i,j)].astype(float)
+
+    import pdb ; pdb.set_trace()
     
     
     # need to match coadd_object_ids here
