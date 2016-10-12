@@ -66,11 +66,57 @@ def concatenate_results(outfile=None):
     o.write("%s"%out_epoch)
     o.close()
 
+def load_epoch(epoch_path):
+    print "Loading epoch catalogue from %s"%epoch_path
+    import glob
+    files=glob.glob("%s/*.fits"%epoch_path)
+    e=[]                  
+    for i, f in enumerate(files):
+        e.append(pyfits.getdata(f))
+        print i, f
+
+    epoch = np.concatenate(np.array(e))
+
+    print "Found %d epoch results"%epoch.size
+
+    return epoch
+
+def get_pixel_cols(meds_path):
+    print "Loading pixel coordinate positions from %s"%meds_path
+    import glob
+    files=glob.glob("%s/DES*.fits*"%meds_path)
+
+    x,y,cid,tile_identifier= [],[],[],[]        
+    for i, f in enumerate(files):
+        m = pyfits.open(f)["object_data"].data
+        x.append(m["orig_col"].T[0])
+        y.append(m["orig_row"].T[0])
+        cid.append(m["id"])
+        ti = np.array([i]*m["id"].size)
+        tile_identifier.append(ti)
+        print i, f
+
+    tile_identifier = np.concatenate(tile_identifier)
+    x = np.concatenate(np.array(x))
+    y = np.concatenate(np.array(y))
+    cid = np.concatenate(np.array(cid))
+
+    print "Found %d epoch results"%cid.size
+
+    out=np.zeros(cid.size,dtype=[("coadd_objects_id", int),("ix", float),("iy", float),("tile", int) ])
+    out["ix"] = x
+    out["iy"] = y
+    out["coadd_objects_id"] = cid
+    out["tile"] = tile_identifier
+
+    return out
 
 
 
 
-def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=True, return_filelist=False, cols=None, ntot=-1, apply_infocuts=False):
+
+
+def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=True, return_filelist=False, cols=None, ntot=-1, apply_infocuts=False, additional_cuts=[]):
     files=[]
     ind=[]
     Nf=0
@@ -91,14 +137,14 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
         dt = np.dtype(newdt)
 
   # Generate empty array to fill
-    if apply_infocuts:
+    if not apply_infocuts:
         buff=20000
     else:
         buff=4100
     if ntot!=-1:
         res= np.empty(ntot*buff, dtype=dt)
     else:
-        res= np.empty(3000*buff, dtype=dt)
+        res= np.empty(300*buff, dtype=dt)
 
     files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
     if res_path!='None':
@@ -129,16 +175,23 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
         if apply_infocuts and 'info_flag' in res.dtype.names:
             dat = dat[dat["info_flag"]==0]
 
+        if len(additional_cuts)>0:
+            print "Applying additional cuts"
+            count = additional_cuts.count("%s")
+            cut = additional_cuts%tuple(["dat"]*count)
+            exec cut
+            dat = dat[cuts]
+
         i0 = np.argwhere(res["id"]==0)[0,0]
         i1 = i0 + len(dat)
         res[i0:i1] = dat
         ind+=[(i0,i1)]
-        if res[i1]!=dat[-1]:
-            print "ERROR: Data overflow. %d %d"%(i1, len(res))
+       # if res[i1]!=dat[-1]:
+        #    print "ERROR: Data overflow. %d %d"%(i1, len(res))
         print Nf, f
         Nf+=1
 
-    res = res[res["id"]!=0]
+    res = res[res["coadd_objects_id"]!=0]
 
     print 'Read results for %d objects from %d files.' %(len(res),len(files))
 
@@ -182,7 +235,7 @@ def load_results0(res_path='None', keyword='fornax'):
 
 #    return truth
 
-def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None):
+def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False):
     files=[]
     if truth_path!=None:
         files = glob.glob(os.path.join(truth_path,'*%s*-truth*.fits*'%keyword))
@@ -205,28 +258,36 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         #filelist = np.array([np.array([ f, np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0] ]) for f in files if os.path.basename(f)[:12] in list_res])
     else:
         filelist=files
- 
-    dt = fio.read(filelist[0]).dtype
+
+    if not faint:
+        extension=1
+        bookmark="DES_id"
+    else:
+        extension="subdetection_objects"
+        bookmark="cosmos_id"
+
+
+    dt = fio.FITS(filelist[0])[extension].read().dtype
     truth = np.empty(len(filelist)*46000, dtype=dt)
     for i, f in enumerate(filelist):
-        fits = fio.FITS(f) 
+        fits = fio.FITS(f)
         if cols:
-            dat = fits[1].read(columns=cols)
+            dat = fits[extension].read(columns=cols)
         else:
-            dat = fits[1].read()
+            dat = fits[extension].read()
         fits.close()
             
         if ind!=None and res!=None:
             selres=res[ind[i][0]:ind[i][1]]
             r,dat=match_results(selres,dat)
-        i0 = np.argwhere(truth['DES_id']==0)[0,0]
+        i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
         truth[i0:i1] = dat
         print i+1, f, "%d/%d"%(i1, len(filelist)*10000)
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
     
                 
-    truth = truth[truth["DES_id"]!=0]
+    truth = truth[truth[bookmark]!=0]
 
     print 'Truth table contains %d objects' %len(truth)
 
@@ -985,7 +1046,7 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
     for i in xrange(nsubsamples-1):
         b_low = bootstrap_edges[i]
         b_high = bootstrap_edges[i+1]
-        print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
+        #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
         if additional_args is None:
             derived_quantity = operation( full_cat[b_low:b_high])
         else:
@@ -998,7 +1059,7 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
             comm+=")"
 
             exec comm
-            print derived_quantity
+            #print derived_quantity
 
         resampled.append(derived_quantity)
 
@@ -1113,15 +1174,19 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     # Four linear fits to do here
 
     # m11, c11
-    p11, cov11 = np.polyfit(x,y11-x, 1, w=1./np.array(variance_y11)/np.array(variance_y11), cov=True, full=False)
+    w11 = d1 * (np.array(variance_y11)/np.array(y11))
+    w11= 1/w11/w11
+    p11, cov11 = np.polyfit(x,d1, 1, w=w11, cov=True, full=False)
     if not np.isfinite(cov11).all():
-        p11,cov11 = stabilised_fit(x,d1,1.0/np.array(variance_y11)/np.array(variance_y11))
+        p11,cov11 = stabilised_fit(x, d1, w11)
     m11,c11 = p11
 
     # m22, c22
-    p22, cov22 = np.polyfit(x,y22-x, 1, w=1./np.array(variance_y22)/np.array(variance_y22), cov=True, full=False)
+    w22 = d2 * (np.array(variance_y22)/np.array(y22))
+    w22= 1.0/w22/w22
+    p22, cov22 = np.polyfit(x,d2, 1, w=w22, cov=True, full=False)
     if not np.isfinite(cov22).all():
-        p22,cov22 = stabilised_fit(x,d2,1.0/np.array(variance_y22)/np.array(variance_y22))
+        p22,cov22 = stabilised_fit(x,d2,w22)
     m22,c22 = p22
 
     # m12, c12

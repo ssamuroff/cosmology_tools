@@ -2,6 +2,7 @@ import numpy as np
 import pyfits as pf
 import fitsio as fio
 import glob
+import treecorr as tc
 import meds, fitsio
 import galsim
 import os, math
@@ -25,7 +26,7 @@ class shapecat(i3s_plots):
 	"""Class for handling im3shape results and,
 	   if relevant, truth catalogues.
 	"""
-	def __init__(self, res=None, truth=None, coadd=False, fit="disc"):
+	def __init__(self, res=None, truth=None, coadd=False, fit="disc", noisefree=False):
 		if res is None and truth is None:
 			print "Please specify at least one of res=, truth="
 		self.res_path = res
@@ -33,13 +34,16 @@ class shapecat(i3s_plots):
 		self.coadd_path= coadd
 
 		self.fit = fit
+		self.noisefree=noisefree
+
+		self.corr={}
 
 		print "Initialised."
 
 	def load_from_array(self, array, name="res"):
 		setattr(self, name, array)
 
-	def load(self, res=True, truth=False, coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits"):
+	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits"):
 		
 		if res:
 			if "%s"%ext in self.res_path:
@@ -49,8 +53,18 @@ class shapecat(i3s_plots):
 			print "%s/*.%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
+
+			if self.noisefree and apply_infocuts:
+				self.res = pf.getdata(files[0])
+				tmp, noise_free_infocuts = self.get_infocuts(exclude=["chi"], return_string=True)
+
+				noise_free_infocuts = noise_free_infocuts.replace("cuts= ((", "cuts= ((%s['chi2_pixel']>0.004) & (%s['chi2_pixel']<0.2) & (")
+
 			if len(files)>1:
-				self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
+				if apply_infocuts and self.noisefree:
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
+				else:
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
 			else:
 				if ext.lower()==".fits":
 					self.res = fio.FITS(files[0])[1].read()
@@ -76,6 +90,11 @@ class shapecat(i3s_plots):
 
 		if truth and res:
 			self.res, self.truth = di.match_results(self.res,self.truth)
+			if ("ra" in self.res.dtype.names): 
+				if not (self.res["ra"]==self.truth["ra"]).all():
+					self.res["ra"] = self.truth["ra"]
+					self.res["dec"] = self.truth["dec"]
+
 			print "Found catalogue of %d objects after matching to truth table"%len(self.res)
 
 
@@ -94,6 +113,21 @@ class shapecat(i3s_plots):
 
 			ids = self.res["row_id"]-1
 			self.coadd= self.coadd[ids]
+
+		if epoch:
+			path = self.res_path.replace("main", "epoch")
+			try:
+				self.epoch = di.load_epoch(path)
+			except:
+				self.epoch = di.load_epoch(path.replace("bord", "disc"))
+
+		if hasattr(self, "truth"):
+			sel = self.truth["sextractor_pixel_offset"]<1.0
+			self.truth = self.truth[sel]
+			if hasattr(self, "res"):
+				self.res = self.res[sel]
+			if coadd:
+				self.coadd = self.coadd[sel]
 
 	def add_bpz_cols(self, fil="/share/des/disc3/samuroff/y1/photoz/bpz/NSEVILLA_PHOTOZ_TPL_Y1G103_1_bpz_highzopt_2_9_16.fits", array=None, exclude=None):
 		print "Loading BPZ results from %s"%fil
@@ -151,7 +185,7 @@ class shapecat(i3s_plots):
 		return x,y
 
 
-	def hist(self, param, normed=1, histtype="step", alpha=1.0, truth=False, res=True, nbins=25, xlim_upper=None, xlim_lower=None, colour="purple", infoflags=False, errorflags=False, neighbourflags=False, starflags=False, linestyle="solid", extra_cuts=None):
+	def hist(self, param, normed=1, histtype="step", alpha=1.0, truth=False, res=True, nbins=25, xlim_upper=None, xlim_lower=None, label=None, colour="purple", infoflags=False, errorflags=False, neighbourflags=False, starflags=False, linestyle="solid", extra_cuts=None):
 		"""Plot out a histogram of a particular parameter."""
 		colname=names[param]
 		sel= self.get_mask(info=infoflags, error=errorflags, stars=starflags, neighbours=neighbourflags)
@@ -170,7 +204,7 @@ class shapecat(i3s_plots):
 			extra_cuts = np.ones_like(data)
 		else:
 			sel = sel & extra_cuts
-		plt.hist(data[colname][sel], bins=bins, histtype=histtype, color=colour, normed=normed, lw=2.0, linestyle=linestyle, alpha=alpha)
+		plt.hist(data[colname][sel], bins=bins, histtype=histtype, color=colour, normed=normed, lw=2.0, label=label, linestyle=linestyle, alpha=alpha)
 
 	def get_mask(self, info=True, error=False, stars=False, neighbours=False):
 		"""Get the selection mask for either error or info flag cuts."""
@@ -200,7 +234,7 @@ class shapecat(i3s_plots):
 
 		return sel
 
-	def get_infocuts(self, exclude="None"):
+	def get_infocuts(self, exclude="None", return_string=False):
 		cutstring = "cuts= ("
 		count=0
 		if exclude is None:
@@ -220,7 +254,30 @@ class shapecat(i3s_plots):
 		cutstring+=")"
 		print cutstring
 		exec cutstring
-		return cuts
+
+		if not return_string:
+			return cuts
+
+		else:
+			return cuts, cutstring.replace("self.res", "%s")
+
+	def rotate(self, e1_new, e2_new):
+		"""Rotate the ellipticities into a reference frame defined by another set of shapes. 
+		   Generally this will probably be the PSF or nearest neighbour frame.
+		"""
+
+		e = e1_new + 1j*e2_new
+		# Actually this is 2phi
+		phi = np.angle(e)
+
+		self.res["e1"] = self.res["e1"]*np.cos(phi) + self.res["e2"]*np.sin(phi)
+		self.res["e2"] = -1*self.res["e1"]*np.sin(phi) + self.res["e2"]*np.cos(phi)
+		self.res["mean_psf_e1_sky"] = self.res["mean_psf_e1_sky"]*np.cos(phi) + self.res["mean_psf_e2_sky"]*np.sin(phi)
+		self.res["mean_psf_e2_sky"] = -1*self.res["mean_psf_e1_sky"]*np.sin(phi) + self.res["mean_psf_e2_sky"]*np.cos(phi)
+		self.truth["intrinsic_e1"] = self.truth["intrinsic_e1"]*np.cos(phi) + self.truth["intrinsic_e2"]*np.sin(phi)
+		self.truth["intrinsic_e2"] = -1*self.truth["intrinsic_e1"]*np.sin(phi) + self.truth["intrinsic_e2"]*np.cos(phi)
+		self.truth["true_g1"] = self.truth["true_g1"]*np.cos(phi) + self.truth["true_g2"]*np.sin(phi)
+		self.truth["true_g2"] = -1*self.truth["true_g1"]*np.sin(phi) + self.truth["true_g2"]*np.cos(phi)
 
 	def apply_infocuts(self):
 		n0 = len(self.res)
@@ -233,66 +290,179 @@ class shapecat(i3s_plots):
 		print "%d/%d (%f percent) survived info cuts."%(len(self.res), n0, 100.*len(self.res)/n0)
 		return 0
 
-	def get_neighbours(self, fulltruth=None, meds=None):
+	def get_neighbours(self):
 		import copy
-
 		from sklearn.neighbors import NearestNeighbors
-		if not meds is None:
-			if isinstance(meds, str):
-				fits = meds_wrapper(meds) 
-			else:
-				fits = meds
-			#"/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/last5/meds/tb-y1a1-spt/final/DES0419-4914-r-sim-v2.2-meds-tb-y1a1-spt.fits.fz"
-			meds_object_columns = fits._cat
-			x = fulltruth["ra"]
-			y = fulltruth["dec"]
-			xy=np.vstack((x,y))
-			nbrs = NearestNeighbors(n_neighbors=8, algorithm='ball_tree').fit(xy.T)
-			distances, indices = nbrs.kneighbors(xy.T)
+		import scipy.spatial as sps
 
-			# cols and tr are now the meds metadata and the truth table
-			# for each of the entries in the truth table
-			# We're doing it this way because the truth table stored 
-			# under self.truth is matched to a set of im3shape results, so 
-			# doesn't necessarily include all of the neighbours
-			
-			ni=np.zeros_like(self.res["e1"])
+		fulltruth = di.load_truth(self.truth_path)
 
-			for i,j in enumerate(self.res["id"]):
-				try:
-					index = np.argwhere(fulltruth["DES_id"]==j)[0,0]
-				except:
-					print "error", i, j
-				ni[i] = index
+		import fitsio as fi
+		reference=fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/y1a1-v2.2_10/meds/y1a1_positions.fits")[1].read()
+		fulltruth,ref = di.match_results(fulltruth,reference, name1="coadd_objects_id", name2="DES_id")
+		fulltruth["ra"]=ref["ra"]
+		fulltruth["dec"]=ref["dec"]
+		self.truth,ref = di.match_results(self.truth,reference, name1="coadd_objects_id", name2="DES_id")
+		self.truth["ra"]=ref["ra"]
+		self.truth["dec"]=ref["dec"]
+		self.truth,self.res = di.match_results(self.truth,self.res, name1="coadd_objects_id", name2="DES_id")
+
+
+		meds_path=self.truth_path.replace("truth", "meds/*/*")
+		meds_info = di.get_pixel_cols(meds_path)
+		pool_of_possible_neighbours,fulltruth = di.match_results(meds_info,fulltruth, name1="DES_id", name2="coadd_objects_id" )
+		fulltruth = arr.add_col(fulltruth, "ix", pool_of_possible_neighbours["ix"])
+		fulltruth = arr.add_col(fulltruth, "iy", pool_of_possible_neighbours["iy"])
+		fulltruth = arr.add_col(fulltruth, "tile", pool_of_possible_neighbours["tile"])
+
+		objects_needing_neighbours,self.truth = di.match_results(meds_info,self.truth, name1="DES_id", name2="coadd_objects_id" )
+		self.truth = arr.add_col(self.truth, "ix", objects_needing_neighbours["ix"])
+		self.truth = arr.add_col(self.truth, "iy", objects_needing_neighbours["iy"])
+		self.truth = arr.add_col(self.truth, "tile", objects_needing_neighbours["tile"])
+
+
+
+		cut=(fulltruth["sextractor_pixel_offset"]<1.0) & (fulltruth["ra"]!=0.0)
+		fulltruth = fulltruth[cut]
+		pool_of_possible_neighbours = pool_of_possible_neighbours[cut]
+
+		indices = np.zeros(self.res.size)
+		distances = np.zeros(self.res.size)
+		lookup = np.linspace(0,fulltruth.size-1, fulltruth.size).astype(int)
+
+		tiles = np.unique(self.truth["tile"]) 
+
+		for it in tiles:
+			print "Matching in pixel coordinates, tile %s"%it
+			sel0 = pool_of_possible_neighbours["tile"]==it
+			sel1 = objects_needing_neighbours["tile"]==it
+
+			# All positions where an object was simulated
+			# Restrict the search to this tile
+			x_pool = fulltruth["ra"][sel0] #pool_of_possible_neighbours["ix"][sel0]
+			y_pool = fulltruth["dec"][sel0] #pool_of_possible_neighbours["iy"][sel0]
+			xy_pool=np.vstack((x_pool,y_pool))
+
+			# Positions of those objects for which we have im3shape results
+			# We want to find neighbours for these objects
+			x_tar = self.truth["ra"][sel1]
+			y_tar = self.truth["dec"][sel1]
+			xy_tar=np.vstack((x_tar,y_tar))
+
+			# Build a tree using the pool
+			nbrs = NearestNeighbors(n_neighbors=2, algorithm='kd_tree', metric="euclidean").fit(xy_pool.T)
+			# Query it for the target catalogue
+			d,i = nbrs.kneighbors(xy_tar.T)
+			distances[sel1], indices[sel1] = d.T[1], lookup[sel0][i.T[1]]
 
 		neighbour_cat = copy.deepcopy(self)
-		if fulltruth is None:
-			setattr(neighbour_cat,"res",self.res[ni.astype(int)])
-			setattr(neighbour_cat,"truth",self.truth[ni.astype(int)])
 
-		else:
-			neighbour_cat.res["id"]= fulltruth[indices.T[1]][ni.astype(int)]["des_id"]
-			neighbour_cat.res["e1"]= fulltruth[indices.T[1]][ni.astype(int)]["intrinsic_e1"]+fulltruth[ni.astype(int)]["true_g1"] 
-			neighbour_cat.res["e2"]= fulltruth[indices.T[1]][ni.astype(int)]["intrinsic_e2"]+fulltruth[ni.astype(int)]["true_g2"]
-			np.putmask(neighbour_cat.res["e1"], neighbour_cat.res["e1"]<-1, fulltruth[indices.T[1]][ni.astype(int)]["mean_psf_e1"])
-			np.putmask(neighbour_cat.res["e2"], neighbour_cat.res["e2"]<-1, fulltruth[indices.T[1]][ni.astype(int)]["mean_psf_e2"])
-			neighbour_cat.res["ra"]= fulltruth[indices.T[1]][ni.astype(int)]["ra"]
-			neighbour_cat.res["dec"]= fulltruth[indices.T[1]][ni.astype(int)]["dec"]
-			neighbour_cat.truth= fulltruth[indices.T[1]][ni.astype(int)]
-
+		neighbour_cat.res["id"]= fulltruth[indices.astype(int)]["DES_id"]
+		neighbour_cat.res["coadd_objects_id"]= fulltruth[indices.astype(int)]["DES_id"]
+		neighbour_cat.res["e1"]= fulltruth[indices.astype(int)]["intrinsic_e1"]+fulltruth[indices.astype(int)]["true_g1"] 
+		neighbour_cat.res["e2"]= fulltruth[indices.astype(int)]["intrinsic_e2"]+fulltruth[indices.astype(int)]["true_g2"]
+		np.putmask(neighbour_cat.res["e1"], neighbour_cat.res["e1"]<-1, fulltruth[indices.astype(int)]["mean_psf_e1"])
+		np.putmask(neighbour_cat.res["e2"], neighbour_cat.res["e2"]<-1, fulltruth[indices.astype(int)]["mean_psf_e2"])
+		neighbour_cat.res["ra"]= fulltruth[indices.astype(int)]["ra"]
+		neighbour_cat.res["dec"]= fulltruth[indices.astype(int)]["dec"]
+		neighbour_cat.truth= fulltruth[indices.astype(int)]
+		neighbour_cat.truth["nearest_neighbour_pixel_dist"] = distances
 
 		return neighbour_cat
 
 	def get_phi_col(self,neighbour_cat):
-		print "Computing misalignment angle between each object and its nearest neighbour."
+		print "Computing ellipticity-ellipticity misalignment between each object and its nearest neighbour."
 		eres = self.res["e1"]+ 1j*self.res["e2"]
 		eneigh = neighbour_cat.res["e1"] + 1j*neighbour_cat.res["e2"]
 
 		phi_res = np.angle(eres)
 		phi_neigh = np.angle(eneigh)
-		dphi = (phi_res - phi_neigh) /2. / np.pi
+		dphi = (phi_res - phi_neigh)/2
+
+		# Enforce limits at +-pi, then +-pi/2
+		#sel1=dphi>np.pi
+		#sel2=dphi<-1.0*np.pi
+#
+		#dphi[sel1] = -1.0*np.pi + (dphi[sel1]-np.pi)
+		#dphi[sel2] = 1.0*np.pi + (dphi[sel2]+np.pi)
+
+		sel1=dphi>np.pi/2
+		sel2=dphi<-1.0*np.pi/2
+		
+		dphi[sel1] = np.pi/2 - (dphi[sel1] - np.pi/2)
+		dphi[sel2] = -1.*np.pi/2 - (dphi[sel2] + np.pi/2)
+
+		dphi/=np.pi
 
 		self.res = arr.add_col(self.res,"dphi",dphi)
+
+	def get_beta_col(self,ncat):
+		print "Computing ellipticity-position misalignment angle between each object and its nearest neighbour."
+		
+		dx = self.truth["ra"] - ncat.truth["ra"]
+		dy = self.truth["dec"] - ncat.truth["dec"]
+
+		# position angle of the separation vector, in sky coordinates
+		# has bounds [-pi,pi]
+		theta = np.arctan(dy/dx)
+
+		# position angle of the central galaxy in stamp coordinates
+		eres = self.res["e1"]+ 1j*self.res["e2"]
+		phi = np.angle(eres)/2
+
+
+
+		# cos(beta) = Rneigh.ecent 
+		# where Rneigh, ecent are unit vectors
+		beta = (phi - theta)
+		np.putmask(beta,np.invert(np.isfinite(beta)),0)
+
+		# Impose bounds as above
+		sel1=beta>np.pi/2
+		sel2=beta<-1.0*np.pi/2
+		beta[sel1] = np.pi/2 - (beta[sel1] - np.pi/2)
+		beta[sel2] = -1.*np.pi/2 - (beta[sel2] + np.pi/2)
+
+		beta/=np.pi
+
+		self.res = arr.add_col(self.res,"dbeta",beta)
+
+	def angle_cols(self, ncat):
+		self.get_phi_col(ncat)
+		self.get_beta_col(ncat)
+
+	def get_2pt(self, corr1, corr2, nbins=12, error_type="bootstrap", xmin=1, xmax=300, units="arcmin"):
+		correlation_lookup = {"psf":("mean_psf_e%d_sky", self.res), "gal":("e%d", self.res)}
+
+		if hasattr(self,"truth"): correlation_lookup["int"] = ("intrinsic_e%d", self.truth)
+
+		c1, data1 = correlation_lookup[corr1]
+		c2, data2 = correlation_lookup[corr2]
+		print "Will correlate columns %s and %s."%(c1,c2), 
+
+		cat1 = tc.Catalog(ra=self.res["ra"]*60, dec=self.res["dec"]*60, ra_units=units, dec_units=units, g1=data1[c1%1], g2=data1[c1%2])
+		cat2 = tc.Catalog(ra=self.res["ra"]*60, dec=self.res["dec"]*60, ra_units=units, dec_units=units, g1=data2[c2%1], g2=data2[c2%2])
+
+		gg = tc.GGCorrelation(nbins=nbins, min_sep=xmin, max_sep=xmax, sep_units=units)
+
+		gg.process(cat1,cat2)
+
+		setattr(gg, "theta", np.exp(gg.logr))
+
+		print "stored"
+		self.corr[(corr1,corr2)]=gg
+
+	def get_alpha_from_2pt(self):
+		xi_pp = self.corr["psf","psf"].xip
+		xi_gp = self.corr["gal","psf"].xip
+
+		egal = self.res["e1"] + 1j*self.res["e2"]
+		epsf = self.res["mean_psf_e1_sky"] + 1j*self.res["mean_psf_e2_sky"]
+
+		alpha = ( xi_gp - np.mean(egal).conj()*np.mean(epsf) ) / ( xi_pp - abs(np.mean(epsf))*abs(np.mean(epsf)) )
+		x = self.corr["psf","psf"].theta
+
+		return x, alpha
 
 	def get_fofz(self, nbins, error_type="bootstrap", zmax=1.8, binning="equal_number", T_B=False, return_number=False, split_type="im3shape", bin_type="mean_z_bpz"):
 		"""Calculate the bulge fraction in bins using the given definition"""
@@ -339,6 +509,9 @@ class shapecat(i3s_plots):
 
 info_cuts =["(self.res['fails_unmasked_flux_frac']==0)", "(self.res['snr']>10)", "(self.res['snr']<10000)", "(self.res['mean_rgpp_rp']>1.1)", "(self.res['mean_rgpp_rp']<3.5)", "(self.res['radius']<5)", "(self.res['radius']>0.1)", "((self.res['ra_as']**2+self.res['dec_as']**2)**0.5<1.0)", "(self.res['chi2_pixel']>0.5)", "(self.res['chi2_pixel']<1.5)", "(self.res['min_residuals']>-0.2)", "(self.res['max_residuals']<0.2)", "(self.res['mean_psf_fwhm']<7.0)", "(self.res['mean_psf_fwhm']>0.0)", "(self.res['error_flag']==0)"]
 
+class blank_stamp:
+	def __init__(self, boxsize):
+		self.array = np.zeros((boxsize,boxsize))
 
 class dummy_im3shape_options():
 	def __init__(self):
@@ -386,16 +559,71 @@ class meds_wrapper(i3meds.I3MEDS):
 			return "noise_cutouts"
 		else: raise ValueError("bad cutout type '%s'" % type)
 
-	def remove_model_bias(self, shapecat):
+	def remove_noise(self, silent=False, outdir="noisefree"):
+		p0 = self._fits["image_cutouts"].read()
+		real = self._fits["model_cutouts"]
+		noise = self._fits["noise_cutouts"]
+
+		if not silent:
+			print "will remove noise"
+
+		for iobj, object_id in enumerate(self._cat["id"]):
+			if not silent:
+				print iobj, object_id
+			# Find the relevant index range for this object
+			i0 = self._cat["start_row"][iobj][0]
+			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
+
+			# COSMOS profile + neighbours
+			pixels = p0[i0:i1] - noise[i0:i1]
+			pixels*=p0[i0:i1].astype(bool).astype(int)
+			p0[i0:i1] = pixels
+
+		print "Writing to MEDS file"
+		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
+
+		return 0
+
+
+	def remove_neighbours(self, silent=False, outdir="neighbourfree"):
+		p0 = self._fits["image_cutouts"].read()
+		real = self._fits["model_cutouts"]
+		noise = self._fits["noise_cutouts"]
+
+		if not silent:
+			print "will remove neighbours"
+
+		for iobj, object_id in enumerate(self._cat["id"]):
+			if not silent:
+				print iobj, object_id
+			# Find the relevant index range for this object
+			i0 = self._cat["start_row"][iobj][0]
+			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
+
+			# COSMOS profile + noise
+			neighbours = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+			pixels = p0[i0:i1] - neighbours
+			pixels *= p0[i0:i1].astype(bool).astype(int)
+			p0[i0:i1] = pixels
+
+		print "Writing to MEDS file"
+		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
+
+		return 0
+
+	def remove_model_bias(self, shapecat, silent=False, outdir="analytic"):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
 
+		if not silent:
+			print "will insert analytic profiles"
+
 		if not hasattr(shapecat, "res"):
 			setattr(shapecat, "res", shapecat.truth)
-			shapecat.res["id"] = shapecat.truth["DES_id"]
 
 		for iobj, object_id in enumerate(self._cat["id"]):
-			print iobj, object_id
+			if not silent:
+				print iobj, object_id
 			# Find the relevant index range for this object
 			i0 = self._cat["start_row"][iobj][0]
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
@@ -421,14 +649,37 @@ class meds_wrapper(i3meds.I3MEDS):
 			gal = self.construct_analytic_profile(res, shapecat.fit, truth=truth)
 			stack = self.make_stack(gal,iobj)
 
-			pixels+=stack
+			# noise + neighbours + analytic profile
+			try:
+				pixels+=stack
+			except:
+				import pdb ; pdb.set_trace()
 
 			p0[i0:i1] = stack
 
-		self._fits["image_cutouts"].write(p0)
-		self._fits.close()
+		print "Writing to MEDS file"
+		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
 
 		return 0
+
+	def clone(self, data=None, colname="image_cutouts", newdir=None):
+		out=fitsio.FITS("%s/%s"%(newdir,self._filename.replace(".fz","")), "rw")
+
+		for j, h in enumerate(self._fits[1:]):
+			hdr=h.read_header()
+			extname=hdr["extname"]
+			if extname in ["model_cutouts", "noise_cutouts"]:
+				extname
+			print extname
+			if (data is not None) and extname==colname:
+				print "new data in HDU %s"%colname
+				dat = data
+			else:
+				dat=h.read()
+			out.write(dat, header=hdr)
+			out[-1].write_key('EXTNAME', extname)
+
+		out.close()
 
 	def make_stack(self,profile,iobj):
 		boxsize = self._cat["box_size"][iobj]
@@ -446,12 +697,17 @@ class meds_wrapper(i3meds.I3MEDS):
 
 			psf = self.get_bundled_psfex_psf(iobj, iexp, self.options, return_profile=True)
 
-			if profile is not None:
+			if (profile is not None) and (psf is not None):
 				final = galsim.Convolve([profile,psf]) * rf
-			else:
+			elif profile is None:
 				final = psf
-			stamp = final.drawImage(wcs=wcs, nx=boxsize, ny=boxsize, method='no_pixel',offset=offset)
-
+			elif psf is None:
+				final = profile
+			
+			if final is not None:	
+				stamp = final.drawImage(wcs=wcs, nx=boxsize, ny=boxsize, method='no_pixel',offset=offset)
+			else:
+				stamp=blank_stamp(boxsize)
 
 			stack.append(stamp.array.flatten())
 
@@ -569,7 +825,8 @@ class meds_wrapper(i3meds.I3MEDS):
 			g1 = truth["true_g1"]
 			g2 = truth["true_g2"]
 			hlr = truth["hlr"]
-			flux = truth["flux"]
+			mag = truth["mag"]
+			flux = 10 **(-1.0 * (mag - 30) / 2.5)
 
 			if (g1==-9999.) or (g2==-9999.):
 				return None
@@ -593,6 +850,7 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		try:
 			shear = galsim.Shear(g1=e1, g2=e2)
+			print "applying shear g1=%1.3f,g2=%1.3f"%(e1,e2)
 		except:
 			print "ERROR: unphysical shear"
 			shear= galsim.Shear(g1=0, g2=0)
@@ -601,10 +859,42 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return gal
 
+	def download_source_data(self):
 
-def check_wcs(wcs_path):
+		import pdb ; pdb.set_trace()
+		
+		for iobj, object_id in enumerate(self._cat["id"]):
+			nexp = self._cat["ncutout"][iobj]
+			i0 = 0
+			i1 = nexp
+			if not coadd:
+				i0+=1
+			if not red:
+				i1=0
+
+	def download_source_images(self, coadd=False, red=True):
+		
+		for iobj, object_id in enumerate(self._cat["id"]):
+			nexp = self._cat["ncutout"][iobj]
+			i0 = 0
+			i1 = nexp
+			if not coadd:
+				i0+=1
+			if not red:
+				i1=0
+
+			for iexp in xrange(i0,i1):
+				file_id = self._cat["file_id"][iobj, iexp]
+				path = self._image_info["image_path"][file_id].strip()
+				path = check_wcs(path,iexp)
+
+
+
+def check_wcs(wcs_path, iexp=-9999):
 	if not os.path.exists(wcs_path):
 		wcs_path = "/share/des/disc3/samuroff/y1/data/OPS/"+wcs_path.split("OPS")[-1].strip()
+		if iexp==0:
+			wcs_path=wcs_path.replace(".fz","")
 
 	if not os.path.exists(wcs_path):
 		print "Warning. Could not find WCS, so will download it to %s."%wcs_path
@@ -614,6 +904,7 @@ def check_wcs(wcs_path):
 		os.system("scp sws@edison.nersc.gov:%s %s"%(source,os.path.dirname(wcs_path)))
 
 	return wcs_path
+
 
 
 
@@ -657,9 +948,3 @@ def split_by(array, column_name, pivot, return_mask=False, logger=None):
 
 	else:
 		return f, upper, lower
-
-
-
-
-
-		
