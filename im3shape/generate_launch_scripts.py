@@ -22,7 +22,7 @@ def main():
 
     here = os.getcwd()
 
-    filelist = glob.glob("%s/DES*-meds-*fits*"%here)
+    filelist = glob.glob("%s/DES*-meds-*fits.fz"%here)
     print "found %d tiles"%len(filelist)
 
     for i, f in enumerate(filelist):

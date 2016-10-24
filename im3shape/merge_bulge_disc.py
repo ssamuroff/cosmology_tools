@@ -1,7 +1,7 @@
 from astropy.table import Table, vstack, Column
 # astropy FTW
 import numpy as np
-import glob, os
+import glob, os, copy
 from astropy.io import fits as pyfits
 
 
@@ -35,16 +35,30 @@ def merge_main(bulge_filename, disc_filename, bord_filename):
     cat_d = Table.read(disc_filename)
     print bulge_filename,len(cat_b)
     print disc_filename,len(cat_d)
-    import pdb ; pdb.set_trace()
 
-    if cat_b["covmat_0_1"][0].dtype is not float:
-        nparam = cat_b["nparam_varied"]
-        for i in xrange(nparam):
-            for j in xrange(nparam):
-                cat_b["covmat_%d_%d"%(i,j)]=cat_b["covmat_%d_%d"%(i,j)].astype(float)
+    nparam = cat_b["nparam_varied"][0]
+    dt = cat_b.dtype
+    new_dt = []
+    for i, col in enumerate(dt.names):
+        if ("covmat" in col) or ("model_min" in col):
+            new_dt.append((col, ">f8"))
+        elif "string" in dt[col].name:
+            new_dt.append((col, "str"))
+        else:
+            new_dt.append((col, dt[col].name))
 
-    import pdb ; pdb.set_trace()
-    
+    cat_b0 = copy.deepcopy(cat_b)
+    cat_d0 = copy.deepcopy(cat_d)
+
+    cat_b = np.zeros(np.array(cat_b0).size,dtype=np.dtype(new_dt))
+    cat_d = np.zeros(np.array(cat_d0).size,dtype=np.dtype(new_dt))
+
+    for n in cat_b.dtype.names:
+        cat_b[n] = cat_b0[n]
+        cat_d[n] = cat_d0[n]
+
+    cat_b = Table(cat_b)
+    cat_d = Table(cat_d)
     
     # need to match coadd_object_ids here
     intersect = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])

@@ -752,6 +752,75 @@ def generate_fig4_samples(c,number=10,xmin=0.02, xmax=0.1, write_script=True, ol
 
 
 
+class xi:
+	def __init__(self, filename="/home/samuroff/cosmosis/mpp/wl_requirements/covariance/ee_y1_joachimicov.fits"):
+		import fitsio as fi
+		print "Getting data from :%s"%filename
+		self.data={}
+		infile = fi.FITS(filename)
+		bins = np.unique(infile["xip"].read()["BIN1"])
+		data = infile["xip"].read()
+
+		self.theta = data[ (data["BIN1"]==1) & (data["BIN2"]==1) ]["ANG"]
+
+		self.nbins = bins.max()
+
+		for i in bins:
+			for j in xrange(i, bins.max()+1):
+				print "reading bin combination: %d %d"%(i,j)
+				sel = (data["BIN2"]==i) & (data["BIN1"]==j)
+				self.data["bin_%d_%d"%(j,i)] = data["VALUE"][sel]
+
+		
+	def make(self):
+		import matplotlib.colors
+		import matplotlib
+		matplotlib.rcParams['font.family']='serif'
+		matplotlib.rcParams['font.size']=16
+		matplotlib.rcParams['legend.fontsize']=15
+		matplotlib.rcParams['xtick.major.size'] = 10.0
+		matplotlib.rcParams['ytick.major.size'] = 10.0
+
+		plt.subplots_adjust(wspace=0, hspace=0)
+		xs = self.theta
+		for j in xrange(1,self.nbins+1):
+			for i in xrange(j,self.nbins+1):
+				plot_index = i + (j-1)*3
+				print i, j, plot_index
+				ax=plt.subplot(self.nbins, self.nbins, plot_index )
+				plt.plot(xs, xs*self.data["bin_%d_%d"%(i,j)], "darkviolet", linestyle="-", lw=2.0)
+				
+				plt.xscale("log")
+				plt.yscale("log")
+				plt.xlim(0.5, 100)
+				plt.ylim(1e-5,6e-4)
+				plt.annotate("(%d,%d)"%(i,j), xy=(0.6, 1.8e-5), fontsize=18)
+				if i!=j:
+					plt.setp(ax.get_yticklabels(), visible=False)
+
+				ax.set_yticks([1.0e-5, 1.0e-4])
+				ax.set_yticklabels(["$10^{-5}$", "$10^{-4}$"], fontsize=13)
+				ax.set_xticks([0.5,2,8,25,100])
+				#elif plot_index==1:
+					#ax.set_yticks([1.0e-6, 1.0e-4, 1.0e-2, 1.0])
+					#ax.set_yticklabels(["$10^{-6}$", "$10^{-4}$", "$10^{-2}$", "$10^{0}$"], fontsize=18)
+				#else:
+					#ax.set_yticks([2.0e-6, 1.0e-4, 1.0e-2, 1.0])
+					#ax.set_yticklabels(["$10^{-6}$", "$10^{-4}$", "$10^{-2}$", "$10^{0}$"], fontsize=18)
+				if j!=i:
+					plt.setp(ax.get_xticklabels(), visible=False)
+				else:
+					if i==j==self.nbins:
+						ax.set_xticklabels(["$0.5$", "$2.0$", "$8.0$","$25.0$", "$100.0$"], fontsize=13)
+						plt.xlabel(r"angular scale $\theta$ / arcmin", fontsize=14)
+					else:
+						ax.set_xticklabels(["$0.5$", "$2.0$", "$8.0$","$25.0$"], fontsize=13)
+					
+				if i==j:
+					plt.ylabel(r"$\theta \xi_+ ^{i,j} (\theta)$", fontsize=14)
+
+		#plt.tight_layout()
+		plt.subplots_adjust(wspace=0, hspace=0)
 
 
 
@@ -763,10 +832,10 @@ def generate_fig4_samples(c,number=10,xmin=0.02, xmax=0.1, write_script=True, ol
 
 
 
-labels={'snr' : ("$SNR$", "snr"), "rgpp":("$R_{gpp}/R_{p}$", "mean_rgpp_rp"), "e1": ("$e_1$", "e1"), "e2": ("$e_2$", "e2"), "dphi": (r"misalignment angle $\Delta \phi$ / $\pi$ rad", "dphi"), "m":("$m \equiv (m_1+m_2)/2$", "m"), "c":("$c \equiv (c_1+c_2)/2$", "c")  }
+labels={'snr' : ("$SNR$", "snr"), "rgpp":("$R_{gpp}/R_{p}$", "mean_rgpp_rp"), "e1": ("$e_1$", "e1"), "e2": ("$e_2$", "e2"), "dphi": (r"shape-shape misalignment $\Delta \phi$ / $\pi$ rad", "dphi"), "dbeta": (r"shape-direction misalignment $\Delta \beta$ / $\pi$ rad", "dbeta"), "m":("$m \equiv (m_1+m_2)/2$", "m"), "m11":("$m_{1}$", "m11"), "m22":("$m_{2}$", "m22"), "c":("$c \equiv (c_1+c_2)/2$", "c"), "c11":("$c_{1}$", "c11"), "c22":("$c_{2}$", "c22"), "alpha":(r"$\alpha$", "alpha")  }
 
 class im3shape_results_plots:
-	def obs_vs_obs(self, name1, name2, nbins, binning="equal_number", xlabel=None, ylabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", scatter=False, mean=True, return_vals=False,logscale=False,refline=None):
+	def obs_vs_obs(self, name1, name2, nbins, binning="equal_number", xlabel=None, ylabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", scatter=False, mean=True, return_vals=False,logscale=False,refline=None, ydata=None, xdata=None, plot=True):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -792,18 +861,31 @@ class im3shape_results_plots:
 		if xlabel is not None: lab1 = xlabel
 		if ylabel is not None: lab2 = ylabel
 
-		plt.xlabel(lab1)
-		plt.ylabel(lab2)
+		if plot:
+			plt.xlabel(lab1)
+			plt.ylabel(lab2)
 
 		# Deal with the axis bounds
 		if xlim is not None:
 			xmin=xlim[0]
 			xmax=xlim[1]
-			plt.xlim(xmin=xmin,xmax=xmax)
+			if plot:
+				plt.xlim(xmin=xmin,xmax=xmax)
 		if ylim is not None:
 			ymin=ylim[0]
 			ymax=ylim[1]
-			plt.ylim(ymin=ymin,ymax=ymax)
+			if plot:
+				plt.ylim(ymin=ymin,ymax=ymax)
+
+		
+		data=self.res
+		if col1 not in data.dtype.names:
+			data = arr.add_col(data, col1, self.truth[col1])
+		if ydata is None:
+			if col2 not in data.dtype.names:
+				data = arr.add_col(data, col2, self.truth[col2])
+		else:
+			data= arr.add_col(data, col2, ydata)
 
 		if xmin is not None:
 			sel1 = (self.res[col1]>xmin)
@@ -827,7 +909,7 @@ class im3shape_results_plots:
 		except:
 			sel5 = np.isfinite(self.res["e1"])
 
-		data = self.res[sel1 & sel2 & sel3 & sel4 & sel5]
+		data = data[sel1 & sel2 & sel3 & sel4 & sel5]
 		print "Total galaxies:%d"%data.size
 
 		if scatter:
@@ -864,12 +946,13 @@ class im3shape_results_plots:
 				y.append(np.mean(q))
 				err.append(e)
 
-			plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
-			plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
-			if logscale:
-				plt.xscale("log")
-			if refline is not None:
-				plt.axhline(refline,color="k")
+			if plot:
+				plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
+				plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
+				if logscale:
+					plt.xscale("log")
+				if refline is not None:
+					plt.axhline(refline,color="k")
 
 		if return_vals:
 			return np.array(x),np.array(y),np.array(err),np.array(n)
@@ -993,7 +1076,7 @@ class im3shape_results_plots:
 		else:
 			return 0
 
-	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0):
+	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, extra_selection=[]):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1003,12 +1086,12 @@ class im3shape_results_plots:
 		ymax=None
 
 		# Do the labelling
+		lab2,col2 = labels[bias]
 		try:
 			lab1,col1=labels[name]
 		except:
 			print "No label for %s found"%name
 			lab1,col1=name,name
-		lab2,col2=labels["m"]
 
 		if xlabel is not None:
 			lab1 = xlabel
@@ -1019,9 +1102,14 @@ class im3shape_results_plots:
 		# Deal with the axis bounds
 		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
 
-		data = self.res[axis_lower & axis_upper]
+		if len(extra_selection)>0:
+			sel = extra_selection
+		else:
+			sel = np.ones_like(self.res["e1"]).astype(bool)
+
+		data = self.res[axis_lower & axis_upper & sel]
 		if hasattr(self, "truth"):
-			tr = self.truth[axis_lower & axis_upper]
+			tr = self.truth[axis_lower & axis_upper & sel]
 			data = arr.add_col(data,"true_g1",tr["true_g1"])
 			data = arr.add_col(data,"true_g2",tr["true_g2"])
 			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
@@ -1052,9 +1140,12 @@ class im3shape_results_plots:
 				b = di.get_bias(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
-					error = di.bootstrap_error(6, data[bin], di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+					try:
+						error = di.bootstrap_error(6, data[bin], di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+					except:
+						error = -1
 				else:
-					error = b[name][1]
+					error = b[bias][1]
 
 			# Case where we have precomputed biases
 			else:
@@ -1165,6 +1256,133 @@ class im3shape_results_plots:
 		else:
 			return 0
 
+	def errorbar_vs_ngal(self, bias, nbins, ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", colour="purple", return_vals=False, logscale=False, refline=0, show=True):
+		import pylab as plt
+		col1=None
+		lab1=None
+		xmin=None
+		xmax=None
+		ymin=None
+		ymax=None
+
+		bias_base=bias[0]
+		bias_function_lookup={"a": di.get_alpha, "m": di.get_bias, "c": di.get_bias}
+		bias_function = bias_function_lookup[bias_base]
+
+		# Do the labelling
+		lab2,col2=labels[bias]
+
+		data = self.res
+		if hasattr(self, "truth"):
+			tr = self.truth
+			data = arr.add_col(data,"true_g1",tr["true_g1"])
+			data = arr.add_col(data,"true_g2",tr["true_g2"])
+			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
+			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
+
+
+		print "Total galaxies:%d"%data.size
+
+		#Now the binning
+		x = np.linspace(0,1,nbins+1)[1:]
+		y=[]
+		err=[]
+
+		for i, frac in enumerate(x):
+
+			ngal = frac*data.size
+			subset = np.random.choice(data,ngal.astype(int))
+			# Case where we are calculating biases
+			if bias not in data.dtype.names:
+				# Do the linear fits
+				# Should return a dictionary, each element of which is a value then an uncertainty
+				b = bias_function(subset, nbins=5, ellipticity_name=ellipticity_name, silent=np.invert(show), binning="equal_number", names=[bias])
+				# Repeat them if the errorbars need to come from bootstrapping
+				if error_type=="bootstrap":
+					error = di.bootstrap_error(6, subset, bias_function, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+				else:
+					error = b[bias][1]
+
+			# Case where we have precomputed biases
+			else:
+				b = {bias:( np.mean(data[bias]), np.std(data[bias])/ (data[bias].size**0.5) ) }
+					
+			y.append(error)
+			#err.append(error)
+
+		x = (np.array(x).astype(float) * data.size)/1e6
+		y = np.array(y)
+
+		if show:
+			plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
+			plt.xlim(0,x.max())
+			plt.ylim(0,y.max())
+			if logscale:
+				plt.xscale("log")
+			if refline is not None:
+				plt.axhline(refline,color="k")
+
+			plt.ylabel(r"statistical error $\sigma \lbrack %s \rbrack$"%lab2.replace("$",""))
+			plt.xlabel("number of objects $N_{gal}$ (M galaxies)")
+
+		if return_vals:
+			return np.array(x),np.array(y)
+		else:
+			return 0
+
+	def dot_plot(self, nbins, data=None, weights=True):
+		if data is None:
+			data = shapecat(res="/share/des/disc2/y1/y1a1-im3shape-r-1-1-1.fits")
+			data.load(truth=False)
+			data.apply_infocuts()
+
+		sbins=np.logspace(data.res["snr"].min(),data.res["snr"].max() , nbins+1)
+		rbins=np.linspace(data.res["mean_rgpp_rp"].min(),data.res["mean_rgpp_rp"].max(), nbins+1)
+
+		# Grid the weights
+		# This is potentially slow- use weights=False to skip this
+		if weights:
+			wts=np.zeros((nbins,nbins))
+			for i in xrange(nbins):
+				for j in xrange(nbins):
+					print i,j
+					slower=sbins[i] ; supper=sbins[i+1]
+					rlower=rbins[j] ; rupper=rbins[j+1]
+					sel1 = (data.res["snr"]>slower) & (data.res["snr"]<supper)
+					sel2 = (data.res["mean_rgpp_rp"]>rlower) & (data.res["mean_rgpp_rp"]<rupper)
+
+					w = dat.res["weight"][sel1 & sel2]
+
+					if w.size==0:
+						wts[i,j]=0
+					else:
+						wts[i,j] = np.mean()
+
+		else:
+			wts = np.ones((nbins,nbins))
+
+		x = np.sqrt(sbins[1:]*sbins[:-1])
+		y = (rbins[1:]+rbins[:-1])/2.0
+
+		simgrid = np.histogram2d(sim.res["snr"], sim.res["mean_rgpp_rp"], bins=[sbins,rbins])
+		datgrid = np.histogram2d(dat.res["snr"], dat.res["mean_rgpp_rp"], bins=[sbins,rbins])
+		k = (1.0*data.res.size)/self.res.size
+
+		xy = np.meshgrid(x,y)
+
+		snr = xy[0].flatten()
+		rgpp = xy[1].flatten()
+
+		plt.scatter(np.log10(snr),rgpp, c=k*simgrid[0].flatten()/datgrid[0].flatten(), s=(20*wts.flatten()))
+
+	
+
+
+
+
+
+
+
 
 	def whisker_plot(self, nobj=None, thin=None, etype="galaxies", positions="world", colour="purple", lw=0.5, label=None, newplot=1, zoom=None, unit_length=None):
 
@@ -1241,6 +1459,64 @@ class im3shape_results_plots:
 
 		return 0
 
+	def neighbour_cartoon(self, ncat, iobj, angles=True):
+
+		fig = plt.figure()
+		ax = fig.add_subplot(111, aspect='equal')
+
+		cent = self.res[iobj]
+		ul=18
+		f= 60*60/0.27
+		boxsize = self.res[iobj]["stamp_size"]
+
+		x_c = self.truth["ra"][iobj]*f
+		y_c = self.truth["dec"][iobj]*f
+		e1_c = self.res["e1"][iobj]
+		e2_c = self.res["e2"][iobj]
+		phi_c = np.angle(e1_c+1j*e2_c)/2
+		x_n = ncat.truth["ra"][iobj]*f
+		y_n = ncat.truth["dec"][iobj]*f
+		e1_n = ncat.res["e1"][iobj]
+		e2_n = ncat.res["e2"][iobj]
+		phi_n = np.angle(e1_n+1j*e2_n)/2
+
+		e_c = di.quad(e1_c, e2_c)
+		e_n = di.quad(e1_n, e2_n)
+
+		ex_c= e_c*np.cos(phi_c) * ul
+		ey_c= e_c*np.sin(phi_c) * ul
+		ex_n= e_n*np.cos(phi_n) * ul
+		ey_n= e_n*np.sin(phi_n) * ul
+
+		plt.plot([x_c - ex_c, x_c + ex_c ], [y_c-ey_c, y_c+ey_c ], "-", color="steelblue", lw=2.0)
+		plt.plot([x_n - ex_n, x_n + ex_n ], [y_n-ey_n, y_n+ey_n ], "-", color="forestgreen", lw=2.0)
+		plt.plot([x_c - ex_n, x_c + ex_n ], [y_c-ey_n, y_c+ey_n ], ":", color="forestgreen", lw=2.0)
+		plt.plot([x_c, x_n], [y_c, y_n], "-", color="purple", lw=2.5)
+		from matplotlib.patches import Ellipse
+
+		gal=Ellipse(xy=[x_c,y_c], width=2*ex_c, height=2*ey_c, angle=0)
+		plt.rtist(gal)
+		gal.set_facecolor("none")
+
+
+		#Mark on the stamp edges
+		ax.plot([x_c-boxsize/2, x_c+boxsize/2], [y_c+boxsize/2, y_c+boxsize/2], "k--") # Upper
+		ax.plot([x_c-boxsize/2, x_c+boxsize/2], [y_c-boxsize/2, y_c-boxsize/2], "k--") # Lower
+		ax.plot([x_c-boxsize/2, x_c-boxsize/2], [y_c-boxsize/2, y_c+boxsize/2], "k--") # Left
+		plt.plot([x_c+boxsize/2, x_c+boxsize/2], [y_c-boxsize/2, y_c+boxsize/2], "k--") # Right
+
+		neigh=Ellipse(xy=[x_n,y_n], width=2*ex_n, height=2*ey_n, angle=0)
+		plt.add_artist(neigh)
+		neigh.set_facecolor("none")
+
+		if angles:
+			beta=self.res["dbeta"][iobj]
+			phi=self.res["dphi"][iobj]
+			plt.title(r"$\Delta \phi = %1.3f \pi$ rad, $\Delta \beta = %1.3f \pi$ rad"%(phi,beta))
+
+		plt.gca().set_aspect('equal', adjustable='box')
+		plt.draw()
+
 
 def axis_bounds(xlim,ylim,xdata):
 	if xlim is not None:
@@ -1272,7 +1548,24 @@ def axis_bounds(xlim,ylim,xdata):
 
 
 
+import matplotlib as mpl
+def reverse_colourmap(cmap, name = 'my_cmap_r'):
 
+    reverse = []
+    k = []   
+
+    for key in cmap._segmentdata:    
+        k.append(key)
+        channel = cmap._segmentdata[key]
+        data = []
+
+        for t in channel:                    
+            data.append((1-t[0],t[2],t[1]))            
+        reverse.append(sorted(data))    
+
+    LinearL = dict(zip(k,reverse))
+    my_cmap_r = mpl.colors.LinearSegmentedColormap(name, LinearL) 
+    return my_cmap_r
 
 
 

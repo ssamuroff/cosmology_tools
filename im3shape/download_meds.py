@@ -36,8 +36,9 @@ def main():
             print i, filename
 
             if args.meds:
-                command = "rsync -urv sws@edison.nersc.gov:%s/%s %s/"%(nersc_path,filename,local_path)
-                os.system(command)
+                if not os.path.exists("%s/%s"%(local_path,filename)):
+                    command = "rsync -urv sws@edison.nersc.gov:%s/%s %s/"%(nersc_path,filename,local_path)
+                    os.system(command)
 
             if args.images:
     
@@ -45,18 +46,30 @@ def main():
                 meds = fitsio.FITS(meds_path)
                 image_table = meds["image_info"].read()
 
-                for im in image_table["image_path"]:
-                    path = os.path.dirname(im.strip().replace("/astro/u/astrodat/data/DES/", config["desdata"]))
+                for im, segim in zip(image_table["image_path"], image_table["seg_path"]):
+                    fil = im.strip().replace("/astro/u/astrodat/data/DES/", config["desdata"])
+                    path = os.path.dirname(fil)
                     remote_path = im.strip().replace("/astro/u/astrodat/data/DES/","/global/cscratch1/sd/sws/data/")
+
+                    sfil = segim.strip().replace("/astro/u/astrodat/data/DES/", config["desdata"])
+                    spath = os.path.dirname(sfil)
+                    sremote_path = segim.strip().replace("/astro/u/astrodat/data/DES/","/global/cscratch1/sd/sws/data/")
 
 
                     os.system("mkdir -p %s"%path)
+                    os.system("mkdir -p %s"%spath)
                     if "coadd" in remote_path:
-                        command = "scp -r sws@edison.nersc.gov:%s/%s*_%s* %s/"%(os.path.dirname(remote_path),tile,band,path)
+                        command = "rsync -uvh sws@edison.nersc.gov:%s/%s*_%s* %s/"%(os.path.dirname(remote_path),tile,band,path)
+                        scommand = "rsync -uvh sws@edison.nersc.gov:%s/%s*_%s* %s/"%(os.path.dirname(sremote_path),tile,band,spath)
                     else:
-                        command = "scp -r sws@edison.nersc.gov:%s %s/"%(remote_path,path)
+                        command = "rsync -uvh sws@edison.nersc.gov:%s %s/"%(remote_path,path)
+                        scommand = "rsync -uvh sws@edison.nersc.gov:%s %s/"%(sremote_path,spath)
+                        print scommand
                     
                     os.system(command)
+                    os.system(scommand)
+
+                meds.close()
 
 
 print "Done"

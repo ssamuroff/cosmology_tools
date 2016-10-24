@@ -11,6 +11,8 @@ from py3shape import utils
 
 sersic_indices={"disc":1, "bulge":4}
 
+labels={"psf_size":("mean_psf_fwhm", r"PSF FWHM / pixels"), "neighbour_flux":("mean_flux",r"Neighbour Flux $f_{neigh}$"), "central_flux":("mean_flux",r"Central Flux $f_{cent}$"), "neighbour_size":("radius",r"Neighbour Size $R_{neigh}$/ pixels")}
+
 def get_model(type="disc", size=1.0, g1=0, g2=0, flux=None):
     if type is "disc":
         gal = galsim.Sersic(n=1, half_light_radius=size)
@@ -123,7 +125,7 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
 
     return im3[lim], psf_image
 
-def run(galaxy_image, psf_image, show=False, opt=None):
+def run(galaxy_image, psf_image, show=False, opt=None, ncols=1, col=1):
     if opt is None:
         opt = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
     boxsize = galaxy_image.array.shape[0]
@@ -132,12 +134,14 @@ def run(galaxy_image, psf_image, show=False, opt=None):
     result, best_img, images, weights = p3s.analyze_multiexposure([galaxy_image.array], [psf_image], [wt],trans, opt, ID=3000000, bands="?")
 
     if show:
+        cmap = plt.get_cmap("jet")
         mosaic = np.vstack((galaxy_image.array,best_img))
-        plt.imshow(mosaic,interpolation="none")
-        plt.matshow(best_img)
-        plt.colorbar()
-        plt.matshow(galaxy_image.array)
-        plt.colorbar()
+
+        plt.subplot(2,ncols, col)
+        plt.imshow(galaxy_image.array, interpolation="none", cmap=cmap)
+        plt.subplot(2,ncols,ncols+col)
+        plt.imshow(best_img, interpolation="none", cmap=cmap)
+        plt.subplots_adjust(hspace=0)
 
     return result.get_params()
 
@@ -169,7 +173,7 @@ def transform(boxsize, opt=None):
     return transform
 
 class toy_model:
-    def generate(self, dneigh=20, central_flux=1939.0, psf_size=3.6, neighbour_flux=2379.0, neighbour_size=3.0):
+    def generate(self, dneigh=20, central_flux=1912.0, psf_size=3.7, neighbour_flux=1912.0, neighbour_size=3.2, vary="psf_e"):
         # PSF leakage toy model
         #-----------------------------------------------------------------------
         g_theta={}
@@ -189,10 +193,17 @@ class toy_model:
         wcs = galsim.FitsWCS(wcs_path)
         opt = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
         
-        self.psfe=np.linspace(-0.2,0.2,12)
+        binning = {"psf_e1": np.linspace(-0.2,0.2,12), "cent_e1": [-0.65,0.65]}
+        self.binning = binning[vary]
         
         # Cycle over psf ellipticities
-        for pe in self.psfe:
+        for e in self.binning:
+            if vary=="psf_e1":
+                pe = e
+                ce = 0
+            elif vary=="cent_e1":
+                pe = 0
+                ce = e
             g_theta["e1"]=[]
             g_theta["e2"]=[]
             ang=[]
@@ -201,10 +212,10 @@ class toy_model:
             for i,t in enumerate(theta):
                 x=dneigh*np.cos(t)
                 y=dneigh*np.sin(t)
-                gal,psf = setup_simple(boxsize=48,shear=(0,0.0), flux=central_flux, psf_ellipticity=(pe,0.0), psf_size=psf_size, neighbour_ellipticity=(0.0,0.0),neighbour=[x,y], neighbour_flux=neighbour_flux, neighbour_size=neighbour_size, wcs=wcs, opt=opt)
+                gal,psf = setup_simple(boxsize=48,shear=(ce,0.0), flux=central_flux, psf_ellipticity=(pe,0.0), psf_size=psf_size, neighbour_ellipticity=(0.0,0.0),neighbour=[x,y], neighbour_flux=neighbour_flux, neighbour_size=neighbour_size, wcs=wcs, opt=opt)
                 res = run(gal,psf, opt=opt)
                 g_theta["e1"].append(res.e1)
-                gal,psf = setup_simple(boxsize=48,shear=(0,0.0), flux=central_flux, psf_ellipticity=(pe,0.0), psf_size=psf_size, neighbour_ellipticity=(0.0,0.0),neighbour=[np.inf,np.inf], neighbour_flux=neighbour_flux, neighbour_size=neighbour_size, wcs=wcs, opt=opt)
+                gal,psf = setup_simple(boxsize=48,shear=(ce,0.0), flux=central_flux, psf_ellipticity=(pe,0.0), psf_size=psf_size, neighbour_ellipticity=(0.0,0.0),neighbour=[np.inf,np.inf], neighbour_flux=neighbour_flux, neighbour_size=neighbour_size, wcs=wcs, opt=opt)
                 res = run(gal,psf, opt=opt)
                 g_theta["e2"].append(res.e1)
                 ang.append(t)
@@ -216,9 +227,9 @@ class toy_model:
     def show(self, xmin=-0.2,xmax=0.2,noneigh=True):
 
         fig = plt.figure()
-        plt.plot(self.psfe,self.g["e1"]*1e4,color="purple",lw=2.5, ls="-",label="with neighbour")
+        plt.plot(self.binning,self.g["e1"]*1e4,color="purple",lw=2.5, ls="-",label="with neighbour")
         if noneigh:
-            plt.plot(self.psfe,self.g["e2"]*1e4,color="steelblue",lw=2.5, ls=":",label="without neighbour")
+            plt.plot(self.binning,self.g["e2"]*1e4,color="steelblue",lw=2.5, ls=":",label="without neighbour")
         plt.axhline(0.0, color="k", linestyle="--", lw=2.5)
         plt.axvline(0.0, color="k", linestyle="--", lw=2.5)
         plt.xlim(xmin,xmax)
@@ -230,9 +241,9 @@ class toy_model:
         plt.show()
 
     def alpha(self, component=1):
-        sel = abs(self.psfe)<0.1
+        sel = abs(self.binning)<0.1
         linear_e = self.g["e%d"%component][sel]
-        linear_epsf = self.psfe[sel]
+        linear_epsf = self.binning[sel]
         return (linear_e[-1]-linear_e[0])/(linear_epsf[-1]-linear_epsf[0])
 
     def sample_alpha(self, param_name, samples):
@@ -246,24 +257,51 @@ class toy_model:
 
         return samples, alpha
 
-def plot_alpha(filename, sim):
+def plot_alpha(filename, sim, show_mean=True, points=False, ncat=None):
+
+    from matplotlib import gridspec
+
+    param_name = os.path.basename(filename).replace("_toymodel_data2.txt","")
 
     x,alpha=np.loadtxt(filename).T
+    dx=(x[1]-x[0])
+
+    if param_name!="dneigh":
+        label = labels[param_name][1]
+        sim_distn = sim.res[ labels[param_name][0] ]
+    else:
+        label = r"Neighbour distance $d_{neigh} / R_{stamp}$"
+        dr = (sim.truth["ra"]-ncat.truth["ra"])**2
+        dr+= (sim.truth["dec"]-ncat.truth["dec"])**2
+        dr = np.sqrt(dr)
+        sim_distn = dr*60*60/0.27 / sim.res["stamp_size"]
+        x/=48.0
+
     gs = gridspec.GridSpec(3,1)
 
     ax1 = plt.subplot(gs[:2,:])
     ax2 = plt.subplot(gs[2:,:])
     ax1.plot(x,alpha, "-",lw=2.5,color="purple")
-    ax2.hist(sim.res["mean_psf_fwhm"], bins=np.linspace(x[0],x[-1],45), histtype="step", color="steelblue", lw=2.5, normed=1)
+    if points:
+        ax1.plot(x,alpha, "o",lw=2.5,color="purple")
+    ax2.hist( sim_distn, bins=np.linspace(x[0],x[-1],45), histtype="step", color="steelblue", lw=2.5, normed=1)
 
     plt.subplots_adjust(wspace=0, hspace=0)
+ 
 
-    t=[1,2,3,4,5]
+    t=np.linspace(x[0],x[-1],6)
     ax1.set_xticks([],[])
     ax2.set_xticks(t,["%1.1f"%i for i in t])
     ax2.set_yticks([],[])
     ax1.set_ylabel(r"PSF leakage $\alpha _1$")
-    ax2.set_xlabel(r"PSF FWHM / pixels")
+    ax2.set_xlabel(label)
+
+    ax1.set_xlim(x[0],x[-1])
+    ax2.set_xlim(x[0],x[-1])
+
+    if show_mean:
+        ax1.axvline(sim_distn.mean(), color="k", ls="--")
+        ax2.axvline(sim_distn.mean(), color="k", ls="--")
 
     plt.show()
 

@@ -7,11 +7,14 @@ import meds, fitsio
 import galsim
 import os, math
 import py3shape.i3meds as i3meds
+import py3shape.utils as utils
 import py3shape.options as i3opt
 import tools.diagnostics as di
 import pylab as plt
 import tools.arrays as arr
+import tools.nbc as bias_functions
 from plots import im3shape_results_plots as i3s_plots
+import py3shape as p3s
 
 
 BLACKLIST_CACHE = {}
@@ -22,7 +25,7 @@ names = {"snr": "snr", "rgp" : "mean_rgpp_rp", "e1": "e1", "e2" : "e2", "iterati
 
 sersic_indices={"disc": 1, "bulge": 4}
 
-class shapecat(i3s_plots):
+class shapecat(i3s_plots, bias_functions.nbc):
 	"""Class for handling im3shape results and,
 	   if relevant, truth catalogues.
 	"""
@@ -524,6 +527,7 @@ class dummy_im3shape_options():
 		self.padding = 4
 		self.stamp_size = 48
 		self.psf_input = "bundled-psfex"
+		self.use_image_flags="Y"
 
 class meds_wrapper(i3meds.I3MEDS):
 	def __init__(self, filename, update=False):
@@ -535,7 +539,10 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "Beware: FITS file can be overwritten in update mode."
 			self._fits = fitsio.FITS(filename, "rw")
 
-		self.setup_dummy_im3shape_options()
+		try:
+			self.options=p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
+		except:
+			self.setup_dummy_im3shape_options()
 
 	def setup_dummy_im3shape_options(self):
 		self.options = dummy_im3shape_options()
@@ -585,10 +592,11 @@ class meds_wrapper(i3meds.I3MEDS):
 		return 0
 
 
-	def remove_neighbours(self, silent=False, outdir="neighbourfree"):
+	def remove_neighbours(self, silent=False, outdir="neighbourfree", noise=True, remove_masks=True):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
 		noise = self._fits["noise_cutouts"]
+		seg = self._fits["seg_cutouts"].read()
 
 		if not silent:
 			print "will remove neighbours"
@@ -600,14 +608,26 @@ class meds_wrapper(i3meds.I3MEDS):
 			i0 = self._cat["start_row"][iobj][0]
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
 
+			mask = seg[i0:i1]
+			if remove_masks and (np.unique(mask).size>2):
+				# Get the central pixel in the coadd seg map
+				nx = self._cat["box_size"][iobj]
+				seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
+				# Remove any masks other than the one around the central object
+				np.putmask(mask, mask!=seg_id, 0)
+
 			# COSMOS profile + noise
-			neighbours = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+			if noise:
+				neighbours = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+			else:
+				neighbours = p0[i0:i1]- real[i0:i1]
 			pixels = p0[i0:i1] - neighbours
 			pixels *= p0[i0:i1].astype(bool).astype(int)
 			p0[i0:i1] = pixels
+			seg[i0:i1] = mask
 
 		print "Writing to MEDS file"
-		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
+		self.clone(data=p0, colname="image_cutouts", data2=seg, colname2="seg_cutouts", newdir=outdir)
 
 		return 0
 
@@ -662,18 +682,21 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return 0
 
-	def clone(self, data=None, colname="image_cutouts", newdir=None):
+	def clone(self, data=None, colname="image_cutouts", data2=None, colname2="image_cutouts", newdir=None):
 		out=fitsio.FITS("%s/%s"%(newdir,self._filename.replace(".fz","")), "rw")
 
 		for j, h in enumerate(self._fits[1:]):
 			hdr=h.read_header()
 			extname=hdr["extname"]
 			if extname in ["model_cutouts", "noise_cutouts"]:
-				extname
+				continue
 			print extname
 			if (data is not None) and extname==colname:
 				print "new data in HDU %s"%colname
 				dat = data
+			elif (data2 is not None) and extname==colname2:
+				print "new data in HDU %s"%colname2
+				dat = data2
 			else:
 				dat=h.read()
 			out.write(dat, header=hdr)
@@ -770,11 +793,11 @@ class meds_wrapper(i3meds.I3MEDS):
 			return None
 
 		#Get the image array
-		return self.extract_psfex_psf(psfex_i, iobj, iexp, options, return_profile=return_profile)
+		return self.extract_psfex_psf(psfex_i, iobj, iexp, options, return_profile=return_profile, orig_func=True)
 
 
 
-	def extract_psfex_psf(self, psfex_i, iobj, iexp, options, return_profile=False):
+	def extract_psfex_psf(self, psfex_i, iobj, iexp, options, return_profile=False, orig_func=False):
 		psf_size=(options.stamp_size+options.padding)*options.upsampling
 		orig_col = self['orig_col'][iobj][iexp]
 		orig_row = self['orig_row'][iobj][iexp]
@@ -782,14 +805,17 @@ class meds_wrapper(i3meds.I3MEDS):
 		x_image_galsim = orig_col+1
 		y_image_galsim = orig_row+1
 
-
-		psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
-
-		image = galsim.ImageD(psf_size, psf_size)
-		#psf.drawImage(image, scale=1.0/self.options.upsampling, offset=None, method='no_pixel')
-
-		if return_profile:
+		if orig_func:
+			psf = utils.getPSFExarray(psfex_i, orig_col, orig_row, psf_size, psf_size, options.upsampling, return_profile=return_profile)
 			return psf
+
+		else:
+			psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
+
+			image = galsim.ImageD(psf_size, psf_size)
+
+			if return_profile:
+				return psf
 
 	def get_wcs(self, iobj, iexp):
 
@@ -887,6 +913,37 @@ class meds_wrapper(i3meds.I3MEDS):
 				file_id = self._cat["file_id"][iobj, iexp]
 				path = self._image_info["image_path"][file_id].strip()
 				path = check_wcs(path,iexp)
+
+	def i3s(self, iobj, show=False, ncols=1, col=1):
+		# Setup im3shape inputs
+		opt = self.options
+		inputs = self.get_im3shape_inputs(iobj, self.options)
+		psfs = inputs.all('psf')
+		bands = self.get_band() * (len(inputs))
+
+		# Run the MCMC
+		result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
+	
+		if show:
+		    cmap = plt.get_cmap("jet")
+
+		    galaxy_stack = inputs.all('image')
+		    image = np.hstack(tuple(galaxy_stack)) 
+
+		    nrow = 2
+	
+		    plt.subplot(nrow,ncols, col)
+		    plt.title("Image")
+		    plt.imshow(image, interpolation="none", cmap=cmap)
+		    plt.colorbar()
+		    plt.subplot(nrow,ncols,ncols+col)
+		    plt.title("Best fit")
+		    plt.imshow(best_img, interpolation="none", cmap=cmap)
+		    print "Pixel max:%f"%best_img.max()
+		    plt.colorbar()
+
+	
+		return result.get_params()
 
 
 

@@ -12,11 +12,13 @@ from tools.im3shape import basic as i3s
 
 description = 'Noise free toy model'
 parser = argparse.ArgumentParser(description=description, add_help=False)
-parser.add_argument('-p', '--parameter', type=str, action='store', default="psf_size")
+parser.add_argument('--parameter', type=str, action='store')
 args = parser.parse_args()
 param_name=args.parameter
 
-bins={"neighbour_size":np.array([1,1.5,2.5,3,3.5,4,4.5,5]), "psf_size":np.array([1,1.5,2.5,3,3.5,4,4.5,5]), "psf_ellipticity":np.linspace(-1,1,9), "neighbour_flux":np.linspace(1000,3000,9), "central_flux":np.linspace(1000,3000,9), "dneigh":np.linspace(5,30,9)}
+param_name="dneigh"
+
+bins={"neighbour_size":np.array([1,1.5,2.5,3,3.5,4,4.5,5]), "psf_size":np.array([1,1.5,2.5,3,3.5,4,4.5,5]), "psf_ellipticity":np.linspace(-1,1,9), "neighbour_flux":np.linspace(100,3500,15), "central_flux":np.linspace(100,3500,15), "dneigh":np.linspace(2,130,15)}
 
 print "Will calculate alpha samples"
 print "-------------------------------------------"
@@ -30,6 +32,6 @@ model = i3s.toy_model()
 x,alpha = model.sample_alpha(param_name, q)
 
 out=np.vstack((x,alpha))
-filename="/home/samuroff/shear_pipeline/end-to-end/%s_toymodel_data.txt"%param_name
+filename="/home/samuroff/shear_pipeline/end-to-end/%s_toymodel_data2.txt"%param_name
 print "Writing to %s"%filename
 np.savetxt(filename, out.T)

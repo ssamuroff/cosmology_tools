@@ -41,7 +41,7 @@ def main():
     	if (args.mode=="model"):
             meds.remove_model_bias(cat, silent=True, outdir=args.output)
     	elif (args.mode=="neighbour"):
-    		meds.remove_neighbours(silent=True, outdir=args.output)
+    		meds.remove_neighbours(silent=False, outdir=args.output, noise=True)
     	elif (args.mode=="noise"):
             meds.remove_noise(silent=True, outdir=args.output)
 
