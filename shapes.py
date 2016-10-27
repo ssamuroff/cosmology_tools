@@ -61,7 +61,7 @@ class shapecat(i3s_plots, bias_functions.nbc):
 				self.res = pf.getdata(files[0])
 				tmp, noise_free_infocuts = self.get_infocuts(exclude=["chi"], return_string=True)
 
-				noise_free_infocuts = noise_free_infocuts.replace("cuts= ((", "cuts= ((%s['chi2_pixel']>0.004) & (%s['chi2_pixel']<0.2) & (")
+				#noise_free_infocuts = noise_free_infocuts.replace("cuts= ((", "cuts= ((%s['chi2_pixel']>0.004) & (%s['chi2_pixel']<0.2) & (")
 
 			if len(files)>1:
 				if apply_infocuts and self.noisefree:
@@ -914,15 +914,30 @@ class meds_wrapper(i3meds.I3MEDS):
 				path = self._image_info["image_path"][file_id].strip()
 				path = check_wcs(path,iexp)
 
-	def i3s(self, iobj, show=False, ncols=1, col=1):
+	def i3s(self, iobj, hack_im=[None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=None):
 		# Setup im3shape inputs
 		opt = self.options
+		if coadd_objects_id!=None:
+			iobj=np.argwhere(self._fits["object_data"].read()["id"]==coadd_objects_id)[0,0]
 		inputs = self.get_im3shape_inputs(iobj, self.options)
 		psfs = inputs.all('psf')
 		bands = self.get_band() * (len(inputs))
 
 		# Run the MCMC
-		result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
+		if hack_im[0] is not None:
+			result, best_img, images, weights = p3s.analyze_multiexposure( [hack_im[0]], [hack_im[1]], [np.ones_like(hack_im[0])], [inputs.all('transform')[0]], self.options, ID=3000000, bands=[bands[0]])
+		else:
+			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
+
+		if isinstance(save,str):
+			galaxy_stack = inputs.all('image')
+			wt = inputs.all('weight')
+			image = np.hstack(tuple(galaxy_stack))
+			np.savetxt(save+"/model.txt", best_img )
+			np.savetxt(save+"/image.txt", image )
+			np.savetxt(save+"/weights.txt", np.hstack(tuple(wt)) )
+
+		
 	
 		if show:
 		    cmap = plt.get_cmap("jet")
@@ -940,7 +955,7 @@ class meds_wrapper(i3meds.I3MEDS):
 		    plt.title("Best fit")
 		    plt.imshow(best_img, interpolation="none", cmap=cmap)
 		    print "Pixel max:%f"%best_img.max()
-		    plt.colorbar()
+		    plt.colorbar() 
 
 	
 		return result.get_params()

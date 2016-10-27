@@ -1076,7 +1076,7 @@ class im3shape_results_plots:
 		else:
 			return 0
 
-	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, extra_selection=[]):
+	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, extra_selection=[], xdata=None):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1114,6 +1114,9 @@ class im3shape_results_plots:
 			data = arr.add_col(data,"true_g2",tr["true_g2"])
 			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
 			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
+
+		if xdata is not None:
+			data[name] = xdata
 
 
 		print "Total galaxies:%d"%data.size
@@ -1153,6 +1156,7 @@ class im3shape_results_plots:
 					
 			y.append(b[bias][0])
 			err.append(error)
+			n.append(data[bin].size)
 
 		print x
 		print y

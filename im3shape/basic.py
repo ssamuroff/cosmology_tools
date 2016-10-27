@@ -125,13 +125,17 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
 
     return im3[lim], psf_image
 
-def run(galaxy_image, psf_image, show=False, opt=None, ncols=1, col=1):
+def run(galaxy_image, psf_image, save=None, show=False, opt=None, ncols=1, col=1, return_cat=False, flat_background=0, noise=0, check=False):
     if opt is None:
         opt = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
     boxsize = galaxy_image.array.shape[0]
     wt=np.ones((boxsize,boxsize))
     trans = [transform(boxsize, opt)]
-    result, best_img, images, weights = p3s.analyze_multiexposure([galaxy_image.array], [psf_image], [wt],trans, opt, ID=3000000, bands="?")
+    if noise==0:
+        noise= np.zeros_like(wt)
+    else:
+        noise=noise*(np.random.rand(wt.size).reshape(wt.shape[0],wt.shape[1])-0.5)
+    result, best_img, images, weights = p3s.analyze_multiexposure([galaxy_image.array+flat_background+noise], [psf_image], [wt],trans, opt, ID=3000000, bands="?")
 
     if show:
         cmap = plt.get_cmap("jet")
@@ -143,7 +147,49 @@ def run(galaxy_image, psf_image, show=False, opt=None, ncols=1, col=1):
         plt.imshow(best_img, interpolation="none", cmap=cmap)
         plt.subplots_adjust(hspace=0)
 
-    return result.get_params()
+    if save is not None:
+        np.savetxt(save+"/model_tm.txt", best_img)
+        np.savetxt(save+"/image_tm.txt", galaxy_image.array)
+        np.savetxt(save+"/weights_tm.txt", wt)
+
+    if check:
+        sel = check_cuts(result)
+        print "Object passes info_flag cuts:", sel
+
+
+    if return_cat:
+        return result.get_params(), result
+    else:
+        return result.get_params()
+
+def check_cuts(results):
+    param = results.get_params()
+
+    ra_as = param.ra_as
+    dec_as = param.dec_as
+    R = np.sqrt(ra_as*ra_as + dec_as*dec_as)
+    snr = results.snr
+
+    e = [param.e1, param.e2]
+    radius = param.radius
+    min_residuals = results.min_residuals
+    max_residuals = results.max_residuals
+
+    print "passes SNR = %f > 10 : "%snr, snr > 10.
+    print "passes SNR = %f < 10000 : "%snr, snr < 10000.
+    print "passes R = %f < 0.6 arcsec : "%R, R < 0.6/0.27
+    print "passes radius = %f < 5.0 : "%radius, radius < 5.0
+    print "passes radius = %f> 0.1 : "%radius, radius > 0.1
+    print "passes -1 < e1 = %f < 1 : "%e[0], -1.0 < e[0] < 1.0
+    print "passes -1 < e2 = %f < 1 : "%e[1], -1.0 < e[1] < 1.0
+    print "passes min_residuals = %f > -0.2 : "%min_residuals, min_residuals > -0.2
+    print "passes max_residuals = %f < 0.2 : "%max_residuals, max_residuals < 0.2
+
+    return (snr > 10.) & (snr < 10000.) & (R < 0.6/0.27) & (radius < 5.0) & (radius > 0.1) & (min_residuals > -0.2) & (max_residuals < 0.2) & (-1.0 < e[0] < 1.0) & (-1.0 < e[1] < 1.0)
+
+    #info_cuts =["(%s['fails_unmasked_flux_frac']==0)", "(%s['snr']>10)", "(%s['snr']<10000)", "(%s['mean_rgpp_rp']>1.1)", "(%s['mean_rgpp_rp']<3.5)", "(%s['radius']<5)", "(%s['radius']>0.1)", "((%s['ra_as']**2+%s['dec_as']**2)**0.5<1.0)", "(%s['chi2_pixel']>0.5)", "(%s['chi2_pixel']<1.5)", "(%s['min_residuals']>-0.2)", "(%s['max_residuals']<0.2)", "(%s['mean_psf_fwhm']<7.0)", "(%s['mean_psf_fwhm']>0.0)", "(%s['error_flag']==0)"]
+
+
 
 def transform(boxsize, opt=None):
     """Dummy im3shape transform, setting the MCMC chain started in the centre of the stamp."""
@@ -304,7 +350,6 @@ def plot_alpha(filename, sim, show_mean=True, points=False, ncat=None):
         ax2.axvline(sim_distn.mean(), color="k", ls="--")
 
     plt.show()
-
 
 
 
