@@ -27,13 +27,16 @@ def main():
 
     for i, f in enumerate(filelist):
     	tile = os.path.basename(f)[:12]
+        if "s82" in f:
+            continue
         run = f.split("-meds-")[-1].replace(".fz","").replace(".fits","")
+        simrun = f.split("-meds-")[0].split("-sim-")[1]
     	print i, tile
 
         base = open(args.template_file).read()
         base = Tm(base)
 
-        script = base.substitute(TILE=tile, GROUP=run, DIRNAME=here, FIT=args.fit, SHEARPIPE=args.repository, PBS_ARRAYID="$PBS_ARRAYID",PBS_JOBID="$PBS_JOBID")
+        script = base.substitute(TILE=tile, GROUP=run, SIMRUN=simrun, DIRNAME=here, FIT=args.fit, SHEARPIPE=args.repository, PBS_ARRAYID="$PBS_ARRAYID",PBS_JOBID="$PBS_JOBID")
         if ".fz" not in f:
             script = script.replace(".fz","")
 

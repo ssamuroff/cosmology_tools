@@ -23,7 +23,7 @@ def main():
     print "found %d tiles"%len(filelist)
 
     for i, f in enumerate(filelist):
-    	if os.path.exists(("%s/%s"%(args.output,f)).replace(".fz","")):
+    	if os.path.exists("%s/%s"%(args.output,f)):
             print "file exists."
             continue
     	print i, f
@@ -50,3 +50,20 @@ print "Done"
 
 
 main()
+
+
+def remove_neighbour_masks(source, target, compressed=True):
+    if compressed:
+        suffix = ".fz"
+    else:
+        suffix = ""
+
+    files = glob.glob("%s/DES*.fits%s"%(source, suffix))
+
+    for i, f in files:
+        tile = os.basename(f)[:12]
+        print i, tile
+        m = s.meds_wrapper(f)
+
+
+

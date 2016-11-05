@@ -46,7 +46,7 @@ class shapecat(i3s_plots, bias_functions.nbc):
 	def load_from_array(self, array, name="res"):
 		setattr(self, name, array)
 
-	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits"):
+	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[]):
 		
 		if res:
 			if "%s"%ext in self.res_path:
@@ -65,9 +65,9 @@ class shapecat(i3s_plots, bias_functions.nbc):
 
 			if len(files)>1:
 				if apply_infocuts and self.noisefree:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 				else:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 			else:
 				if ext.lower()==".fits":
 					self.res = fio.FITS(files[0])[1].read()
@@ -530,8 +530,10 @@ class dummy_im3shape_options():
 		self.use_image_flags="Y"
 
 class meds_wrapper(i3meds.I3MEDS):
-	def __init__(self, filename, update=False):
-		super(meds_wrapper, self).__init__(filename)
+	def __init__(self, filename, options=None,update=False):
+		if options is None:
+			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
+		super(meds_wrapper, self).__init__(filename, options)
 		setattr(self, "filename", self._filename)
 
 		if update:
@@ -704,6 +706,12 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		out.close()
 
+		print "Compressing output file"
+		filename = "%s/%s"%(newdir,self._filename.replace(".fz",""))
+		fpack_cmd = "fpack  -qz 4.0 -t 10240,1 {}".format(filename)
+		os.system(fpack_cmd)
+		os.system("rm -rf %s"%filename)
+
 	def make_stack(self,profile,iobj):
 		boxsize = self._cat["box_size"][iobj]
 		nexp = self._cat["ncutout"][iobj]
@@ -718,7 +726,7 @@ class meds_wrapper(i3meds.I3MEDS):
 			magzp = self._image_info[i_image]["magzp"]
 			rf = 10**( (magzp - 30) / 2.5 )
 
-			psf = self.get_bundled_psfex_psf(iobj, iexp, self.options, return_profile=True)
+			psf = self.get_bundled_psfex_psf(iobj, iexp, return_profile=True)
 
 			if (profile is not None) and (psf is not None):
 				final = galsim.Convolve([profile,psf]) * rf
@@ -736,86 +744,86 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return np.concatenate(stack)
 
-	def get_bundled_psfex_psf(self, iobj, iexp, options, return_profile=False):
-
-		wcs_path = self.get_source_info(iobj,iexp)[3].strip()
-
-		wcs_path = check_wcs(wcs_path)
-
-		#Find the exposure name
-		source_path = self.get_source_path(iobj, iexp)
-		source = os.path.split(source_path)[1].split('.')[0]
-
-		#PSF blacklist
-		if source in self.blacklist:
-			if options.verbosity>2:
-				print "%s blacklisted" % source
-			return None
-
-		#get the HDU name corresponding to that name.
-		#Might need to tweak that naming
-		hdu_name = "psf_"+options.psfex_rerun_version+"_"+source+"_psfcat"
-
-		#Maybe we have it in the cache already
-		if hdu_name in PSFEX_CACHE:
-			psfex_i = PSFEX_CACHE[hdu_name]
-			if psfex_i is None:
-				return None
-
-		else:
-    		#Turn the HDU into a PSFEx object
-    		#PSFEx expects a pyfits HDU not fitsio.
-    		#This is insane.  I know this.
-			import galsim.des
-			try:
-				pyfits = galsim.pyfits
-			except AttributeError:
-				from galsim._pyfits import pyfits
-
-			try:
-				hdu = pyfits.open(self._filename)[hdu_name]
-			except KeyError:
-				PSFEX_CACHE[hdu_name] = None
-				if options.verbosity>3:
-					print "Could not find HDU %s in %s" % (hdu_name, self._filename)
-
-				return None
-
-			try:
-				psfex_i = galsim.des.DES_PSFEx(hdu, wcs_path)
-			except IOError:
-				print "PSF bad but not blacklisted: %s in %s"%(hdu_name, self._filename)
-				psfex_i = None
-
-			PSFEX_CACHE[hdu_name] = psfex_i
-
-		if psfex_i == None:
-			return None
-
-		#Get the image array
-		return self.extract_psfex_psf(psfex_i, iobj, iexp, options, return_profile=return_profile, orig_func=True)
-
-
-
-	def extract_psfex_psf(self, psfex_i, iobj, iexp, options, return_profile=False, orig_func=False):
-		psf_size=(options.stamp_size+options.padding)*options.upsampling
-		orig_col = self['orig_col'][iobj][iexp]
-		orig_row = self['orig_row'][iobj][iexp]
-
-		x_image_galsim = orig_col+1
-		y_image_galsim = orig_row+1
-
-		if orig_func:
-			psf = utils.getPSFExarray(psfex_i, orig_col, orig_row, psf_size, psf_size, options.upsampling, return_profile=return_profile)
-			return psf
-
-		else:
-			psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
-
-			image = galsim.ImageD(psf_size, psf_size)
-
-			if return_profile:
-				return psf
+#	def get_bundled_psfex_psf(self, iobj, iexp, return_profile=False):
+#
+#		wcs_path = self.get_source_info(iobj,iexp)[3].strip()
+#
+#		wcs_path = check_wcs(wcs_path)
+#
+#		#Find the exposure name
+#		source_path = self.get_source_path(iobj, iexp)
+#		source = os.path.split(source_path)[1].split('.')[0]
+#
+#		#PSF blacklist
+#		if source in self.blacklist:
+#			if self.options.verbosity>2:
+#				print "%s blacklisted" % source
+#			return None
+#
+#		#get the HDU name corresponding to that name.
+#		#Might need to tweak that naming
+#		hdu_name = "psf_"+self.options.psfex_rerun_version+"_"+source+"_psfcat"
+#
+#		#Maybe we have it in the cache already
+#		if hdu_name in PSFEX_CACHE:
+#			psfex_i = PSFEX_CACHE[hdu_name]
+#			if psfex_i is None:
+#				return None
+#
+#		else:
+#    		#Turn the HDU into a PSFEx object
+#    		#PSFEx expects a pyfits HDU not fitsio.
+#    		#This is insane.  I know this.
+#			import galsim.des
+#			try:
+#				pyfits = galsim.pyfits
+#			except AttributeError:
+#				from galsim._pyfits import pyfits
+#
+#			try:
+#				hdu = pyfits.open(self._filename)[hdu_name]
+#			except KeyError:
+#				PSFEX_CACHE[hdu_name] = None
+#				if self.options.verbosity>3:
+#					print "Could not find HDU %s in %s" % (hdu_name, self._filename)
+#
+#				return None
+#
+#			try:
+#				psfex_i = galsim.des.DES_PSFEx(hdu, wcs_path)
+#			except IOError:
+#				print "PSF bad but not blacklisted: %s in %s"%(hdu_name, self._filename)
+#				psfex_i = None
+#
+#			PSFEX_CACHE[hdu_name] = psfex_i
+#
+#		if psfex_i == None:
+#			return None
+#
+#		#Get the image array
+#		return self.extract_psfex_psf(psfex_i, iobj, iexp, return_profile=return_profile, orig_func=True)
+#
+#
+#
+#	def extract_psfex_psf(self, psfex_i, iobj, iexp, return_profile=False, orig_func=False):
+#		psf_size=(self.options.stamp_size+self.options.padding)*self.options.upsampling
+#		orig_col = self['orig_col'][iobj][iexp]
+#		orig_row = self['orig_row'][iobj][iexp]
+#
+#		x_image_galsim = orig_col+1
+#		y_image_galsim = orig_row+1
+#
+#		if orig_func:
+#			psf = utils.getPSFExarray(psfex_i, orig_col, orig_row, psf_size, psf_size, self.options.upsampling, return_profile=return_profile)
+#			return psf
+#
+#		else:
+#			psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
+#
+#			image = galsim.ImageD(psf_size, psf_size)
+#
+#			if return_profile:
+#				return psf
 
 	def get_wcs(self, iobj, iexp):
 
@@ -914,20 +922,27 @@ class meds_wrapper(i3meds.I3MEDS):
 				path = self._image_info["image_path"][file_id].strip()
 				path = check_wcs(path,iexp)
 
-	def i3s(self, iobj, hack_im=[None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=None):
+	def i3s(self, iobj, sub_image=[None,None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=-9999, return_vals=False):
 		# Setup im3shape inputs
 		opt = self.options
-		if coadd_objects_id!=None:
+		if coadd_objects_id!=-9999:
 			iobj=np.argwhere(self._fits["object_data"].read()["id"]==coadd_objects_id)[0,0]
-		inputs = self.get_im3shape_inputs(iobj, self.options)
+			print coadd_objects_id, iobj
+		inputs = self.get_im3shape_inputs(iobj)
 		psfs = inputs.all('psf')
 		bands = self.get_band() * (len(inputs))
 
+		galaxy_stack = inputs.all('image')
+
+
 		# Run the MCMC
-		if hack_im[0] is not None:
-			result, best_img, images, weights = p3s.analyze_multiexposure( [hack_im[0]], [hack_im[1]], [np.ones_like(hack_im[0])], [inputs.all('transform')[0]], self.options, ID=3000000, bands=[bands[0]])
+		if sub_image[0] is not None:
+			print "Warning: will substitute in new image (weight, PSFs, masks upchanged)"
+			galaxy_stack = sub_image
+			result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
 		else:
-			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
+			print "bands:", bands
+			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
 
 		if isinstance(save,str):
 			galaxy_stack = inputs.all('image')
@@ -942,8 +957,8 @@ class meds_wrapper(i3meds.I3MEDS):
 		if show:
 		    cmap = plt.get_cmap("jet")
 
-		    galaxy_stack = inputs.all('image')
 		    image = np.hstack(tuple(galaxy_stack)) 
+		    wt = inputs.all('weight')
 
 		    nrow = 2
 	
@@ -958,13 +973,16 @@ class meds_wrapper(i3meds.I3MEDS):
 		    plt.colorbar() 
 
 	
-		return result.get_params()
+		if return_vals:
+			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
+		else:
+			return result.get_params()
 
 
 
 def check_wcs(wcs_path, iexp=-9999):
 	if not os.path.exists(wcs_path):
-		wcs_path = "/share/des/disc3/samuroff/y1/data/OPS/"+wcs_path.split("OPS")[-1].strip()
+		wcs_path = "/share/des/disc3/samuroff/y1/data/OPS"+wcs_path.split("OPS")[-1].strip()
 		if iexp==0:
 			wcs_path=wcs_path.replace(".fz","")
 
