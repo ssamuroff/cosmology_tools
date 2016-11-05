@@ -116,7 +116,7 @@ def get_pixel_cols(meds_path):
 
 
 
-def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=True, return_filelist=False, cols=None, ntot=-1, apply_infocuts=False, additional_cuts=[]):
+def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=True, return_filelist=False, cols=None, ntot=-1, apply_infocuts=False, additional_cuts=[], match=[]):
     files=[]
     ind=[]
     Nf=0
@@ -138,13 +138,15 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
 
   # Generate empty array to fill
     if not apply_infocuts:
-        buff=20000
+        buff=50000
     else:
-        buff=4100
+        buff=8000
     if ntot!=-1:
         res= np.empty(ntot*buff, dtype=dt)
     else:
-        res= np.empty(300*buff, dtype=dt)
+        res= np.empty(400*buff, dtype=dt)
+
+    print "total length of buffer : %d"%res.shape
 
     files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
     if res_path!='None':
@@ -158,6 +160,12 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
         files=files[:ntot]
             
     for f in files:
+        tile = os.path.basename(f)[:12]
+        if (len(match)>0):
+            if  (tile not in match):
+                print "Excluding %s"%f
+                print "file exists but is not in the specified list of tiles."
+                continue 
         if format.lower()=="fits":
             fits = fio.FITS(f)
             if cols:
@@ -188,10 +196,13 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
         ind+=[(i0,i1)]
        # if res[i1]!=dat[-1]:
         #    print "ERROR: Data overflow. %d %d"%(i1, len(res))
-        print Nf, f
+        print Nf, tile
         Nf+=1
 
-    res = res[res["coadd_objects_id"]!=0]
+    try:
+        res = res[res["id"]!=0]
+    except:
+        res = res[res["coadd_objects_id"]!=0]
 
     print 'Read results for %d objects from %d files.' %(len(res),len(files))
 
@@ -248,12 +259,14 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         list_res=[os.path.basename(m)[:12] for m in match]
         print "matching to tilelist ", list_res
             
-        filelist=np.empty(len(list_res),dtype="S190")
+        filelist=[]
         for f in files:
             if os.path.basename(f)[:12] in list_res:
                 i=np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0]
-                filelist[i]=f
+                filelist.append(f)
 
+        filelist = np.array(filelist)
+        assert filelist.size == len(list_res)
 
         #filelist = np.array([np.array([ f, np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0] ]) for f in files if os.path.basename(f)[:12] in list_res])
     else:
@@ -270,6 +283,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
     dt = fio.FITS(filelist[0])[extension].read().dtype
     truth = np.empty(len(filelist)*46000, dtype=dt)
     for i, f in enumerate(filelist):
+        tile = os.path.basename(f)[:12]
         fits = fio.FITS(f)
         if cols:
             dat = fits[extension].read(columns=cols)
@@ -278,12 +292,14 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         fits.close()
             
         if ind!=None and res!=None:
-            selres=res[ind[i][0]:ind[i][1]]
-            r,dat=match_results(selres,dat)
+            #selres=res[ind[i][0]:ind[i][1]]
+            selres = res[res["tilename"]==tile]
+            r,dat=match_results(res,dat)
+
         i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
         truth[i0:i1] = dat
-        print i+1, f, "%d/%d"%(i1, len(filelist)*10000)
+        print i+1, tile, "%d/%d"%(i1, len(truth))
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
     
                 
@@ -1231,7 +1247,7 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     return out
 
 
-def get_alpha(catalogue, nbins=5, ellipticity_name="e", names=["alpha","c"], binning="equal_number", silent=False):
+def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, names=["alpha","c"], binning="equal_number", silent=False, visual=False):
 
     g1 = catalogue['mean_psf_e1_sky']
     g2 = catalogue['mean_psf_e2_sky']
@@ -1242,10 +1258,14 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", names=["alpha","c"], bin
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
 
-    if "w" in catalogue.dtype.names:
-        w = catalogue["w"][sel]
+    if "weight" in catalogue.dtype.names and (use_weights):
+        w = catalogue["weight"][sel]
     else:
         w = np.ones_like(e1)
+
+    if  ("weight" not in catalogue.dtype.names) and (use_weights):
+        print "Warning: you set use_weights=True, but there is no weights column."
+        print "using unweighted values."
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -1264,10 +1284,10 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", names=["alpha","c"], bin
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.mean(w[sel1] * e1[sel1]) )
-        y22.append( np.mean(w[sel2] * e2[sel2]) )
-        y12.append( np.mean(w[sel1] * e2[sel1]) )
-        y21.append( np.mean(w[sel2] * e1[sel2]) )
+        y11.append( np.sum(w[sel1] * e1[sel1]) / np.sum(w[sel1]) )
+        y22.append( np.sum(w[sel2] * e2[sel2]) / np.sum(w[sel2]) )
+        y12.append( np.sum(w[sel1] * e2[sel1]) / np.sum(w[sel1]) )
+        y21.append( np.sum(w[sel2] * e1[sel2]) / np.sum(w[sel2]) )
        
         variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
         variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
@@ -1317,6 +1337,14 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", names=["alpha","c"], bin
     c = (c11+c22)/2
     error_m = np.sqrt(cov11[0,0] + cov22[0,0])
     error_c = np.sqrt(cov11[1,1] + cov22[1,1])
+
+    if visual:
+        import pylab as plt
+        plt.errorbar(x,y11, variance_y11, fmt="o", color="purple")
+        plt.errorbar(x,y22, variance_y22, fmt="D", color="steelblue")
+        plt.plot(x,x*m11+c11, lw=2.5, color="purple")
+        plt.plot(x,x*m22+c22, lw=2.5, color="steelblue")
+
 
     biases_dict = {"alpha":(m,error_m), "c":(c,error_c), "alpha11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "alpha22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "alpha12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "alpha21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
 
