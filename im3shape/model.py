@@ -11,6 +11,21 @@ class toy_model2:
         print "Complexity level: %d"%komplexitet
         self.complexity=komplexitet
         self.random_seed = random_seed
+        np.random.seed(random_seed)
+
+    def setup(self):
+
+        self.object_mask = np.loadtxt("/home/samuroff/mask_template.txt")
+
+        # WCS
+        wcs_path = "/share/des/disc2/y1/OPS/coadd/20141118000051_DES0014-4414/coadd/DES0014-4414_r.fits.fz"
+        orig_col = 1000
+        orig_row = 1000
+        image_pos = galsim.PositionD(orig_col,orig_row)
+        self.wcs = galsim.FitsWCS(wcs_path)
+
+        # im3shape config
+        self.opt = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
 
     def explain(self):
         print explanations[self.complexity]
@@ -26,6 +41,45 @@ class toy_model2:
         print "Neighbour distance : %3.2f"%self.dneigh
         print "Neighbour flux : %3.2f"%self.neighbour_flux
         print "Neighbour size : %3.2f"%self.neighbour_size
+
+    def mpi_run(self, snr_min, snr_max, central_data, neighbour_data, nreal):
+   
+        # Selection function for this bin
+        sel = (central_data.res["snr"]>snr_min) & (central_data.res["snr"]<snr_max)
+
+        print "Will do %d realisations for this bin:"%nreal
+
+        De1=[]
+        De2=[]
+        sn=[]
+        g1=[]
+        g2=[]
+        for j in xrange(nreal):
+            print "%d/%d"%(j+1,nreal)
+            try: 
+                self.generate_central_realisation(central_data, sel)
+                self.generate_neighbour_realisation(neighbour_data, central_data, sel)
+
+                # Draw this neighbour realisation repeatedly on a ring of angular positions
+                snr, e1, e2 = self.do_position_loop()
+            except:
+                print "Something went wrong - proceeding to next realisation (if you see this persistently it may be indicative of a problem)"
+                continue
+
+            sn.append(snr)
+            De1.append(e1)
+            De2.append(e2)
+            g1.append(self.g[0])
+            g2.append(self.g[1])
+
+        data = np.zeros(len(g1), dtype=[("e1", float), ("e2", float), ("true_g1", float), ("true_g2", float)])
+        data["e1"], data["e2"] = np.array(De1), np.array(De2) 
+        data["true_g1"], data["true_g2"] = np.array(g1), np.array(g2) 
+
+        bias = di.get_bias(data, nbins=5, names=["m11","m22","c11","c22"], binning="equal_number", silent=True)
+
+        return np.mean(sn), bias["m11"][0], bias["m22"][0]     
+        
 
 
     def analyse1(self, central_data, neighbour_data, nreal=1000): #, central_ellipticity, dneigh=20, central_flux=1912.0, psf_size=3.7, neighbour_flux=1912.0, neighbour_size=3.2, nrealisations=1000):
@@ -129,7 +183,7 @@ class toy_model2:
             self.central_radius = central_data.res["radius"][selection].mean()
 
         elif self.complexity>1:
-            print "Will use draw a random set of values in the relevant properties."
+            print "Will use draw a random set of values in the relevant properties",
             i = np.random.randint(central_data.truth[selection].size)
             print "random index: %d"%i
             self.central_flux = central_data.truth["flux"][selection][i]
@@ -173,8 +227,7 @@ class toy_model2:
            Then run uberseg to get a weight map for the stamp. """
 
         #Create a padded array for the seg map 
-        newseg = np.zeros((image.shape[0]+20,image.shape[1]+20))
-        newseg = np.zeros_like(newseg)
+        newseg = np.zeros((image.shape[0]+30,image.shape[1]+30))
 
         n0 = newseg.shape[0]/2
         # Fill in the cental object and neighbour masks
@@ -182,7 +235,7 @@ class toy_model2:
         newseg[n0+int(y)-self.object_mask.shape[0]/2:n0+int(y)+self.object_mask.shape[0]/2,n0+int(x)-self.object_mask.shape[1]/2:n0+int(x)+self.object_mask.shape[1]/2]+=self.object_mask*2
 
         # Then trim the stamp
-        newseg=newseg[10:-10,10:-10]
+        newseg=newseg[15:-15,15:-15]
 
         return get_cweight_cutout_nearest(image,newseg)
 

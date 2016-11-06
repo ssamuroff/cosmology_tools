@@ -633,7 +633,7 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return 0
 
-	def remove_model_bias(self, shapecat, silent=False, outdir="analytic"):
+	def remove_model_bias(self, shapecat, silent=False, outdir="analytic", noise=True, neighbours=True, remove_masks=False):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
 
@@ -671,13 +671,24 @@ class meds_wrapper(i3meds.I3MEDS):
 			gal = self.construct_analytic_profile(res, shapecat.fit, truth=truth)
 			stack = self.make_stack(gal,iobj)
 
+			if noise and (not neighbours):
+				remove = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+			elif (not noise) and (not neighbours):
+				remove = p0[i0:i1]- real[i0:i1]
+			elif (not noise) and neighbours:
+				remove = noise
+			elif noise and neighbours:
+				remove = 0.0
+
 			# noise + neighbours + analytic profile
 			try:
-				pixels+=stack
+				pixels = pixels + stack - remove
 			except:
 				import pdb ; pdb.set_trace()
 
 			p0[i0:i1] = stack
+
+			
 
 		print "Writing to MEDS file"
 		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
@@ -729,20 +740,22 @@ class meds_wrapper(i3meds.I3MEDS):
 			psf = self.get_bundled_psfex_psf(iobj, iexp, return_profile=True)
 
 			if (profile is not None) and (psf is not None):
-				final = galsim.Convolve([profile,psf]) * rf
+				final = galsim.Convolve([profile,psf[0]]) * rf
 			elif profile is None:
-				final = psf
+				final = psf[0]
 			elif psf is None:
 				final = profile
 			
-			if final is not None:	
-				stamp = final.drawImage(wcs=wcs, nx=boxsize, ny=boxsize, method='no_pixel',offset=offset)
+			if final is not None:
+				stamp = galsim.ImageD(boxsize, boxsize)
+				tmp = final.drawImage(stamp, scale=1, offset=offset, method='no_pixel')
 			else:
 				stamp=blank_stamp(boxsize)
 
 			stack.append(stamp.array.flatten())
 
 		return np.concatenate(stack)
+
 
 #	def get_bundled_psfex_psf(self, iobj, iexp, return_profile=False):
 #
