@@ -3,6 +3,7 @@ import astropy.table
 import matplotlib.pyplot as plt
 import glob, os, pyfits, pdb 
 import fitsio as fio
+import tools.arrays as arr
 
 def text_to_fits(filename, keyword='fornax'):
     res = load_results0(keyword=keyword)
@@ -246,7 +247,7 @@ def load_results0(res_path='None', keyword='fornax'):
 
 #    return truth
 
-def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False):
+def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False, add_tilename_col=True):
     files=[]
     if truth_path!=None:
         files = glob.glob(os.path.join(truth_path,'*%s*-truth*.fits*'%keyword))
@@ -282,6 +283,9 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
 
     dt = fio.FITS(filelist[0])[extension].read().dtype
     truth = np.empty(len(filelist)*46000, dtype=dt)
+    if add_tilename_col and ("tilename" not in dt.names):
+        truth = arr.add_col(truth, "tilename", len(filelist)*46000*["DES0000+0000"])
+        truth = arr.add_col(truth, "tile", len(filelist)*46000*[-9999])
     for i, f in enumerate(filelist):
         tile = os.path.basename(f)[:12]
         fits = fio.FITS(f)
@@ -298,6 +302,9 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
 
         i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
+        if add_tilename_col and ("tilename" not in dat.dtype.names):
+            dat = arr.add_col(dat, "tilename", dat.shape[0]*[tile])
+            dat = arr.add_col(dat, "tile", dat.shape[0]*[i])
         truth[i0:i1] = dat
         print i+1, tile, "%d/%d"%(i1, len(truth))
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
@@ -1247,11 +1254,11 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     return out
 
 
-def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, names=["alpha","c"], binning="equal_number", silent=False, visual=False):
+def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = catalogue['mean_psf_e1_sky']
     g2 = catalogue['mean_psf_e2_sky']
-    sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
+    sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1]) & np.isfinite(g1) & np.isfinite(g2)
     g1 = g1[sel]
     g2 = g2[sel]
 
@@ -1270,6 +1277,8 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, names=
     if isinstance(binning,str):
         if binning=="equal_number":
             bins = find_bin_edges(g1, nbins)
+        if binning=="uniform":
+            bins = np.linspace(g1.min(),g1.max(), nbins+1)
     else:
         bins = binning
 
@@ -1340,10 +1349,24 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, names=
 
     if visual:
         import pylab as plt
-        plt.errorbar(x,y11, variance_y11, fmt="o", color="purple")
-        plt.errorbar(x,y22, variance_y22, fmt="D", color="steelblue")
-        plt.plot(x,x*m11+c11, lw=2.5, color="purple")
-        plt.plot(x,x*m22+c22, lw=2.5, color="steelblue")
+        fig, ax1 = plt.subplots()
+        ax1.errorbar(x,y11, variance_y11, fmt="o", color="purple")
+        ax1.errorbar(x,y22, variance_y22, fmt="D", color="steelblue")
+        ax1.plot(x,x*m11+c11, lw=2.5, color="purple", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
+        ax1.plot(x,x*m22+c22, lw=2.5, color="steelblue", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
+        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{ii}$")
+        ax1.set_ylabel("Ellipticity $e_{ii}$")
+        ax1.set_xlim(xlim[0],xlim[1])
+        ax1.set_ylim(-0.0015,0.003)
+        ax1.axhline(0,color="k", lw=2.)
+
+        ax2 = ax1.twinx()
+        ax2.set_xlim(xlim[0], xlim[1])
+        ax2.hist(g1, alpha=0.1, bins=45, color="purple")
+        ax2.hist(g2, alpha=0.1, bins=45, color="steelblue")
+        ax1.legend(loc="upper left")
+
+        plt.tight_layout()
 
 
     biases_dict = {"alpha":(m,error_m), "c":(c,error_c), "alpha11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "alpha22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "alpha12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "alpha21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
@@ -1352,11 +1375,19 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, names=
     # Either as a dictionary, including the fit covariances
     # Or as a single value (probably for when using bootstrap errors)
     out={}
+
     if not isinstance(names, str):
         for name in names:
             out[name] = biases_dict[name]
     else:
         out = biases_dict[names][0]
+
+    if return_vals:
+        out["e1"] = y11
+        out["de1"] = variance_y11
+        out["e2"] = y22
+        out["de2"] = variance_y22
+        out["bins"] = x
 
     return out
 
