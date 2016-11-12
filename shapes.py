@@ -373,6 +373,56 @@ class shapecat(i3s_plots, bias_functions.nbc):
 
 		return neighbour_cat
 
+	def match_to_faint(self):
+		import copy
+		from sklearn.neighbors import NearestNeighbors
+		import scipy.spatial as sps
+
+		faint = di.load_truth(self.truth_path, faint=True, add_tilename_col=True)
+
+		indices = np.zeros(self.res.size)
+		distances = np.zeros(self.res.size)
+		lookup = np.linspace(0,faint.size-1, faint.size).astype(int)
+
+		tiles = np.unique(self.truth["tilename"])
+
+		for it in tiles:
+			print "Matching in pixel coordinates, tile %s"%it
+			sel0 = faint["tilename"]==it
+			sel1 = self.truth["tilename"]==it
+			
+
+			# All positions where an object was simulated
+			# Restrict the search to this tile
+			x_pool = faint["ra"][sel0] #pool_of_possible_neighbours["ix"][sel0]
+			y_pool = faint["dec"][sel0] #pool_of_possible_neighbours["iy"][sel0]
+			xy_pool=np.vstack((x_pool,y_pool))
+
+			# Positions of those objects for which we have im3shape results
+			# We want to find neighbours for these objects
+			x_tar = self.truth["ra"][sel1]
+			y_tar = self.truth["dec"][sel1]
+			xy_tar=np.vstack((x_tar,y_tar))
+
+			# Build a tree using the pool
+			nbrs = NearestNeighbors(n_neighbors=2, algorithm='kd_tree', metric="euclidean").fit(xy_pool.T)
+			# Query it for the target catalogue
+			d,i = nbrs.kneighbors(xy_tar.T)
+			distances[sel1], indices[sel1] = d.T[1], lookup[sel0][i.T[1]]
+
+		neighbour_cat = copy.deepcopy(self)
+
+		neighbour_cat.res["id"]= faint[indices.astype(int)]["associated_object"]
+		neighbour_cat.res["coadd_objects_id"]= faint[indices.astype(int)]["associated_object"]
+		neighbour_cat.res["e1"]= faint[indices.astype(int)]["intrinsic_e1"]+faint[indices.astype(int)]["true_g1"] 
+		neighbour_cat.res["e2"]= faint[indices.astype(int)]["intrinsic_e2"]+faint[indices.astype(int)]["true_g2"]
+		neighbour_cat.res["ra"]= faint[indices.astype(int)]["ra"]
+		neighbour_cat.res["dec"]= faint[indices.astype(int)]["dec"]
+		neighbour_cat.truth= faint[indices.astype(int)]
+		neighbour_cat.truth = arr.add_col(neighbour_cat.truth, "nearest_neighbour_pixel_dist", distances)
+
+		return neighbour_cat
+
 	def get_phi_col(self,neighbour_cat):
 		print "Computing ellipticity-ellipticity misalignment between each object and its nearest neighbour."
 		eres = self.res["e1"]+ 1j*self.res["e2"]
@@ -568,6 +618,29 @@ class meds_wrapper(i3meds.I3MEDS):
 			return "noise_cutouts"
 		else: raise ValueError("bad cutout type '%s'" % type)
 
+	def get_zpmag_scaling(self, iobj, iexp):
+
+		exposure_id = self._cat["file_id"][iobj,iexp]
+		zpmag = self._image_info["magzp"][exposure_id]
+		zpmag_coadd = self._image_info["magzp"][0]
+
+		return 10 **((zpmag_coadd - zpmag)/2.5)
+
+	def get_stack_correction(self, iobj):
+		boxsize = self._cat["box_size"][iobj]
+		images = np.array([f for f in self._cat["file_id"][iobj] if f>0])
+		nexp = len(images)
+
+		print "Object %d has %d exposures"%(iobj, nexp)
+
+		correction_stack = np.ones((boxsize*(nexp+1), boxsize))
+
+		for iexp in xrange(nexp+1) :
+			alpha = self.get_zpmag_scaling(iobj, iexp)
+			correction_stack[boxsize*iexp : (boxsize*iexp + boxsize)] *= alpha
+
+		return correction_stack
+
 	def remove_noise(self, silent=False, outdir="noisefree"):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
@@ -597,7 +670,11 @@ class meds_wrapper(i3meds.I3MEDS):
 	def remove_neighbours(self, silent=False, outdir="neighbourfree", noise=True, remove_masks=True):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
-		noise = self._fits["noise_cutouts"]
+		try:
+			pn = self._fits["noise_cutouts"]
+		except:
+		    print "WARNING: No noise cutouts found"
+		    pn = np.zeros_like(p0) 
 		seg = self._fits["seg_cutouts"].read()
 
 		if not silent:
@@ -618,13 +695,16 @@ class meds_wrapper(i3meds.I3MEDS):
 				# Remove any masks other than the one around the central object
 				np.putmask(mask, mask!=seg_id, 0)
 
+			scale_stack = self.get_stack_correction(iobj).flatten()
+
 			# COSMOS profile + noise
 			if noise:
-				neighbours = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack - pn[i0:i1]*scale_stack
 			else:
-				neighbours = p0[i0:i1]- real[i0:i1]
+				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack
 			pixels = p0[i0:i1] - neighbours
 			pixels *= p0[i0:i1].astype(bool).astype(int)
+
 			p0[i0:i1] = pixels
 			seg[i0:i1] = mask
 
@@ -636,6 +716,7 @@ class meds_wrapper(i3meds.I3MEDS):
 	def remove_model_bias(self, shapecat, silent=False, outdir="analytic", noise=True, neighbours=True, remove_masks=False):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
+		seg = self._fits["seg_cutouts"].read()
 
 		if not silent:
 			print "will insert analytic profiles"
@@ -670,6 +751,14 @@ class meds_wrapper(i3meds.I3MEDS):
 
 			gal = self.construct_analytic_profile(res, shapecat.fit, truth=truth)
 			stack = self.make_stack(gal,iobj)
+
+			mask = seg[i0:i1]
+			if remove_masks and (np.unique(mask).size>2):
+				# Get the central pixel in the coadd seg map
+				nx = self._cat["box_size"][iobj]
+				seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
+				# Remove any masks other than the one around the central object
+				np.putmask(mask, mask!=seg_id, 0)
 
 			if noise and (not neighbours):
 				remove = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
