@@ -50,3 +50,43 @@ def main():
 
 
 main()
+
+class meds_list:
+    def __init__(self, results="r/disc/", meds="."):
+        print "Initialised"
+        print "existing results: %s"%results
+        print "MEDS files: %s"%meds
+        self.meds_dir = meds
+        self.results_dir = results
+
+    def get_tiles_to_do(self):
+        
+        meds_tiles = glob.glob("%s/DES*.fz"%self.meds_dir)
+        results = glob.glob("%s/DES*/1.main.txt"%self.results_dir)
+        results_tiles = [os.path.dirname(r)[-12:] for r in results if (os.path.getsize(r)>0)]
+        print "%d MEDS files"%len(meds_tiles)
+        print "%d tiles with im3shape results"%len(results)
+
+        self.todo = []
+
+        for i, f in enumerate(meds_tiles):
+            tile = os.path.basename(f)[:12]
+            print i, tile,
+
+            if (tile in results_tiles):
+                print "skipping"
+                continue
+            else:
+                self.todo.append(f)
+
+        print "Found %d tiles to process %d"%len(self.todo)
+
+
+
+
+
+
+
+
+
+
