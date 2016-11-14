@@ -1,8 +1,8 @@
 import numpy as np
 import galsim
-import fitsio
+import astropy.io.fits as fitsio
 import glob, argparse, os
-import tools.shapes as s
+#import tools.shapes as s
 
 from string import Template as Tm
 
@@ -49,10 +49,12 @@ def main():
     print "Done"
 
 
-main()
+#main()
 
 class meds_list:
     def __init__(self, results="r/disc/", meds="."):
+        if meds==".":
+            meds = os.getcwd() 
         print "Initialised"
         print "existing results: %s"%results
         print "MEDS files: %s"%meds
@@ -74,19 +76,17 @@ class meds_list:
             print i, tile,
 
             if (tile in results_tiles):
-                print "skipping"
+                print "done"
                 continue
             else:
+                print "to do"
                 self.todo.append(f)
 
-        print "Found %d tiles to process %d"%len(self.todo)
+        print "Found %d tiles to process"%len(self.todo)
 
-
-
-
-
-
-
-
-
-
+    def write(self, filename="meds_list.ini"):
+        print "writing to list %s"%filename
+        out = open(filename, "wa")
+        for file in self.todo:
+            out.write("%s \n"%file)
+        out.close()
