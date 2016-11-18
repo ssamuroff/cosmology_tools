@@ -128,14 +128,27 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     else:
         extra=''
 
-    if postprocessed:
-        dt = ppi3sdt
-    else:
-        dt = i3sdt
-    
-    if cols:
-        newdt = [(n, str(dt[i])) for i, n in enumerate(dt.names) if n in cols ]
-        dt = np.dtype(newdt)
+    files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
+    if res_path!='None':
+        files = glob.glob(os.path.join(res_path,'*%s*%s.%s'%(keyword,extra,format)))
+    if len(files)==0:
+        files = glob.glob('meds/*%s*%s.%s'%(keyword,extra,format))
+    if len(files)==0:
+        files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
+
+    if ntot!=-1:
+        files=files[:ntot]
+
+    test = pyfits.getdata(files[0])
+    dt = test.dtype
+#        if postprocessed:
+#            dt = ppi3sdt
+#        else:
+#            dt = i3sdt
+    #
+#    if cols:
+#        newdt = [(n, str(dt[i])) for i, n in enumerate(dt.names) if n in cols ]
+#        dt = np.dtype(newdt)
 
   # Generate empty array to fill
     if not apply_infocuts:
@@ -149,19 +162,15 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
 
     print "total length of buffer : %d"%res.shape
 
-    files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
-    if res_path!='None':
-        files = glob.glob(os.path.join(res_path,'*%s*%s.%s'%(keyword,extra,format)))
-    if len(files)==0:
-        files = glob.glob('meds/*%s*%s.%s'%(keyword,extra,format))
-    if len(files)==0:
-        files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
+    
 
-    if ntot!=-1:
-        files=files[:ntot]
+    
+
+  #  import pdb ; pdb.set_trace()
             
     for f in files:
         tile = os.path.basename(f)[:12]
+        print f
         if (len(match)>0):
             if  (tile not in match):
                 print "Excluding %s"%f
@@ -191,7 +200,12 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             exec cut
             dat = dat[cuts]
 
-        i0 = np.argwhere(res["id"]==0)[0,0]
+        try:
+            i0 = np.argwhere(res["id"]==0)[0,0]
+            nameid = "id"
+        except:
+            i0 = np.argwhere(res["coadd_objects_id"]==0)[0,0]
+            nameid = "coadd_objects_id"
         i1 = i0 + len(dat)
         res[i0:i1] = dat
         ind+=[(i0,i1)]
@@ -267,7 +281,8 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
                 filelist.append(f)
 
         filelist = np.array(filelist)
-        assert filelist.size == len(list_res)
+
+  #      assert filelist.size == len(list_res)
 
         #filelist = np.array([np.array([ f, np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0] ]) for f in files if os.path.basename(f)[:12] in list_res])
     else:
@@ -298,7 +313,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         if ind!=None and res!=None:
             #selres=res[ind[i][0]:ind[i][1]]
             selres = res[res["tilename"]==tile]
-            r,dat=match_results(res,dat)
+            r,dat=match_results(res,dat, name2="coadd_objects_id")
 
         i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
@@ -1148,10 +1163,13 @@ def find_bin_edges(x,nbins,w=None):
     return r
 
 
-def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
 
-    g1 = catalogue['true_g1']
-    g2 = catalogue['true_g2']
+    if truth is None:
+        g1 = catalogue['true_g1']
+        g2 = catalogue['true_g2']
+    else:
+        g1,g2 = truth["true_g1"], truth["true_g2"]
     sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
     g1 = g1[sel]
     g2 = g2[sel]
@@ -1163,6 +1181,16 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
         w = catalogue["w"][sel]
     else:
         w = np.ones_like(e1)
+
+    if apply_calibration:
+        m = catalogue["m"][sel]
+        c11 = catalogue["c1"][sel]
+        c22 = catalogue["c2"][sel]
+        print "Applying calibration columns"
+    else:
+        m = np.zeros_like(e1)
+        c1 = np.zeros_like(e1)
+        c2 = np.zeros_like(e1)
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -1181,10 +1209,10 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.mean(w[sel1] * e1[sel1]) )
-        y22.append( np.mean(w[sel2] * e2[sel2]) )
-        y12.append( np.mean(w[sel1] * e2[sel1]) )
-        y21.append( np.mean(w[sel2] * e1[sel2]) )
+        y11.append( np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
+        y22.append( np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        y12.append( np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
+        y21.append( np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
        
         variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
         variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
@@ -1202,7 +1230,7 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     p11, cov11 = np.polyfit(x,d1, 1, w=w11, cov=True, full=False)
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
-    m11,c11 = p11
+    m11,c11 = p11  
 
     # m22, c22
     w22 = d2 * (np.array(variance_y22)/np.array(y22))
@@ -1357,7 +1385,7 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(
         ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{ii}$")
         ax1.set_ylabel("Ellipticity $e_{ii}$")
         ax1.set_xlim(xlim[0],xlim[1])
-        ax1.set_ylim(-0.0015,0.003)
+        ax1.set_ylim(-0.01,0.015)
         ax1.axhline(0,color="k", lw=2.)
 
         ax2 = ax1.twinx()

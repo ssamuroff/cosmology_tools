@@ -1521,6 +1521,42 @@ class im3shape_results_plots:
 		plt.gca().set_aspect('equal', adjustable='box')
 		plt.draw()
 
+	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt="o", ls="-", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
+		bins = np.linspace(0,3,nbins+1)
+		lower = bins[:-1]
+		upper = bins[1:]
+		exec "data = self.res%d"%split_half
+		exec "truth = self.truth%d"%split_half
+		if hasattr(self, "truth"):
+			data = arr.add_col(data,"true_g1",truth["true_g1"])
+			data = arr.add_col(data,"true_g2",truth["true_g2"])
+			data = arr.add_col(data,"intrinsic_sheared_e1",truth["intrinsic_e1"]+truth["true_g1"])
+			data = arr.add_col(data,"intrinsic_sheared_e2",truth["intrinsic_e2"]+truth["true_g2"])
+			data = arr.add_col(data,"z",truth["cosmos_photoz"])
+
+		vec = []
+		err_vec = []
+		z = []
+
+		for i, edges in enumerate(zip(lower,upper)):
+			sel = (data["z"]>edges[0]) & (data["z"]<edges[1])
+			b = di.get_bias(data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
+			# Repeat them if the errorbars need to come from bootstrapping
+			if error_type=="bootstrap":
+				error = di.bootstrap_error(6, data[sel], di.get_bias, additional_args=["names", "apply_calibration", "silent", "ellipticity_name"], additional_argvals=[bias, apply_calibration, True, ellipticity_name])
+			else:
+				error = b[bias][1]
+
+			z.append(data[sel]["z"].mean())
+			vec.append(b[bias][0])
+			err_vec.append(error)
+
+		plt.errorbar(z,vec,err_vec, lw=2.5, ls=ls, color=colour, label=label, fmt=fmt)
+		plt.axhline(0, color="k", lw=2.5)
+		#plt.ylim(-0.7,0.1)
+		plt.xlabel("Redshift $z$")
+		return z,vec,err_vec
+
 
 def axis_bounds(xlim,ylim,xdata):
 	if xlim is not None:
@@ -1571,11 +1607,136 @@ def reverse_colourmap(cmap, name = 'my_cmap_r'):
     my_cmap_r = mpl.colors.LinearSegmentedColormap(name, LinearL) 
     return my_cmap_r
 
+def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plots/v2.2/new", data2=None, thin=None):
+
+	os.system("mkdir -p %s"%outdir)
+
+	print "Making plots:"
+
+	if "snr" in names:
+		print "-- SNR"
+		plt.hist(plt.log10(data["snr"]), histtype="step", bins=np.linspace(0.8,3.0, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			plt.hist(plt.log10(data2["snr"]), histtype="step", bins=np.linspace(0.8,3.0,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			plt.legend(loc="upper right")
+		plt.xlabel("Signal-to-Noise $\log (SNR_w)$")
+		plt.savefig("%s/snr-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "rgpp" in names:
+		print "-- Rgpp"
+		plt.hist(data["mean_rgpp_rp"], histtype="step", bins=np.linspace(0.6,2.5, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			plt.hist(data2["mean_rgpp_rp"], histtype="step", bins=np.linspace(0.6,2.5,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			plt.legend(loc="upper right")
+		plt.xlabel("Size $R_{gpp} / R_p $")
+		plt.savefig("%s/rgpp-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "flux" in names:
+		print "-- Mean Flux"
+		plt.hist(data["mean_flux"], histtype="step", bins=np.linspace(0.,3000, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			plt.hist(data2["mean_flux"], histtype="step", bins=np.linspace(0.,3000,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			plt.legend(loc="upper right")
+		plt.xlabel("Mean Flux $f$")
+		plt.savefig("%s/flux-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "e" in names:
+		print "-- Ellipticity"
+		plt.subplots_adjust(wspace=0, hspace=0)
+		fig = plt.figure(1)
+		ax = fig.add_subplot(131)
+		ax.set_aspect(1)
+		ax.hist(data["e1"], histtype="step", bins=np.linspace(-1,1, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			ax.hist(data2["e1"], histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+		ax.set_xlabel("Ellipticity $e_1$")
+
+		ax2 = fig.add_subplot(132)
+		ax2.set_aspect(1)
+		ax2.hist(data["e2"], histtype="step", bins=np.linspace(-1,1, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			ax2.hist(data2["e2"], histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+		ax2.set_xlabel("Ellipticity $e_2$")
+
+		ax3 = fig.add_subplot(133)
+		ax3.set_aspect(1)
+		e = np.sqrt(data["e1"]*data["e1"] + data["e2"]*data["e2"])
+		ax3.hist(e/(e.max()), histtype="step", bins=np.linspace(0.,1, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			e = np.sqrt(data2["e1"]*data2["e1"] + data2["e2"]*data2["e2"])
+			ax3.hist(e/e.max(), histtype="step", bins=np.linspace(0.,1,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			matplotlib.rcParams['legend.fontsize']=10
+			ax3.legend(loc="upper right")
+		ax3.set_xlabel("Ellipticity $|e|$")
+
+		fig.set_tight_layout(True)
+		plt.savefig("%s/ellipticity-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "psfe" in names:
+		print "-- PSF Ellipticity"
+		plt.subplots_adjust(wspace=0, hspace=0)
+		fig = plt.figure(2)
+		ax = fig.add_subplot(131)
+		ax.set_aspect(0.001)
+		ax.hist(data["mean_psf_e1_sky"], histtype="step", bins=np.linspace(-0.025,0.025, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			ax.hist(data2["mean_psf_e1_sky"], histtype="step", bins=np.linspace(-0.025,0.025,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+		ax.set_xlabel("PSF Ellipticity $e^{PSF}_1$")
+
+		ax2 = fig.add_subplot(132)
+		ax2.set_aspect(0.001)
+		ax2.hist(data["mean_psf_e2_sky"], histtype="step", bins=np.linspace(-0.025,0.025, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			ax2.hist(data2["mean_psf_e2_sky"], histtype="step", bins=np.linspace(-0.025,0.025,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+		ax2.set_xlabel("PSF Ellipticity $e^{PSF}_2$")
+
+		ax3 = fig.add_subplot(133)
+		ax3.set_aspect(0.0009)
+		e = np.sqrt(data["mean_psf_e1_sky"]*data["mean_psf_e1_sky"] + data["mean_psf_e2_sky"]*data["mean_psf_e2_sky"])
+		ax3.hist(e, histtype="step", bins=np.linspace(0.,0.04, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			e = np.sqrt(data2["mean_psf_e1_sky"]*data2["mean_psf_e1_sky"] + data2["mean_psf_e2_sky"]*data2["mean_psf_e2_sky"])
+			ax3.hist(e, histtype="step", bins=np.linspace(0.,0.04,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			matplotlib.rcParams['legend.fontsize']=10
+			ax3.legend(loc="upper right")
+		ax3.set_xlabel("PSF Ellipticity $|e^{PSF}|$")
+
+		fig.set_tight_layout(True)
+		plt.savefig("%s/psf_ellipticity-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "psf_size" in names:
+		print "-- PSF FWHM"
+		plt.hist(data["mean_psf_fwhm"], histtype="step", bins=np.linspace(2.5,5.5, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			plt.hist(data2["mean_psf_fwhm"], histtype="step", bins=np.linspace(2.5,5.5,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			matplotlib.rcParams['legend.fontsize']=14
+			plt.legend(loc="upper right")
+		plt.xlabel("PSF Size $R^{PSF}_{FWHM}$")
+		plt.xlim()
+
+		plt.savefig("%s/psf_size-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "size" in names:
+		print "-- Radius"
+		plt.hist(data["radius"], histtype="step", bins=np.linspace(0.,1.5, 50), normed=1, lw=2.5, color="purple", label="v2 Sim")
+		if data2 is not None:
+			plt.hist(data2["radius"], histtype="step", bins=np.linspace(0.,1.5,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
+			matplotlib.rcParams['legend.fontsize']=14
+			plt.legend(loc="upper right")
+		plt.xlabel("Radius $R_{gpp}$")
+		plt.xlim()
+
+		plt.savefig("%s/radius-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
 
 
 
-
-	
 		
 
 
