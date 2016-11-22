@@ -80,7 +80,7 @@ class nbc(plots.im3shape_results_plots):
 
 
 
-	def compute(self, split_half=0, apply_calibration=False, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number", error_type="bootstrap",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number", error_type="bootstrap",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
 		if split_half>0:
@@ -89,10 +89,20 @@ class nbc(plots.im3shape_results_plots):
 			if hasattr(self, "truth"):
 				exec "tr = self.truth%d"%split_half
 		else:
-			data = self.res
+			data = self.res[sel_fit]
 			print "using the full catalogue (%d objects)"%(data.size)
 			if hasattr(self, "truth"):
 				tr = self.truth
+
+		if fit.lower()!="bord":
+			print "Using %s only galaxies"%fit
+			val = int(fit.lower()=="bulge")
+			sel_fit = data["is_bulge"]==val
+		else:
+			sel_fit = np.ones_like(data).astype(bool)
+
+		data = data[sel_fit]
+		tr = tr[sel_fit]
 
 		if hasattr(self, "truth"):
 			data = arr.add_col(data,"true_g1",tr["true_g1"])
@@ -162,7 +172,10 @@ class nbc(plots.im3shape_results_plots):
 		dt = {'names': lab, 'formats': ['i4']*3 + ['f8']*22 }
 		arr_bias = np.core.records.fromarrays(np.array(list_bias).transpose(), dtype=dt)
 
-		filename_table_bias = 'bias_table-bord-selection_section%d%s.fits'%(split_half,"_calibrated"*apply_calibration)
+		if table_name is None:
+			filename_table_bias = 'bias_table-%s-selection_section%d%s.fits'%(fit, split_half,"_calibrated"*apply_calibration)
+		else:
+			filename_table_bias = table_name
 
 		import pyfits
 		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
@@ -204,19 +217,30 @@ class nbc(plots.im3shape_results_plots):
 			plt.savefig("/home/samuroff/shear_pipeline/bias_calibration/plots/v2.2/fits/biasfits_v2.2%s.png"%tag)
 			plt.close()
 
-def show_table(table_name,ls="-", legend=False):
+	def get_combined_calibration(self, nbc_disc, nbc_bulge, names=["m", "c1", "c2"]):
+		print "Will combine bulge and disc calibration fits."
+		print "bulge : %d/%d, disc : %d/%d"%(self.res[bulge].size, self.res.size, self.res[np.invert(bulge)], self.res.size) ,
+		if bias in names:
+			arr.add_column(nbc.res, bias, np.zeros_like(nbc.res))
+			bulge = self.res["is_bulge"].astype(bool)
+			self.res[bias][bulge] = nbc_bulge[bias][bulge]
+			self.res[bias][np.invert(bulge)] = nbc_disc[bias][np.invert(bulge)]
+		print "done"
+
+def show_table(table_name,ls="none", fmt="o", legend=False):
 	bt = fi.FITS(table_name)[1].read()
 	snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
 	rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
 	x = np.array([ (bt["snr_lower"]+bt["snr_upper"])/2,(bt["rgp_lower"]+bt["rgp_upper"])/2 ]).T
 
 	plt.xscale("log")
-	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue"]
+	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray"]
+	pts = ["o", "D", ".", "^", ">", "<", "s", "*"]
 	for i,r in enumerate(rgpp):
 		if legend:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
+			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
 		else:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, lw=2.5)
+			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
 
 	plt.xlim(10,300)
 	plt.axhline(0, lw=2)

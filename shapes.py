@@ -53,7 +53,7 @@ class shapecat(i3s_plots, bias_functions.nbc):
 				files=[self.res_path]
 			else:
 				files = glob.glob("%s/*%s"%(self.res_path,ext))
-			print "%s/*.%s"%(self.res_path,ext)
+			print "%s/*%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
 
@@ -89,7 +89,10 @@ class shapecat(i3s_plots, bias_functions.nbc):
 
 			print "loading truth files from %s"%self.truth_path
 			if len(files)>1:
-				self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
+				if res:
+					self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
+				else:
+					self.truth = di.load_truth(truth_path=self.truth_path)
 			else:
 				self.truth = pf.getdata(files[0])
 
@@ -666,8 +669,9 @@ class meds_wrapper(i3meds.I3MEDS):
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
 
 			# COSMOS profile + neighbours
-			pixels = p0[i0:i1] - noise[i0:i1]
-			pixels*=p0[i0:i1].astype(bool).astype(int)
+			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
+			pixels0 = p0[i0:i1] - noise[i0:i1]*scale_stack
+			pixels0*=p0[i0:i1].astype(bool).astype(int)
 
 			import pdb ; pdb.set_trace()
 

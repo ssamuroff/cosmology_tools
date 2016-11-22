@@ -49,7 +49,7 @@ def main():
     print "Done"
 
 
-#main()
+main()
 
 class meds_list:
     def __init__(self, results="r/disc/", meds="."):

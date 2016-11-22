@@ -8,7 +8,7 @@ args = parser.parse_args()
 
 truth_dir=args.truth
 meds_dir=args.meds
-files=glob.glob(meds_dir+"/DES*.fits*")
+files=glob.glob(meds_dir+"/DES*.fits.fz")
 
 for i,f in enumerate(files):
 	tile=os.path.basename(f)[:12]
