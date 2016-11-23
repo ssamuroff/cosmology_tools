@@ -1,9 +1,7 @@
 import numpy as np
 import scipy as sp
-import pyfits
+import astropy.io.fits as pyfits
 import os, pdb
-from samplers import sampler
-import tools.emcee as mc
 import tools.diagnostics as di
 import tools.arrays as arr
 import tools.plots as plots

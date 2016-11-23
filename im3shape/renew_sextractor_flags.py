@@ -29,4 +29,4 @@ mock_cat = Table(mock_cat)
 
 print "Writing mock gold catalogue flags table to %s"%args.output
 
-mock_cat.write(os.path.basename(args.output), path=os.path.dirname(args.output), format="hdf5", overwrite=True) 
+mock_cat.write(os.path.basename(args.output), path=os.path.dirname(args.output), format="hdf5") 

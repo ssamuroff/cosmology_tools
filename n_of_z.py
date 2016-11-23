@@ -3,14 +3,14 @@ import scipy as sp
 import scipy.spatial as sps
 import astropy.io.fits as pyfits
 
-import matplotlib.colors
-import matplotlib
+#import matplotlib.colors
+#import matplotlib
 import math
-matplotlib.rcParams['font.family']='serif'
-matplotlib.rcParams['font.size']=14
-matplotlib.rcParams['legend.fontsize']=14
-matplotlib.rcParams['xtick.major.size'] = 10.0
-matplotlib.rcParams['ytick.major.size'] = 10.0
+#matplotlib.rcParams['font.family']='serif'
+#matplotlib.rcParams['font.size']=14
+#matplotlib.rcParams['legend.fontsize']=14
+#matplotlib.rcParams['xtick.major.size'] = 10.0
+#matplotlib.rcParams['ytick.major.size'] = 10.0
 
 colours=['midnightblue','forestgreen','pink', 'purple', "lightblue"]
 constants={"c" : 299792458.0}

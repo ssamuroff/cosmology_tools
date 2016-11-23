@@ -1,6 +1,6 @@
 import numpy as np
 import scipy as sp
-import pyfits
+import astropy.io.fits as pyfits
 import os, pdb
 from tools import fisher as fi
 from samplers import sampler

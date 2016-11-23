@@ -1,6 +1,6 @@
 import numpy as np
 import astropy.table
-import matplotlib.pyplot as plt
+#import pylab as plt
 import glob, os 
 import astropy.io.fits as pyfits
 import pdb 
