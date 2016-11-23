@@ -1,5 +1,5 @@
 import numpy as np
-import pyfits
+import astropy.io.fits as pyfits
 import astropy.table as tb
 import os.path as path
 

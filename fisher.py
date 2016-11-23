@@ -1,6 +1,6 @@
 import numpy as np
 import scipy as sp
-import pyfits
+import astropy.io.fits as pyfits
 import os, pdb
 
 class fisher:
@@ -359,7 +359,7 @@ class fisherplots:
 		colours={'WL':'m-', 'WL+ggl':'g-', 'WL+LSS':'r-', 'WL+ggl+LSS':'b-'}
 
 		import pylab as plt
-		import sstools.fisher as f
+		import tools.fisher as f
 		y=[]
 		if self.sh:
 			shear=f.fisher(self.config['shear']['file'])

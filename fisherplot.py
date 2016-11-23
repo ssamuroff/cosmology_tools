@@ -1,4 +1,4 @@
-from sstools import fisher as f
+from tools import fisher as f
 
 shear=f.fisher("shear-only-fisher-syst+cos.txt")
 sg=f.fisher("shear+ggl-fisher-1dshift-syst+cos.txt")

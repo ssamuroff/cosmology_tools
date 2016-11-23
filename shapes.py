@@ -1,8 +1,8 @@
 import numpy as np
-import pyfits as pf
+import astropy.io.fits as pf
 import fitsio as fio
 import glob
-import treecorr as tc
+#import treecorr as tc
 import meds, fitsio
 import galsim
 import os, math
@@ -10,9 +10,8 @@ import py3shape.i3meds as i3meds
 import py3shape.utils as utils
 import py3shape.options as i3opt
 import tools.diagnostics as di
-import pylab as plt
+#import pylab as plt
 import tools.arrays as arr
-import tools.nbc as bias_functions
 from plots import im3shape_results_plots as i3s_plots
 import py3shape as p3s
 
@@ -25,7 +24,7 @@ names = {"snr": "snr", "rgp" : "mean_rgpp_rp", "e1": "e1", "e2" : "e2", "iterati
 
 sersic_indices={"disc": 1, "bulge": 4}
 
-class shapecat(i3s_plots, bias_functions.nbc):
+class shapecat(i3s_plots):
 	"""Class for handling im3shape results and,
 	   if relevant, truth catalogues.
 	"""
@@ -496,6 +495,8 @@ class shapecat(i3s_plots, bias_functions.nbc):
 		self.get_beta_col(ncat)
 
 	def get_2pt(self, corr1, corr2, nbins=12, error_type="bootstrap", xmin=1, xmax=300, units="arcmin"):
+
+                import treecorr as tc
 		correlation_lookup = {"psf":("mean_psf_e%d_sky", self.res), "gal":("e%d", self.res)}
 
 		if hasattr(self,"truth"): correlation_lookup["int"] = ("intrinsic_e%d", self.truth)
