@@ -34,7 +34,6 @@ def get_fixed_gaussian_psf(options, psf_size, psf_e1, psf_e2, wcs=None):
     "This is slow - for test runs only."
     import galsim
     psf_box=(options.stamp_size+options.padding)*options.upsampling
-    print psf_box
 
     #Get the localized WCS information
     if wcs is None:
@@ -75,8 +74,6 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
     psfsize=(boxsize+opt._struct.contents.padding)*opt._struct.contents.upsampling
     upsampling=opt._struct.contents.upsampling
 
-    print psfsize
-
     large_boxsize = boxsize*6
 
     gal1 = get_model(size=size, type=model, g1=shear[0], g2=shear[1], flux=flux)
@@ -84,7 +81,6 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
 
     # Add a tiny nominal PSF
     psf, psf_image = get_fixed_gaussian_psf(opt,psf_size, psf_ellipticity[0], psf_ellipticity[1], wcs)
-    print psf_image.shape
     #import pdb ; pdb.set_trace()
     #galsim.Gaussian(fwhm=psf_size*0.27)
 

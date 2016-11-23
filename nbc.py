@@ -8,6 +8,7 @@ import tools.diagnostics as di
 import tools.arrays as arr
 import tools.plots as plots
 import tktools
+from scipy.interpolate import Rbf
 
 import scipy.optimize as opt
 import fitsio as fi
@@ -46,7 +47,12 @@ class nbc(plots.im3shape_results_plots):
 			self.truth1 = cat.truth[sel]
 			self.truth2 = cat.truth[np.invert(sel)]
 
-	def apply(self, names=["m","a"], split_half=2):
+	def apply(self, names=["m","a"], split_half=2, use_rbf=False):
+
+		if use_rbf:
+			print "Using RBF interpolation"
+		else:
+			print "Using polynomial fit"
 
 		# Choose input data
 		if split_half>0:
@@ -59,13 +65,16 @@ class nbc(plots.im3shape_results_plots):
 
 		for bias_name in names:
 			print "creating column %s"%bias_name
-			com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
-			com2 = com2%tuple(np.linspace(1,17,17))
-			exec com2
+			if not use_rbf:
+				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
+				com2 = com2%tuple(np.linspace(1,17,17))
+				exec com2
 
-			com="eval_%s(x"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
-			com=com%tuple(np.linspace(0,17,18))
-			exec "bias=%s"%com
+				com="eval_%s(x"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
+				com=com%tuple(np.linspace(0,17,18))
+				exec "bias=%s"%com
+			else:
+				bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate["snr"], catalogue_to_calibrate["mean_rgpp_rp"])
 
 			if split_half>0:
 				exec "self.res%d = arr.add_col(self.res2, '%s', bias)"%(split_half, bias_name)
@@ -77,8 +86,6 @@ class nbc(plots.im3shape_results_plots):
 				if bias_name=="a":
 					self.res = arr.add_col(self.res, "c1", bias*self.res["mean_psf_e1_sky"])
 					self.res = arr.add_col(self.res, "c2", bias*self.res["mean_psf_e2_sky"])
-
-
 
 	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number", error_type="bootstrap",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
@@ -181,6 +188,21 @@ class nbc(plots.im3shape_results_plots):
 		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
 		print 'saved %s'%filename_table_bias
 
+	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits"):
+		bt = fi.FITS(table)[1].read()
+		snr = (bt["snr_lower"]+bt["snr_upper"])/2
+		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
+
+		# Set up the RBF interpolation
+		self.rbf_interp_m = Rbf(np.log10(snr),np.log10(rgpp),bt["m"], smooth=3)
+		self.rbf_interp_a = Rbf(np.log10(snr),np.log10(rgpp),bt["alpha"], smooth=3)
+
+	def do_rbf_interpolation(self, bias, x, y):
+		if bias=="m":
+			return self.rbf_interp_m(np.log10(x),np.log10(y))
+		elif bias=="a":
+			return self.rbf_interp_a(np.log10(x),np.log10(y))
+			
 	def fit(self, bias="m", table="/home/samuroff/bias_table-bord-selection_section1.fits", tag="", visual=True):
 		bt = fi.FITS(table)[1].read()
 		snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
@@ -227,7 +249,7 @@ class nbc(plots.im3shape_results_plots):
 			self.res[bias][np.invert(bulge)] = nbc_disc[bias][np.invert(bulge)]
 		print "done"
 
-def show_table(table_name,ls="none", fmt="o", legend=False):
+def show_table(table_name,ls="none", fmt="o", legend=False, name="m"):
 	bt = fi.FITS(table_name)[1].read()
 	snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
 	rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
@@ -238,15 +260,22 @@ def show_table(table_name,ls="none", fmt="o", legend=False):
 	pts = ["o", "D", ".", "^", ">", "<", "s", "*"]
 	for i,r in enumerate(rgpp):
 		if legend:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
+			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
 		else:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["m"][i*snr.size:(i*snr.size)+snr.size], bt["err_m"][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
+			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
 
 	plt.xlim(10,300)
-	plt.axhline(0, lw=2)
-	plt.ylim(-0.65,0.1)
+	plt.axhline(0, lw=2, color="k")
+	
 	plt.xlabel("Signal-to-Noise $SNR_w$")
-	plt.ylabel("Multiplicative Bias $m \equiv (m_1 + m_2)/2$")
+	if name=="m":
+		plt.ylim(-0.85,0.05)
+		plt.ylabel("Multiplicative Bias $m \equiv (m_1 + m_2)/2$")
+	elif name=="alpha":
+		plt.ylabel(r"PSF Leakage $\alpha \equiv (\alpha _1 + \alpha _2)/2$")
+		plt.ylim(-0.5,2)
+
+
 	plt.legend(loc="lower right")
 
 
@@ -326,7 +355,13 @@ def fit_model(xt, yt, zt, st, ng):
 
 	return w, w_cov
 
-
+def other_half(split):
+	if split==1:
+		return 2
+	elif split==2:
+		return 1
+	else: 
+		return None
 
 def get_optimal_w(snr_mid, m, s, expand_basis, n_gals=1):
 	list_chi2 = []

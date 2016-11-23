@@ -298,10 +298,10 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
 
 
     dt = fio.FITS(filelist[0])[extension].read().dtype
-    truth = np.empty(len(filelist)*46000, dtype=dt)
+    truth = np.empty(len(filelist)*32000, dtype=dt)
     if add_tilename_col and ("tilename" not in dt.names):
-        truth = arr.add_col(truth, "tilename", len(filelist)*46000*["DES0000+0000"])
-        truth = arr.add_col(truth, "tile", len(filelist)*46000*[-9999])
+        truth = arr.add_col(truth, "tilename", len(filelist)*32000*["DES0000+0000"])
+        truth = arr.add_col(truth, "tile", len(filelist)*32000*[-9999])
     for i, f in enumerate(filelist):
         tile = os.path.basename(f)[:12]
         fits = fio.FITS(f)

@@ -1522,9 +1522,9 @@ class im3shape_results_plots:
 		plt.gca().set_aspect('equal', adjustable='box')
 		plt.draw()
 
-	def bias_fit_vs_pts(self, table=None, bias_name="m", output=None):
+	def bias_fit_vs_pts(self, table=None, bias_name="m", output=None, use_rbf=False):
 		import tools.nbc as cal
-		cal.show_table(table, legend=True)
+		cal.show_table(table, legend=True, name=bias_name*(bias_name=="m") + "alpha"*(bias_name=="a"))
 
 		bt = fitsio.FITS(table)[1].read()
 		snr = np.linspace(np.unique(bt["snr_lower"])[0], 250, 1000)
@@ -1534,21 +1534,25 @@ class im3shape_results_plots:
 		colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray"]
 		for i,r in enumerate(rgpp):
 			x = np.array([snr,np.array([r]*snr.size) ]).T
-			com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
-			com2 = com2%tuple(np.linspace(1,17,17))
-			exec com2
+			if not use_rbf:
+				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
+				com2 = com2%tuple(np.linspace(1,17,17))
+				exec com2
 
-			com = "cal.eval_%s(x"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
-			com = com%tuple(np.linspace(0,17,18))
-			exec "bias=%s"%com
+				com = "cal.eval_%s(x"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
+				com = com%tuple(np.linspace(0,17,18))
+				exec "bias=%s"%com
+			else:
+				bias = self.do_rbf_interpolation(bias_name,snr,np.array([r]*snr.size))
 
-			plt.plot(snr, bias, color=colours[i])
+			plt.plot(snr+np.log(i+1), bias, color=colours[i])
 
-		plt.ylim(-0.8,0.2)
+		#plt.ylim(-0.8,0.2)
 		plt.legend(loc="lower right")
 
 
 		plt.savefig(output)
+		plt.close()
 
 	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt="o", ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
 		bins = np.linspace(0,1.3,nbins+1)
@@ -1667,7 +1671,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 			plt.hist(data2["mean_rgpp_rp"], histtype="step", bins=np.linspace(0.6,2.5,50), normed=1, lw=2.5, color="steelblue", label="v02 Data")
 			plt.legend(loc="upper right")
 		plt.xlabel("Size $R_{gpp} / R_p $")
-		plt.savefig("%s/rgpp-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.savefig("%s/rgpp_rp-hist-v2sim-vs-y1v2data.png"%outdir)
 		plt.close()
 
 	if "flux" in names:
