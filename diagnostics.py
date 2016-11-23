@@ -1,7 +1,9 @@
 import numpy as np
 import astropy.table
 import matplotlib.pyplot as plt
-import glob, os, pyfits, pdb 
+import glob, os 
+import astropy.io.fits as pyfits
+import pdb 
 import fitsio as fio
 import tools.arrays as arr
 

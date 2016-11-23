@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import scipy.spatial as sps
-import pyfits
+import astropy.io.fits as pyfits
 
 import matplotlib.colors
 import matplotlib
