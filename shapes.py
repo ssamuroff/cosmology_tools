@@ -53,7 +53,7 @@ class shapecat(i3s_plots, bias_functions.nbc):
 				files=[self.res_path]
 			else:
 				files = glob.glob("%s/*%s"%(self.res_path,ext))
-			print "%s/*.%s"%(self.res_path,ext)
+			print "%s/*%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
 
@@ -77,6 +77,8 @@ class shapecat(i3s_plots, bias_functions.nbc):
 				single_file=True
 				i=None
 
+			self.indices=i
+
 
 		if truth:
 			if ".fits" in self.truth_path:
@@ -87,12 +89,15 @@ class shapecat(i3s_plots, bias_functions.nbc):
 
 			print "loading truth files from %s"%self.truth_path
 			if len(files)>1:
-				self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
+				if res:
+					self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
+				else:
+					self.truth = di.load_truth(truth_path=self.truth_path)
 			else:
 				self.truth = pf.getdata(files[0])
 
 		if truth and res:
-			self.res, self.truth = di.match_results(self.res,self.truth)
+			self.res, self.truth = di.match_results(self.res,self.truth, name2="coadd_objects_id")
 			if ("ra" in self.res.dtype.names): 
 				if not (self.res["ra"]==self.truth["ra"]).all():
 					self.res["ra"] = self.truth["ra"]
@@ -316,12 +321,18 @@ class shapecat(i3s_plots, bias_functions.nbc):
 		pool_of_possible_neighbours,fulltruth = di.match_results(meds_info,fulltruth, name1="DES_id", name2="coadd_objects_id" )
 		fulltruth = arr.add_col(fulltruth, "ix", pool_of_possible_neighbours["ix"])
 		fulltruth = arr.add_col(fulltruth, "iy", pool_of_possible_neighbours["iy"])
-		fulltruth = arr.add_col(fulltruth, "tile", pool_of_possible_neighbours["tile"])
+		try:
+			fulltruth = arr.add_col(fulltruth, "tile", pool_of_possible_neighbours["tile"])
+		except:
+			fulltruth["tile"] = pool_of_possible_neighbours["tile"]
 
 		objects_needing_neighbours,self.truth = di.match_results(meds_info,self.truth, name1="DES_id", name2="coadd_objects_id" )
 		self.truth = arr.add_col(self.truth, "ix", objects_needing_neighbours["ix"])
 		self.truth = arr.add_col(self.truth, "iy", objects_needing_neighbours["iy"])
-		self.truth = arr.add_col(self.truth, "tile", objects_needing_neighbours["tile"])
+		try:
+			self.truth = arr.add_col(self.truth, "tile", objects_needing_neighbours["tile"])
+		except:
+			self.truth["tile"] = objects_needing_neighbours["tile"]
 
 
 
@@ -626,12 +637,13 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return 10 **((zpmag_coadd - zpmag)/2.5)
 
-	def get_stack_correction(self, iobj):
+	def get_stack_correction(self, iobj, silent=False):
 		boxsize = self._cat["box_size"][iobj]
 		images = np.array([f for f in self._cat["file_id"][iobj] if f>0])
 		nexp = len(images)
 
-		print "Object %d has %d exposures"%(iobj, nexp)
+		if not silent:
+			print "Object %d has %d exposures"%(iobj, nexp)
 
 		correction_stack = np.ones((boxsize*(nexp+1), boxsize))
 
@@ -657,9 +669,14 @@ class meds_wrapper(i3meds.I3MEDS):
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
 
 			# COSMOS profile + neighbours
-			pixels = p0[i0:i1] - noise[i0:i1]
-			pixels*=p0[i0:i1].astype(bool).astype(int)
+			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
+			pixels0 = p0[i0:i1] - noise[i0:i1]*scale_stack
+			pixels0*=p0[i0:i1].astype(bool).astype(int)
+
+			import pdb ; pdb.set_trace()
+
 			p0[i0:i1] = pixels
+
 
 		print "Writing to MEDS file"
 		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
@@ -695,11 +712,11 @@ class meds_wrapper(i3meds.I3MEDS):
 				# Remove any masks other than the one around the central object
 				np.putmask(mask, mask!=seg_id, 0)
 
-			scale_stack = self.get_stack_correction(iobj).flatten()
+			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
 
 			# COSMOS profile + noise
 			if noise:
-				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack - pn[i0:i1]*scale_stack
+				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack - pn[i0:i1]
 			else:
 				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack
 			pixels = p0[i0:i1] - neighbours
@@ -760,12 +777,14 @@ class meds_wrapper(i3meds.I3MEDS):
 				# Remove any masks other than the one around the central object
 				np.putmask(mask, mask!=seg_id, 0)
 
+			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
+
 			if noise and (not neighbours):
-				remove = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
+				remove = p0[i0:i1]- real[i0:i1] * scale_stack - noise[i0:i1] * scale_stack
 			elif (not noise) and (not neighbours):
-				remove = p0[i0:i1]- real[i0:i1]
+				remove = p0[i0:i1]- real[i0:i1] * scale_stack
 			elif (not noise) and neighbours:
-				remove = noise
+				remove = noise * scale_stack
 			elif noise and neighbours:
 				remove = 0.0
 
@@ -779,13 +798,13 @@ class meds_wrapper(i3meds.I3MEDS):
 
 			
 
-		print "Writing to MEDS file"
+		print "Writing to MEDS file %s"%outdir
 		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
 
 		return 0
 
 	def clone(self, data=None, colname="image_cutouts", data2=None, colname2="image_cutouts", newdir=None):
-		out=fitsio.FITS("%s/%s"%(newdir,self._filename.replace(".fz","")), "rw")
+		out=fitsio.FITS("%s/%s"%(newdir,os.path.basename(self._filename).replace(".fz","")), "rw")
 
 		for j, h in enumerate(self._fits[1:]):
 			hdr=h.read_header()
@@ -807,7 +826,7 @@ class meds_wrapper(i3meds.I3MEDS):
 		out.close()
 
 		print "Compressing output file"
-		filename = "%s/%s"%(newdir,self._filename.replace(".fz",""))
+		filename = "%s/%s"%(newdir,os.path.basename(self._filename).replace(".fz",""))
 		fpack_cmd = "fpack  -qz 4.0 -t 10240,1 {}".format(filename)
 		os.system(fpack_cmd)
 		os.system("rm -rf %s"%filename)
@@ -1046,6 +1065,13 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "bands:", bands
 			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
 
+		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(best_img[:,wt.shape[0]*i:wt.shape[0]*i+wt.shape[0]],wt) for i,wt in enumerate(weights) ]
+		print "Mean Mask Fraction : %f"%(1-np.array(unmasked_fraction).mean())
+		boxsize = wt.shape[0]
+		nexp = len(wt)
+		effective_npix = boxsize*boxsize * nexp * (1-np.array(unmasked_fraction).mean())
+		print "chi2 per pixel : -2 x %f / %f = %f"%(result.obj.likelihood, effective_npix, -2*result.obj.likelihood / effective_npix)
+
 		if isinstance(save,str):
 			galaxy_stack = inputs.all('image')
 			wt = inputs.all('weight')
@@ -1054,7 +1080,6 @@ class meds_wrapper(i3meds.I3MEDS):
 			np.savetxt(save+"/image.txt", image )
 			np.savetxt(save+"/weights.txt", np.hstack(tuple(wt)) )
 
-		
 	
 		if show:
 		    cmap = plt.get_cmap("jet")
@@ -1078,7 +1103,7 @@ class meds_wrapper(i3meds.I3MEDS):
 		if return_vals:
 			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
 		else:
-			return result.get_params()
+			return result, result.get_params()
 
 
 

@@ -6,6 +6,7 @@ import astropy.io.fits as pyfits
 import pdb 
 import fitsio as fio
 import tools.arrays as arr
+import scipy.optimize as optimise
 
 def text_to_fits(filename, keyword='fornax'):
     res = load_results0(keyword=keyword)
@@ -130,27 +131,6 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     else:
         extra=''
 
-    if postprocessed:
-        dt = ppi3sdt
-    else:
-        dt = i3sdt
-    
-    if cols:
-        newdt = [(n, str(dt[i])) for i, n in enumerate(dt.names) if n in cols ]
-        dt = np.dtype(newdt)
-
-  # Generate empty array to fill
-    if not apply_infocuts:
-        buff=50000
-    else:
-        buff=8000
-    if ntot!=-1:
-        res= np.empty(ntot*buff, dtype=dt)
-    else:
-        res= np.empty(400*buff, dtype=dt)
-
-    print "total length of buffer : %d"%res.shape
-
     files = glob.glob('*%s*%s.%s'%(keyword,extra,format))
     if res_path!='None':
         files = glob.glob(os.path.join(res_path,'*%s*%s.%s'%(keyword,extra,format)))
@@ -161,9 +141,39 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
 
     if ntot!=-1:
         files=files[:ntot]
+
+    test = pyfits.getdata(files[0])
+    dt = test.dtype
+#        if postprocessed:
+#            dt = ppi3sdt
+#        else:
+#            dt = i3sdt
+    #
+#    if cols:
+#        newdt = [(n, str(dt[i])) for i, n in enumerate(dt.names) if n in cols ]
+#        dt = np.dtype(newdt)
+
+  # Generate empty array to fill
+    if not apply_infocuts:
+        buff=50000
+    else:
+        buff=30000
+    if ntot!=-1:
+        res= np.empty(ntot*buff, dtype=dt)
+    else:
+        res= np.empty(400*buff, dtype=dt)
+
+    print "total length of buffer : %d"%res.shape
+
+    
+
+    
+
+  #  import pdb ; pdb.set_trace()
             
     for f in files:
         tile = os.path.basename(f)[:12]
+        print f
         if (len(match)>0):
             if  (tile not in match):
                 print "Excluding %s"%f
@@ -193,7 +203,12 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             exec cut
             dat = dat[cuts]
 
-        i0 = np.argwhere(res["id"]==0)[0,0]
+        try:
+            i0 = np.argwhere(res["id"]==0)[0,0]
+            nameid = "id"
+        except:
+            i0 = np.argwhere(res["coadd_objects_id"]==0)[0,0]
+            nameid = "coadd_objects_id"
         i1 = i0 + len(dat)
         res[i0:i1] = dat
         ind+=[(i0,i1)]
@@ -269,7 +284,8 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
                 filelist.append(f)
 
         filelist = np.array(filelist)
-        assert filelist.size == len(list_res)
+
+  #      assert filelist.size == len(list_res)
 
         #filelist = np.array([np.array([ f, np.argwhere(np.array(list_res)==os.path.basename(f)[:12])[0,0] ]) for f in files if os.path.basename(f)[:12] in list_res])
     else:
@@ -300,7 +316,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         if ind!=None and res!=None:
             #selres=res[ind[i][0]:ind[i][1]]
             selres = res[res["tilename"]==tile]
-            r,dat=match_results(res,dat)
+            r,dat=match_results(res,dat, name2="coadd_objects_id")
 
         i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
@@ -339,33 +355,60 @@ def get_bord_results(disc,bulge):
     order = np.argsort(res_bord['id'])
     return res_bord[order]
 
-def match_results(res,tr, name1="DES_id", name2="id", unique=True):
+def match_results(res,tr, table3=None, name1="DES_id", name2="coadd_objects_id", name3=None, unique=True):
+
+    if table3 is not None:
+        third_dataset=True
+    else:
+        third_dataset=False
 
     if unique:
         un,ind=np.unique(res[name2], return_index=True)
         res=res[ind]
         un,ind=np.unique(tr[name1], return_index=True)
         tr=tr[ind]
+        if third_dataset:
+            un,ind = np.unique(table3[name3], return_index=True)
+            table3 = table3[ind]
+
 
     tr_id = tr[name1]
     res_id = res[name2]
+    if third_dataset:
+        t3_id = table3[name3]
+        t3_order = np.argsort(t3_id)
+        table3 = table3[t3_order]
 
     tr_order = np.argsort(tr_id)
     res_order = np.argsort(res_id)
-
+    
     tr = tr[tr_order]
     res = res[res_order]
+
 
     if (res.shape==tr.shape) and (np.all(res[name2]==tr[name1])):
         print 'Matched %d objects'%len(tr[name1])
     else:
         sel1 = np.in1d(tr[name1], res[name2])
-
         tr = tr[sel1]
 
         sel2 = np.in1d(res[name2], tr[name1])
-
         res = res[sel2]
+
+        if third_dataset:
+            print "Matching to third array"
+            sel3 = np.in1d(table3[name3], res[name2])
+            table3 = table3[sel3]
+            sel4 = np.in1d(table3[name3], tr[name1])
+            table3 = table3[sel4]
+
+            sel5 = np.in1d(tr[name1], table3[name3])
+            tr = tr[sel5]
+
+            sel6 = np.in1d(res[name2], table3[name3])
+            res = res[sel6]
+
+            return res, tr, table3
 
     return res,tr 
 
@@ -923,6 +966,10 @@ def extract_weighted_cosmos_sample(catfile, cosmosfile= "/share/des/disc2/image-
 def quad(a,b):
     return np.sqrt(a*a + b*b)
 
+def gaussian(x,sigma):
+    """Return a zero-centred Gaussian of given width"""
+    return np.exp(-1. * x * x /2 /sigma /sigma) / np.sqrt(2 * np.pi * sigma * sigma)
+
 
 def plot_mc_snr(dat=None, comp='', bias='m'):
     if not dat:
@@ -1149,11 +1196,46 @@ def find_bin_edges(x,nbins,w=None):
 
     return r
 
+def compute_weight(e1, verbose=True):
+    """Return either the direct measurement of the variance, or the width of the best fit Gaussian distribution"""
+    sigma_direct = e1.std()
 
-def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+    data, bins = np.histogram(e1, normed=1, bins=50)
+    x = (bins[1:]+bins[:-1])/2
+    param, cov = optimise.curve_fit(gaussian, x, data, [0.25])
+    sigma_fit = param[0]
 
-    g1 = catalogue['true_g1']
-    g2 = catalogue['true_g2']
+    if (not np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
+        if verbose:
+            print "WARNING fit variance is not finite: %2.4f"%simga_direct
+        return sigma_direct
+
+    elif (np.isfinite(sigma_fit)) and (not np.isfinite(sigma_direct)):
+        if verbose:
+            print "WARNING direct variance estimate is not finite: %2.4f"%sigma_fit
+        return sigma_fit
+    elif (np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
+        if verbose:
+            print "Using the maximum of direct : %2.4f, best fit : %2.4f"%(sigma_direct,sigma_fit)
+        return max(sigma_direct,sigma_fit)
+
+    else:
+        print "WARNING: neither variance estimate is finite. Using default (0.25)"
+        return 0.25
+
+
+
+
+
+
+
+def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+
+    if truth is None:
+        g1 = catalogue['true_g1']
+        g2 = catalogue['true_g2']
+    else:
+        g1,g2 = truth["true_g1"], truth["true_g2"]
     sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
     g1 = g1[sel]
     g2 = g2[sel]
@@ -1165,6 +1247,16 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
         w = catalogue["w"][sel]
     else:
         w = np.ones_like(e1)
+
+    if apply_calibration:
+        m = catalogue["m"][sel]
+        c1 = catalogue["c1"][sel]
+        c2 = catalogue["c2"][sel]
+        print "Applying calibration columns"
+    else:
+        m = np.zeros_like(e1)
+        c1 = np.zeros_like(e1)
+        c2 = np.zeros_like(e1)
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -1183,15 +1275,15 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.mean(w[sel1] * e1[sel1]) )
-        y22.append( np.mean(w[sel2] * e2[sel2]) )
-        y12.append( np.mean(w[sel1] * e2[sel1]) )
-        y21.append( np.mean(w[sel2] * e1[sel2]) )
+        y11.append( np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
+        y22.append( np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        y12.append( np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
+        y21.append( np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
        
-        variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
-        variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
-        variance_y12.append( np.std(e2[sel1]) / (e2[sel1].size**0.5) )
-        variance_y21.append( np.std(e1[sel2]) / (e1[sel2].size**0.5) )
+        variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+        variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+        variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+        variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
     d1 = np.array(y11)-x
     d2 = np.array(y22)-x
@@ -1204,7 +1296,7 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     p11, cov11 = np.polyfit(x,d1, 1, w=w11, cov=True, full=False)
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
-    m11,c11 = p11
+    m11,c11 = p11  
 
     # m22, c22
     w22 = d2 * (np.array(variance_y22)/np.array(y22))
@@ -1256,7 +1348,7 @@ def get_bias(catalogue, nbins=5, ellipticity_name="e", names=["m","c"], binning=
     return out
 
 
-def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = catalogue['mean_psf_e1_sky']
     g2 = catalogue['mean_psf_e2_sky']
@@ -1271,6 +1363,16 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(
         w = catalogue["weight"][sel]
     else:
         w = np.ones_like(e1)
+
+    if apply_calibration:
+        m = catalogue["m"][sel]
+        c1 = catalogue["c1"][sel]
+        c2 = catalogue["c2"][sel]
+        print "Applying calibration columns"
+    else:
+        m = np.zeros_like(e1)
+        c1 = np.zeros_like(e1)
+        c2 = np.zeros_like(e1)
 
     if  ("weight" not in catalogue.dtype.names) and (use_weights):
         print "Warning: you set use_weights=True, but there is no weights column."
@@ -1295,10 +1397,10 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.sum(w[sel1] * e1[sel1]) / np.sum(w[sel1]) )
-        y22.append( np.sum(w[sel2] * e2[sel2]) / np.sum(w[sel2]) )
-        y12.append( np.sum(w[sel1] * e2[sel1]) / np.sum(w[sel1]) )
-        y21.append( np.sum(w[sel2] * e1[sel2]) / np.sum(w[sel2]) )
+        y11.append( np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]) )
+        y22.append( np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]) )
+        y12.append( np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]) )
+        y21.append( np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]) )
        
         variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
         variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
@@ -1359,7 +1461,7 @@ def get_alpha(catalogue, nbins=5, ellipticity_name="e", use_weights=True, xlim=(
         ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{ii}$")
         ax1.set_ylabel("Ellipticity $e_{ii}$")
         ax1.set_xlim(xlim[0],xlim[1])
-        ax1.set_ylim(-0.0015,0.003)
+        ax1.set_ylim(-0.01,0.015)
         ax1.axhline(0,color="k", lw=2.)
 
         ax2 = ax1.twinx()
