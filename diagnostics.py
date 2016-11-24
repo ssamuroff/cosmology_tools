@@ -154,26 +154,20 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
 #        dt = np.dtype(newdt)
 
   # Generate empty array to fill
+  # Guess the size very roughly
     if not apply_infocuts:
         buff=50000
     else:
-        buff=30000
+        buff=6000
     if ntot!=-1:
         res= np.empty(ntot*buff, dtype=dt)
     else:
         res= np.empty(400*buff, dtype=dt)
 
-    print "total length of buffer : %d"%res.shape
-
-    
-
-    
-
-  #  import pdb ; pdb.set_trace()
+    print "initial length of buffer : %d"%res.shape
             
     for f in files:
         tile = os.path.basename(f)[:12]
-        print f
         if (len(match)>0):
             if  (tile not in match):
                 print "Excluding %s"%f
@@ -210,6 +204,9 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             i0 = np.argwhere(res["coadd_objects_id"]==0)[0,0]
             nameid = "coadd_objects_id"
         i1 = i0 + len(dat)
+        if res[i0:i1].size<(i1-i0):
+            print "Need more space - adding %d rows to the catalogue."%(i1-i0)*2
+            res = np.array(astropy.table.join(res, np.empty((i1-i0)*2, dtype=dt), join_type="outer"))
         res[i0:i1] = dat
         ind+=[(i0,i1)]
        # if res[i1]!=dat[-1]:
@@ -323,6 +320,10 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         if add_tilename_col and ("tilename" not in dat.dtype.names):
             dat = arr.add_col(dat, "tilename", dat.shape[0]*[tile])
             dat = arr.add_col(dat, "tile", dat.shape[0]*[i])
+
+        if truth[i0:i1].size<(i1-i0):
+            print "Need more space - adding %d rows to the truth table."%(i1-i0)*2
+            truth = np.array(astropy.table.join(truth, np.empty((i1-i0)*2, dtype=dt), join_type="outer"))
         truth[i0:i1] = dat
         print i+1, tile, "%d/%d"%(i1, len(truth))
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
