@@ -261,7 +261,7 @@ def load_results0(res_path='None', keyword='fornax'):
 
 #    return truth
 
-def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False, add_tilename_col=True):
+def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False, add_tilename_col=False):
     files=[]
     if truth_path!=None:
         files = glob.glob(os.path.join(truth_path,'*%s*-truth*.fits*'%keyword))
@@ -297,10 +297,10 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
 
 
     dt = fio.FITS(filelist[0])[extension].read().dtype
-    truth = np.empty(len(filelist)*32000, dtype=dt)
+    truth = np.empty(len(filelist)*6000, dtype=dt)
     if add_tilename_col and ("tilename" not in dt.names):
-        truth = arr.add_col(truth, "tilename", len(filelist)*32000*["DES0000+0000"])
-        truth = arr.add_col(truth, "tile", len(filelist)*32000*[-9999])
+        truth = arr.add_col(truth, "tilename", len(filelist)*6000*["DES0000+0000"])
+        truth = arr.add_col(truth, "tile", len(filelist)*6000*[-9999])
     for i, f in enumerate(filelist):
         tile = os.path.basename(f)[:12]
         fits = fio.FITS(f)
@@ -313,7 +313,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         if ind!=None and res!=None:
             #selres=res[ind[i][0]:ind[i][1]]
             selres = res[res["tilename"]==tile]
-            r,dat=match_results(res,dat, name2="coadd_objects_id")
+            r,dat=match_results(selres,dat, name2="coadd_objects_id")
 
         i0 = np.argwhere(truth[bookmark]==0)[0,0]
         i1 = i0 + len(dat)
