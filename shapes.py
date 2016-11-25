@@ -45,13 +45,44 @@ class shapecat(i3s_plots):
 	def load_from_array(self, array, name="res"):
 		setattr(self, name, array)
 
-	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[]):
+	def load_from_cat(self, cat, name="res"):
+		if name is not "all":
+			table = getattr(cat, name) 
+			setattr(self, name, table)
+			setattr(self, "%s_path"%name, getattr(cat, "%s_path"%name))
+			self.files = cat.files
+			try:
+				self.indices = cat.indices
+			except: 
+					print "No indices column"
+
+		else:
+			if hasattr(cat, "truth") and name=="all":
+				self.truth = cat.truth
+				try:
+					self.truth1 = cat.truth1
+					self.truth2 = cat.truth2
+				except:
+					print "Once truth catalogue found (no splits)"
+
+			if hasattr(cat, "res") and name=="all":
+				self.res = cat.res
+				try:
+					self.res1 = cat.res1
+					self.res2 = cat.res2
+				except:
+					print "Once results catalogue found (no splits)"
+
+	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[], ntiles=None):
 		
-		if res:
+		if res and (not hasattr(self, "res")):
 			if "%s"%ext in self.res_path:
 				files=[self.res_path]
 			else:
 				files = glob.glob("%s/*%s"%(self.res_path,ext))
+
+			if ntiles is not None:
+				files = files[:ntiles]
 			print "%s/*%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
@@ -89,7 +120,7 @@ class shapecat(i3s_plots):
 			print "loading truth files from %s"%self.truth_path
 			if len(files)>1:
 				if res:
-					self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
+					self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=self.indices, res=self.res)
 				else:
 					self.truth = di.load_truth(truth_path=self.truth_path)
 			else:

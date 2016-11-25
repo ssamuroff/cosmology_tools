@@ -1231,7 +1231,7 @@ class im3shape_results_plots:
 			if bias not in data.dtype.names:
 				# Do the linear fits
 				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = di.get_alpha(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["alpha","c","alpha11","alpha22","c11","c22"])
+				b = di.get_alpha(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["alpha","c","alpha11","alpha22","c11","c22"], use_weights=False)
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
 					error = di.bootstrap_error(6, data[bin], di.get_alpha, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
@@ -1522,17 +1522,23 @@ class im3shape_results_plots:
 		plt.gca().set_aspect('equal', adjustable='box')
 		plt.draw()
 
-	def bias_fit_vs_pts(self, table=None, bias_name="m", output=None, use_rbf=False):
+	def bias_fit_vs_pts(self, table=None, bias_name="m", output=None, use_rbf=False, do_half=0):
 		import tools.nbc as cal
-		cal.show_table(table, legend=True, name=bias_name*(bias_name=="m") + "alpha"*(bias_name=="a"))
+		cal.show_table(table, legend=True, name=bias_name*(bias_name=="m") + "alpha"*(bias_name=="a"), do_half=do_half)
 
 		bt = fitsio.FITS(table)[1].read()
 		snr = np.linspace(np.unique(bt["snr_lower"])[0], 250, 1000)
 		rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
+		nbins = rgpp.size
+
 
 		plt.xscale("log")
-		colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray"]
+		colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "lemonchiffon", "cyan"]
 		for i,r in enumerate(rgpp):
+			if do_half==1 and i>nbins/2:
+				continue
+			elif do_half==2 and i<nbins/2:
+				continue
 			x = np.array([snr,np.array([r]*snr.size) ]).T
 			if not use_rbf:
 				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
@@ -1547,28 +1553,41 @@ class im3shape_results_plots:
 
 			plt.plot(snr+np.log(i+1), bias, color=colours[i])
 
-		#plt.ylim(-0.8,0.2)
-		plt.legend(loc="lower right")
-
+		if bias_name is "m":
+			plt.ylim(-0.5,0.18)
+			plt.legend(loc="lower right")
+		else:
+			plt.ylim(-0.5,1.5)
+			plt.legend(loc="upper right")
 
 		plt.savefig(output)
 		plt.close()
 
-	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt="o", ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
-		bins = np.linspace(0,1.3,nbins+1)
+	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
+		bins = np.linspace(0,1.35,nbins+1)
 		lower = bins[:-1]
 		upper = bins[1:]
+
+		if bias=="m":
+			xmin,xmax= -1,1
+		elif bias=="a":
+			xmin,xmax = -0.015, 0.020, 
 		exec "data = self.res%d"%split_half
 		exec "truth = self.truth%d"%split_half
-		if hasattr(self, "truth"):
+		if hasattr(self, "truth") and ("true_g1" not in data.dtype.names):
+			print "Adding columns"
 			data = arr.add_col(data,"true_g1",truth["true_g1"])
 			data = arr.add_col(data,"true_g2",truth["true_g2"])
 			data = arr.add_col(data,"intrinsic_sheared_e1",truth["intrinsic_e1"]+truth["true_g1"])
 			data = arr.add_col(data,"intrinsic_sheared_e2",truth["intrinsic_e2"]+truth["true_g2"])
 			data = arr.add_col(data,"z",truth["cosmos_photoz"])
+			setattr(self, "res%d "%split_half, data)
 
-		vec = []
-		err_vec = []
+
+		vec1 = []
+		err_vec1 = []
+		vec2 = []
+		err_vec2 = []
 		z = []
 
 		for i, edges in enumerate(zip(lower,upper)):
@@ -1582,21 +1601,26 @@ class im3shape_results_plots:
 			b = bias_function(data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
 			# Repeat them if the errorbars need to come from bootstrapping
 			if error_type=="bootstrap":
-				error = di.bootstrap_error(6, data[sel], bias_function, additional_args=["names", "apply_calibration", "silent", "ellipticity_name"], additional_argvals=[names[0], apply_calibration, True, ellipticity_name])
+				error1 = di.bootstrap_error(6, data[sel], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error2 = di.bootstrap_error(6, data[sel], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
 			else:
-				error = b[bias][1]
+				error1 = b["%s11"%bias][1]
+				error2 = b["%s22"%bias][1]
 
 			z.append(data[sel]["z"].mean())
-			vec.append(b[bias][0])
-			err_vec.append(error)
+			vec1.append(b["%s11"%bias][0])
+			err_vec1.append(error1)
+			vec2.append(b["%s22"%bias][0])
+			err_vec2.append(error2)
 
-		plt.errorbar(z,vec,err_vec, lw=2.5, ls=ls, color=colour, label=label, fmt=fmt)
+		plt.errorbar(z,vec1,err_vec1, lw=2.5, ls=ls, color=colour, label="$%s_1$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
+		plt.errorbar(z,vec2,err_vec2, lw=2.5, ls=ls, color=colour, label="$%s_2$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[1] )
 		if bias=="m":
 			plt.axhspan(-0.02,0.02,color="forestgreen", alpha=0.3)
 		plt.axhline(0, color="k", lw=2.5)
 		#plt.ylim(-0.7,0.1)
 		plt.xlabel("Redshift $z$")
-		return z,vec,err_vec
+		return z,vec1,err_vec1, vec2,err_vec2
 
 
 def axis_bounds(xlim,ylim,xdata):

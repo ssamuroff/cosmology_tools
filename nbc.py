@@ -5,6 +5,7 @@ import os, pdb
 import tools.diagnostics as di
 import tools.arrays as arr
 import tools.plots as plots
+import tools.shapes as sh
 import tktools
 from scipy.interpolate import Rbf
 
@@ -20,7 +21,7 @@ matplotlib.rcParams['legend.fontsize']=14
 matplotlib.rcParams['xtick.major.size'] = 10.0
 matplotlib.rcParams['ytick.major.size'] = 10.0
 
-class nbc(plots.im3shape_results_plots):
+class nbc(plots.im3shape_results_plots, sh.shapecat):
 	def __init__(self, from_disc=False, from_memory=True, res_dirname=None, truth_dirname=None, res=None, truth=None):
 		if from_memory:
 			print "initialising from memory"
@@ -85,7 +86,7 @@ class nbc(plots.im3shape_results_plots):
 					self.res = arr.add_col(self.res, "c1", bias*self.res["mean_psf_e1_sky"])
 					self.res = arr.add_col(self.res, "c2", bias*self.res["mean_psf_e2_sky"])
 
-	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number", error_type="bootstrap",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
 		if split_half>0:
@@ -169,7 +170,7 @@ class nbc(plots.im3shape_results_plots):
 
 				filename_str = 'snr%2.2f.rgpp%2.2f' % (vsnr_mid,vrgp_mid)
 				b = di.get_bias(data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-				a = di.get_alpha(data[select], nbins=5, binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True)
+				a = di.get_alpha(data[select], nbins=10, xlim=(-0.015, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 
 				list_bias.append([j, i, ngal, vrgp_min, vrgp_max, vsnr_min, vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a[	"alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
@@ -192,16 +193,24 @@ class nbc(plots.im3shape_results_plots):
 		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
 
 		# Set up the RBF interpolation
-		self.rbf_interp_m = Rbf(np.log10(snr),np.log10(rgpp),bt["m"], smooth=3)
-		self.rbf_interp_a = Rbf(np.log10(snr),np.log10(rgpp),bt["alpha"], smooth=3)
+		self.rbf_interp_m = Rbf(np.log10(snr),np.log10(rgpp),bt["m"], smooth=3, function="gaussian")
+		self.rbf_interp_a = Rbf(np.log10(snr),np.log10(rgpp),bt["alpha"], smooth=3, function="gaussian")
 
 	def do_rbf_interpolation(self, bias, x, y):
 		if bias=="m":
 			return self.rbf_interp_m(np.log10(x),np.log10(y))
 		elif bias=="a":
 			return self.rbf_interp_a(np.log10(x),np.log10(y))
+
+	def export(self, filename):
+		print "Will write to %s"%filename,
+		out = fi.FITS(filename,"rw")
+		out.write(self.res)
+		out.write_key("EXTNAME", "i3s_data")
+		out.close()
+		print "done"
 			
-	def fit(self, bias="m", table="/home/samuroff/bias_table-bord-selection_section1.fits", tag="", visual=True):
+	def fit(self, bias="m", table="/home/samuroff/bias_table-bord-selection_section1.fits", tag=""):
 		bt = fi.FITS(table)[1].read()
 		snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
 		rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
@@ -224,39 +233,49 @@ class nbc(plots.im3shape_results_plots):
 		com=com%tuple(np.linspace(0,17,18))
 		exec "bias=%s"%com
 
-		if visual:
-			plt.xscale("log")
-			colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue"]
-			for i,r in enumerate(rgpp):
-				plt.plot(x.T[0][i*snr.size:(i*snr.size)+snr.size], bias[i*snr.size:(i*snr.size)+snr.size], color=colours[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
 
-			plt.xlim(10,200)
-			plt.axhline(0, lw=2)
-			plt.ylim(-0.5,0.05)
-			plt.legend(loc="lower right")
-			plt.savefig("/home/samuroff/shear_pipeline/bias_calibration/plots/v2.2/fits/biasfits_v2.2%s.png"%tag)
-			plt.close()
-
-	def get_combined_calibration(self, nbc_disc, nbc_bulge, names=["m", "c1", "c2"]):
+	def get_combined_calibration(self, nbc_disc, nbc_bulge, split_half=2, names=["m", "c1", "c2"]):
 		print "Will combine bulge and disc calibration fits."
-		print "bulge : %d/%d, disc : %d/%d"%(self.res[bulge].size, self.res.size, self.res[np.invert(bulge)], self.res.size) ,
-		if bias in names:
-			arr.add_column(nbc.res, bias, np.zeros_like(nbc.res))
-			bulge = self.res["is_bulge"].astype(bool)
-			self.res[bias][bulge] = nbc_bulge[bias][bulge]
-			self.res[bias][np.invert(bulge)] = nbc_disc[bias][np.invert(bulge)]
+		if split_half==0:
+			for bias in names:
+				self.res = arr.add_col(self.res, bias, np.zeros_like(self.res))
+				bulge = self.res["is_bulge"].astype(bool)
+				print "fit : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
+				try:
+					self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
+				except:
+					import pdb ; pdb.set_trace()
+				self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
+
+		else:
+			com ="""
+for bias in names:
+	self.res = arr.add_col(self.res, bias, np.zeros_like(self.res))
+	bulge = self.res["is_bulge"].astype(bool)
+
+	print "fit : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
+				
+	self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
+	self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
+""".replace("res", "res%d"%split_half)
+			exec(com)
 		print "done"
 
-def show_table(table_name,ls="none", fmt="o", legend=False, name="m"):
+def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0):
 	bt = fi.FITS(table_name)[1].read()
 	snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
 	rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
+	nbins = rgpp.size
 	x = np.array([ (bt["snr_lower"]+bt["snr_upper"])/2,(bt["rgp_lower"]+bt["rgp_upper"])/2 ]).T
 
 	plt.xscale("log")
-	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray"]
-	pts = ["o", "D", ".", "^", ">", "<", "s", "*"]
+	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "lemonchiffon"]
+	pts = ["o", "D", "x", "^", ">", "<", "1", "s", "*", "+", "."]
 	for i,r in enumerate(rgpp):
+		if do_half==1 and i>nbins/2:
+			continue
+		elif do_half==2 and i<nbins/2:
+			continue
 		if legend:
 			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
 		else:

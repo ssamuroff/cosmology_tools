@@ -158,11 +158,11 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if not apply_infocuts:
         buff=50000
     else:
-        buff=6000
+        buff=5000
     if ntot!=-1:
-        res= np.empty(ntot*buff, dtype=dt)
+        res= np.zeros(ntot*buff, dtype=dt)
     else:
-        res= np.empty(400*buff, dtype=dt)
+        res= np.zeros(2000*buff, dtype=dt)
 
     print "initial length of buffer : %d"%res.shape
             
@@ -198,15 +198,14 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             dat = dat[cuts]
 
         try:
-            i0 = np.argwhere(res["id"]==0)[0,0]
-            nameid = "id"
-        except:
             i0 = np.argwhere(res["coadd_objects_id"]==0)[0,0]
             nameid = "coadd_objects_id"
+        except : 
+            import pdb ; pdb.set_trace()
         i1 = i0 + len(dat)
         if res[i0:i1].size<(i1-i0):
-            print "Need more space - adding %d rows to the catalogue."%(i1-i0)*2
-            res = np.array(astropy.table.join(res, np.empty((i1-i0)*2, dtype=dt), join_type="outer"))
+            print "Need more space - adding %d rows to the catalogue."%((i1-i0)*2)
+            res = np.array(astropy.table.join(res, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         res[i0:i1] = dat
         ind+=[(i0,i1)]
        # if res[i1]!=dat[-1]:
@@ -297,10 +296,11 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
 
 
     dt = fio.FITS(filelist[0])[extension].read().dtype
-    truth = np.empty(len(filelist)*6000, dtype=dt)
+    buff=6000
+    truth = np.zeros(len(filelist)*buff, dtype=dt)
     if add_tilename_col and ("tilename" not in dt.names):
-        truth = arr.add_col(truth, "tilename", len(filelist)*6000*["DES0000+0000"])
-        truth = arr.add_col(truth, "tile", len(filelist)*6000*[-9999])
+        truth = arr.add_col(truth, "tilename", len(filelist)*buff*["DES0000+0000"])
+        truth = arr.add_col(truth, "tile", len(filelist)*buff*[-9999])
     for i, f in enumerate(filelist):
         tile = os.path.basename(f)[:12]
         fits = fio.FITS(f)
@@ -315,15 +315,18 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
             selres = res[res["tilename"]==tile]
             r,dat=match_results(selres,dat, name2="coadd_objects_id")
 
-        i0 = np.argwhere(truth[bookmark]==0)[0,0]
-        i1 = i0 + len(dat)
         if add_tilename_col and ("tilename" not in dat.dtype.names):
             dat = arr.add_col(dat, "tilename", dat.shape[0]*[tile])
             dat = arr.add_col(dat, "tile", dat.shape[0]*[i])
 
-        if truth[i0:i1].size<(i1-i0):
-            print "Need more space - adding %d rows to the truth table."%(i1-i0)*2
-            truth = np.array(astropy.table.join(truth, np.empty((i1-i0)*2, dtype=dt), join_type="outer"))
+
+        i0 = np.argwhere(truth[bookmark]==0)[0,0]
+        
+        i1 = i0 + len(dat)
+
+        while truth[i0:i1].size!=(i1-i0):
+            print "Need more space - adding %d rows to the truth table."%((i1-i0)*2)
+            truth = np.array(astropy.table.join(truth, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         truth[i0:i1] = dat
         print i+1, tile, "%d/%d"%(i1, len(truth))
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
@@ -1276,14 +1279,20 @@ def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticit
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
-        y22.append( np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
-        y12.append( np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
-        y21.append( np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
-       
+        dat = np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1])
+        y11.append(dat)
         variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+
+        dat = np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2])
+        y22.append(dat)
         variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+
+        dat = np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2])
+        y12.append(dat)
         variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+       
+        dat = np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1])
+        y21.append(dat)
         variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
     d1 = np.array(y11)-x
@@ -1294,7 +1303,7 @@ def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticit
     # m11, c11
     w11 = d1 * (np.array(variance_y11)/np.array(y11))
     w11= 1/w11/w11
-    p11, cov11 = np.polyfit(x,d1, 1, w=w11, cov=True, full=False)
+    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=d1 * (np.array(variance_y11)/np.array(y11)), p0=[0.05,1e-4])
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
     m11,c11 = p11  
@@ -1302,19 +1311,19 @@ def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticit
     # m22, c22
     w22 = d2 * (np.array(variance_y22)/np.array(y22))
     w22= 1.0/w22/w22
-    p22, cov22 = np.polyfit(x,d2, 1, w=w22, cov=True, full=False)
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=d2 * (np.array(variance_y22)/np.array(y22)), p0=[0.05,1e-4])
     if not np.isfinite(cov22).all():
         p22,cov22 = stabilised_fit(x,d2,w22)
     m22,c22 = p22
 
     # m12, c12
-    p12, cov12 = np.polyfit(x,y12, 1, w=1./np.array(variance_y12)/np.array(variance_y12), cov=True, full=False)
+    p12, cov12 = optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.05,1e-4])
     if not np.isfinite(cov12).all():
         p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
     m12,c12 = p12
 
     # m21, c21
-    p21, cov21 = np.polyfit(x,y21, 1, w=1./np.array(variance_y21)/np.array(variance_y21), cov=True, full=False)
+    p21, cov21 = optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.05,1e-4])
     if not np.isfinite(cov21).all():
         p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
     m21,c21 = p21
@@ -1414,25 +1423,25 @@ def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e",
     # Four linear fits to do here
 
     # m11, c11
-    p11, cov11 = np.polyfit(x,y11, 1, w=1./np.array(variance_y11)/np.array(variance_y11), cov=True, full=False)
+    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=d1 * (np.array(variance_y11)/np.array(y11)), p0=[0.15,1e-5])
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x,d1,1.0/np.array(variance_y11)/np.array(variance_y11))
     m11,c11 = p11
 
     # m22, c22
-    p22, cov22 = np.polyfit(x,y22, 1, w=1./np.array(variance_y22)/np.array(variance_y22), cov=True, full=False)
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=d2 * (np.array(variance_y22)/np.array(y22)), p0=[0.15,1e-5])
     if not np.isfinite(cov22).all():
         p22,cov22 = stabilised_fit(x,d2,1.0/np.array(variance_y22)/np.array(variance_y22))
     m22,c22 = p22
 
     # m12, c12
-    p12, cov12 = np.polyfit(x,y12, 1, w=1./np.array(variance_y12)/np.array(variance_y12), cov=True, full=False)
+    p12, cov12 =  optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.15,1e-5])
     if not np.isfinite(cov12).all():
         p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
     m12,c12 = p12
 
     # m21, c21
-    p21, cov21 = np.polyfit(x,y21, 1, w=1./np.array(variance_y21)/np.array(variance_y21), cov=True, full=False)
+    p21, cov21 =  optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.15,1e-5])
     if not np.isfinite(cov21).all():
         p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
     m21,c21 = p21
@@ -1455,18 +1464,20 @@ def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e",
     if visual:
         import pylab as plt
         fig, ax1 = plt.subplots()
+        plt.subplots_adjust(wspace=0, hspace=0, top=0.85, bottom=0.06)
         ax1.errorbar(x,y11, variance_y11, fmt="o", color="purple")
         ax1.errorbar(x,y22, variance_y22, fmt="D", color="steelblue")
         ax1.plot(x,x*m11+c11, lw=2.5, color="purple", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
         ax1.plot(x,x*m22+c22, lw=2.5, color="steelblue", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
-        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{ii}$")
-        ax1.set_ylabel("Ellipticity $e_{ii}$")
+        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$")
+        ax1.set_ylabel("Ellipticity $e_{i}$")
         ax1.set_xlim(xlim[0],xlim[1])
-        ax1.set_ylim(-0.01,0.015)
+        ax1.set_ylim(-0.005,0.005)
         ax1.axhline(0,color="k", lw=2.)
 
         ax2 = ax1.twinx()
         ax2.set_xlim(xlim[0], xlim[1])
+        plt.setp(ax2.get_yticklabels(), visible=False)
         ax2.hist(g1, alpha=0.1, bins=45, color="purple")
         ax2.hist(g2, alpha=0.1, bins=45, color="steelblue")
         ax1.legend(loc="upper left")
@@ -1495,6 +1506,9 @@ def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e",
         out["bins"] = x
 
     return out
+
+def fline(x, m, c):
+    return m*x + c
 
 relevant_parameters = ['ra_as', 'dec_as', 'e1', 'e2', 'radius', 'radius_ratio', 'bulge_a', 'disc_a', 'coadd_objects_id', 'time', 'bulge_flux', 'disc_flux', 'flux_ratio', 'snr', 'old_snr', 'min_residuals', 'max_residuals', 'model_min', 'model_max', 'likelihood', 'levmar_start_error', 'levmar_end_error', 'levmar_resid_grad', 'levmar_vector_diff', 'levmar_error_diff', 'levmar_comp_grad', 'levmar_iterations', 'levmar_reason', 'levmar_like_evals', 'levmar_grad_evals', 'levmar_sys_evals', 'mean_flux', 'n_exposure', 'stamp_size', 'mean_rgpp_rp', 'mean_psf_e1_sky', 'mean_psf_e2_sky', 'fails_psf_e2_sky', 'mean_psf_fwhm', 'mean_unmasked_flux_frac', 'fails_unmasked_flux_frac', 'mean_model_edge_mu', 'mean_model_edge_sigma', 'mean_edge_mu', 'fails_edge_mu', 'mean_edge_sigma', 'mean_hsm_psf_e1_sky', 'mean_hsm_psf_e2_sky', 'mean_hsm_psf_sigma', 'mean_hsm_psf_rho4', 'mean_mask_fraction',  'round_snr',  'round_snr_mw', 'ra', 'dec', 'chi2_pixel', 'mag_auto_g', 'mag_auto_r', 'mag_auto_i', 'mag_auto_z', 'desdm_zp']
     
