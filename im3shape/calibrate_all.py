@@ -6,8 +6,6 @@ import fitsio as fi
 import pylab as plt
 import os
 
-# Whether to use radial basis functions (as opposed to fitting a polynomial in SNR and Rgpp)
-rbf=False
 
 # Input im3shape results on data
 i3s_dir = "/share/des/disc7/samuroff/des/im3shape-v2-infocuts.fits" 
@@ -25,10 +23,12 @@ def main():
 	y1v2.load(truth=False)
 	y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
 
+	# And the simulation results
 	hoopoe = s.shapecat(res="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/results/disc-fits/main",truth="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/truth")
 	hoopoe.load(truth=True)
 	
-	diagnostics(y1v2,hoopoe)
+	diagnostics(y1v2,hoopoe, rbf=True)
+	diagnostics(y1v2, hoopoe, histograms=False, alpha=False, table=False, rbf=False)
 	calibrate(y1v2, hoopoe)
 
 def calibrate(data, hoopoe, method="rbf"):
@@ -68,7 +68,7 @@ def calibrate(data, hoopoe, method="rbf"):
 	nbc.export(filename=output_catalogue)
 
 
-def diagnostics(y1v2,hoopoe, histograms=True, alpha=True, table=True, vssnr=True, vsredshift=True):
+def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=True, vsredshift=True, rbf=True):
 
 	if not os.path.exists(plots_dir):
 		print "Warning - output plots directory does not exist"
