@@ -188,16 +188,16 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
 
 		# Set up the RBF interpolation
-		self.fx = (np.log10(snr).max()-np.log10(snr).min())
-		self.fy = (np.log10(rgpp).max()-np.log10(rgpp).min())
-		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx,np.log10(rgpp)/self.fy,bt["m"], smooth=3, function="multiquadric")
-		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx,np.log10(rgpp)/self.fy,bt["alpha"], smooth=3, function="multiquadric")
+		self.fx = np.log10(snr).max()
+		self.fy = np.log10(rgpp).max()
+		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["m"], smooth=3, function="multiquadric")
+		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["alpha"], smooth=3, function="multiquadric")
 
 	def do_rbf_interpolation(self, bias, x, y):
 		if bias=="m":
-			return self.rbf_interp_m(np.log10(x)/self.fx,np.log10(y)/self.fy)
+			return self.rbf_interp_m(np.log10(x)/self.fx, np.log10(y)/self.fy)
 		elif bias=="a":
-			return self.rbf_interp_a(np.log10(x)/self.fx,np.log10(y)/self.fy)
+			return self.rbf_interp_a(np.log10(x)/self.fx, np.log10(y)/self.fy)
 
 	def export(self, filename):
 		print "Will write to %s"%filename,
@@ -235,9 +235,9 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		print "Will combine bulge and disc calibration fits."
 		if split_half==0:
 			for bias in names:
-				self.res = arr.add_col(self.res, bias, np.zeros_like(self.res))
+				self.res = arr.add_col(self.res, bias, np.zeros_like(self.res['e1']))
 				bulge = self.res["is_bulge"].astype(bool)
-				print "fit : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
+				print "column : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
 				try:
 					self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
 				except:
@@ -245,16 +245,17 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
 
 		else:
+			
 			com ="""
-for bias in names:
-	self.res = arr.add_col(self.res, bias, np.zeros_like(self.res))
-	bulge = self.res["is_bulge"].astype(bool)
+for i, bias in enumerate(names):
+	bulge = self.res['is_bulge'].astype(bool)
+	if i==0: print 'bulge :', self.res[bulge].size, 'disc : ', self.res[bulge].size, 'total : ', self.res.size
+	self.res = arr.add_col(self.res, bias, np.zeros_like(self.res['e1']))
 
-	print "fit : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
+	print 'column : ', bias
 				
 	self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
-	self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
-""".replace("res", "res%d"%split_half)
+	self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]""".replace("res", "res%d"%split_half)
 			exec(com)
 		print "done"
 
