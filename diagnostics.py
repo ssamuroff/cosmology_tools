@@ -1246,11 +1246,6 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), el
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
 
-#    if "w" in catalogue.dtype.names:
-#        w = catalogue["w"][sel]
-#    else:
-#        w = np.ones_like(e1)
-
     if apply_calibration:
         m = catalogue["m"][sel]
         c1 = catalogue["c1"][sel]
