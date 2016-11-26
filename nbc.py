@@ -270,23 +270,24 @@ for i, bias in enumerate(names):
 
 def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0):
 	bt = fi.FITS(table_name)[1].read()
-	snr = (np.unique(bt["snr_lower"])+np.unique(bt["snr_upper"]))/2
 	rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
 	nbins = rgpp.size
-	x = np.array([ (bt["snr_lower"]+bt["snr_upper"])/2,(bt["rgp_lower"]+bt["rgp_upper"])/2 ]).T
 
 	plt.xscale("log")
 	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "darkviolet"]
 	pts = ["o", "D", "x", "^", ">", "<", "1", "s", "*", "+", "."]
 	for i,r in enumerate(rgpp):
+		sel = (bt["i"]==i)
+		snr = 10** ((np.log10(bt["snr_lower"][sel]) + np.log10(bt["snr_upper"][sel]))/2)
+
 		if do_half==1 and i>nbins/2:
 			continue
 		elif do_half==2 and i<nbins/2:
 			continue
 		if legend:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
+			plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
 		else:
-			plt.errorbar(x.T[0][i*snr.size:(i*snr.size)+snr.size], bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
+			plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
 
 	plt.xlim(10,300)
 	plt.axhline(0, lw=2, color="k")
@@ -298,6 +299,7 @@ def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0)
 	elif name=="alpha":
 		plt.ylabel(r"PSF Leakage $\alpha \equiv (\alpha _1 + \alpha _2)/2$")
 		plt.ylim(-0.5,2)
+
 
 
 	plt.legend(loc="lower right")
