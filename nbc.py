@@ -110,11 +110,6 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		data = data[sel_fit]
 		tr = tr[sel_fit]
 
-		if hasattr(self, "truth"):
-			data = arr.add_col(data,"true_g1",tr["true_g1"])
-			data = arr.add_col(data,"true_g2",tr["true_g2"])
-			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
-			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
 
 		if isinstance(binning,str) : 
 			if binning.lower()=="uniform":
@@ -130,7 +125,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		list_bias = []
 		bias_grid=[]
 
-		b = di.get_bias(data, nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+		b = di.get_bias(tr, data, nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
 		print "Global biases:"
 		print "m11 : ", b["m11"]
 		print "m22 : ", b["m22"]
@@ -169,8 +164,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					continue
 
 				filename_str = 'snr%2.2f.rgpp%2.2f' % (vsnr_mid,vrgp_mid)
-				b = di.get_bias(data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-				a = di.get_alpha(data[select], nbins=10, xlim=(-0.015, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				b = di.get_bias(tr[select], data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				a = di.get_alpha(data[select], data[select], nbins=5, xlim=(-0.015, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 
 				list_bias.append([j, i, ngal, vrgp_min, vrgp_max, vsnr_min, vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a[	"alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
@@ -193,14 +188,16 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
 
 		# Set up the RBF interpolation
-		self.rbf_interp_m = Rbf(np.log10(snr),np.log10(rgpp),bt["m"], smooth=3, function="gaussian")
-		self.rbf_interp_a = Rbf(np.log10(snr),np.log10(rgpp),bt["alpha"], smooth=3, function="gaussian")
+		self.fx = (np.log10(snr).max()-np.log10(snr).min())
+		self.fy = (np.log10(rgpp).max()-np.log10(rgpp).min())
+		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx,np.log10(rgpp)/self.fy,bt["m"], smooth=3, function="multiquadric")
+		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx,np.log10(rgpp)/self.fy,bt["alpha"], smooth=3, function="multiquadric")
 
 	def do_rbf_interpolation(self, bias, x, y):
 		if bias=="m":
-			return self.rbf_interp_m(np.log10(x),np.log10(y))
+			return self.rbf_interp_m(np.log10(x)/self.fx,np.log10(y)/self.fy)
 		elif bias=="a":
-			return self.rbf_interp_a(np.log10(x),np.log10(y))
+			return self.rbf_interp_a(np.log10(x)/self.fx,np.log10(y)/self.fy)
 
 	def export(self, filename):
 		print "Will write to %s"%filename,

@@ -73,7 +73,7 @@ class shapecat(i3s_plots):
 				except:
 					print "Once results catalogue found (no splits)"
 
-	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[], ntiles=None):
+	def load(self, res=True, truth=False, epoch=False, coadd=False, prune=False, cols=[None,None], postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[], ntiles=None):
 		
 		if res and (not hasattr(self, "res")):
 			if "%s"%ext in self.res_path:
@@ -95,9 +95,9 @@ class shapecat(i3s_plots):
 
 			if len(files)>1:
 				if apply_infocuts and self.noisefree:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 				else:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 			else:
 				if ext.lower()==".fits":
 					self.res = fio.FITS(files[0])[1].read()
@@ -120,9 +120,9 @@ class shapecat(i3s_plots):
 			print "loading truth files from %s"%self.truth_path
 			if len(files)>1:
 				if res:
-					self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=self.indices, res=self.res)
+					self.truth = di.load_truth(truth_path=self.truth_path, cols=cols[1], apply_infocuts=apply_infocuts, match=self.files, ind=self.indices, res=self.res)
 				else:
-					self.truth = di.load_truth(truth_path=self.truth_path)
+					self.truth = di.load_truth(truth_path=self.truth_path, cols=cols[1], apply_infocuts=apply_infocuts)
 			else:
 				self.truth = pf.getdata(files[0])
 
@@ -134,7 +134,6 @@ class shapecat(i3s_plots):
 					self.res["dec"] = self.truth["dec"]
 
 			print "Found catalogue of %d objects after matching to truth table"%len(self.res)
-
 
 		if coadd:
 			if ".fits" in self.coadd_path:
@@ -159,13 +158,18 @@ class shapecat(i3s_plots):
 			except:
 				self.epoch = di.load_epoch(path.replace("bord", "disc"))
 
-		if hasattr(self, "truth"):
-			sel = self.truth["sextractor_pixel_offset"]<1.0
+		if prune:
+			sel = np.isfinite(self.res["mean_psf_e1_sky"]) & np.isfinite(self.res["mean_psf_e2_sky"]) 
+			self.res = self.res[sel]
 			self.truth = self.truth[sel]
-			if hasattr(self, "res"):
-				self.res = self.res[sel]
-			if coadd:
-				self.coadd = self.coadd[sel]
+
+#		if hasattr(self, "truth"):
+#			sel = self.truth["sextractor_pixel_offset"]<1.0
+#			self.truth = self.truth[sel]
+#			if hasattr(self, "res"):
+#				self.res = self.res[sel]
+#			if coadd:
+	#			self.coadd = self.coadd[sel]
 
 	def add_bpz_cols(self, fil="/share/des/disc3/samuroff/y1/photoz/bpz/NSEVILLA_PHOTOZ_TPL_Y1G103_1_bpz_highzopt_2_9_16.fits", array=None, exclude=None):
 		print "Loading BPZ results from %s"%fil
@@ -336,7 +340,7 @@ class shapecat(i3s_plots):
 		fulltruth = di.load_truth(self.truth_path)
 
 		import fitsio as fi
-		reference=fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/y1a1-v2.2_10/meds/y1a1_positions.fits")[1].read()
+		reference=fitsio.FITS("/share/des/disc6/samuroff/y1/hoopoe/y1a1-v2.2_10/meds/y1a1_positions.fits")[1].read()
 		fulltruth,ref = di.match_results(fulltruth,reference, name1="coadd_objects_id", name2="DES_id")
 		fulltruth["ra"]=ref["ra"]
 		fulltruth["dec"]=ref["dec"]

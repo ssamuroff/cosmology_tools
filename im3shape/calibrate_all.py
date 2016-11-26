@@ -18,16 +18,18 @@ output_catalogue = "/home/samuroff/shear_pipeline/bias_calibration/v1.0/y1a1-im3
 plt.switch_backend("agg")
 
 def main():
+	im3shape_columns = ["e1", "e2", "mean_psf_e1_sky", "mean_psf_e2_sky", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "info_flag", "is_bulge", "tilename"]
+	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 	# Load the y1 data
 	y1v2 = s.shapecat(res=i3s_dir)
-	y1v2.load(truth=False)
+	y1v2.load(truth=False, prune=True, cols=[im3shape_columns,truth_columns])
 	y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
 
 	# And the simulation results
 	hoopoe = s.shapecat(res="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/results/disc-fits/main",truth="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/truth")
-	hoopoe.load(truth=True)
+	hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
 	
-	diagnostics(y1v2,hoopoe, rbf=True)
+	diagnostics(y1v2, hoopoe, rbf=True)
 	diagnostics(y1v2, hoopoe, histograms=False, alpha=False, table=False, rbf=False)
 	calibrate(y1v2, hoopoe)
 
@@ -81,7 +83,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 	if alpha:
 		# Global fit of alpha to compare with previous runs
 		plt.close()
-		b = di.get_alpha(hoopoe.res, nbins=20, xlim=(-0.015,0.025), binning="equal_number", use_weights=False, visual=True)
+		b = di.get_alpha(hoopoe.res, hoopoe.res, nbins=20, xlim=(-0.015,0.025), binning="equal_number", use_weights=False, visual=True)
 		plt.subplots_adjust(wspace=0, hspace=0, top=0.95, bottom=0.1)
 		plt.title("Y1 v1 Sim, PSF v01")
 

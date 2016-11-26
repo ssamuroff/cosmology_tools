@@ -4,7 +4,7 @@ import astropy.table
 import glob, os 
 import astropy.io.fits as pyfits
 import pdb 
-import fitsio as fio
+import fitsio as fi
 import tools.arrays as arr
 import scipy.optimize as optimise
 
@@ -142,16 +142,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if ntot!=-1:
         files=files[:ntot]
 
-    test = pyfits.getdata(files[0])
-    dt = test.dtype
-#        if postprocessed:
-#            dt = ppi3sdt
-#        else:
-#            dt = i3sdt
-    #
-#    if cols:
-#        newdt = [(n, str(dt[i])) for i, n in enumerate(dt.names) if n in cols ]
-#        dt = np.dtype(newdt)
+    dt = fi.FITS(files[0])[1].read(columns=cols).dtype
 
   # Generate empty array to fill
   # Guess the size very roughly
@@ -174,7 +165,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
                 print "file exists but is not in the specified list of tiles."
                 continue 
         if format.lower()=="fits":
-            fits = fio.FITS(f)
+            fits = fi.FITS(f)
             if cols:
                 dat = fits[1].read(columns=cols)
             else:
@@ -260,7 +251,7 @@ def load_results0(res_path='None', keyword='fornax'):
 
 #    return truth
 
-def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, res=None, faint=False, add_tilename_col=False):
+def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, cols=None, ind=None, res=None, faint=False, add_tilename_col=False):
     files=[]
     if truth_path!=None:
         files = glob.glob(os.path.join(truth_path,'*%s*-truth*.fits*'%keyword))
@@ -295,15 +286,19 @@ def load_truth(truth_path=None, keyword='DES', match=None, cols=None, ind=None, 
         bookmark="cosmos_id"
 
 
-    dt = fio.FITS(filelist[0])[extension].read().dtype
-    buff=6000
+    dt = fi.FITS(filelist[0])[extension].read(columns=cols).dtype
+
+    if apply_infocuts:
+        buff=6000
+    else:
+        buff = 50000
     truth = np.zeros(len(filelist)*buff, dtype=dt)
     if add_tilename_col and ("tilename" not in dt.names):
         truth = arr.add_col(truth, "tilename", len(filelist)*buff*["DES0000+0000"])
         truth = arr.add_col(truth, "tile", len(filelist)*buff*[-9999])
     for i, f in enumerate(filelist):
         tile = os.path.basename(f)[:12]
-        fits = fio.FITS(f)
+        fits = fi.FITS(f)
         if cols:
             dat = fits[extension].read(columns=cols)
         else:
@@ -1124,9 +1119,15 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
         b_high = bootstrap_edges[i+1]
         #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
         if additional_args is None:
-            derived_quantity = operation( full_cat[b_low:b_high])
+            if not isinstance(full_cat, list):
+                derived_quantity = operation( full_cat[b_low:b_high])
+            else:
+                derived_quantity = operation( full_cat[0][b_low:b_high], full_cat[1][b_low:b_high])
         else:
-            comm = "derived_quantity = operation(full_cat[b_low:b_high]"
+            if not isinstance(full_cat, list):
+                comm = "derived_quantity = operation(full_cat[b_low:b_high]"
+            else:
+                comm = "derived_quantity = operation(full_cat[0][b_low:b_high], full_cat[1][b_low:b_high]"
             for name,val in zip(additional_args, additional_argvals):
                 if isinstance(val,str):
                     comm += ", %s='%s'"%(name,val)
@@ -1233,24 +1234,22 @@ def compute_weight(e1, verbose=True):
 
 
 
-def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
 
-    if truth is None:
-        g1 = catalogue['true_g1']
-        g2 = catalogue['true_g2']
-    else:
-        g1,g2 = truth["true_g1"], truth["true_g2"]
-    sel = (g1>-1.) & (g1<1) & (g2>-1.) & (g2<1)
+    g1 = xdata['true_g1']
+    g2 = xdata['true_g2']
+    
+    sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1])
     g1 = g1[sel]
     g2 = g2[sel]
 
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
 
-    if "w" in catalogue.dtype.names:
-        w = catalogue["w"][sel]
-    else:
-        w = np.ones_like(e1)
+#    if "w" in catalogue.dtype.names:
+#        w = catalogue["w"][sel]
+#    else:
+#        w = np.ones_like(e1)
 
     if apply_calibration:
         m = catalogue["m"][sel]
@@ -1279,20 +1278,16 @@ def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticit
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        dat = np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1])
-        y11.append(dat)
+        y11.append(np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
         variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
-        dat = np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2])
-        y22.append(dat)
+        y22.append(np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
         variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
 
-        dat = np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2])
-        y12.append(dat)
+        y12.append(np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
         variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
-        dat = np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1])
-        y21.append(dat)
+        y21.append(np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
         variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
     d1 = np.array(y11)-x
@@ -1358,10 +1353,10 @@ def get_bias(catalogue, truth=None, apply_calibration=False, nbins=5, ellipticit
     return out
 
 
-def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
-    g1 = catalogue['mean_psf_e1_sky']
-    g2 = catalogue['mean_psf_e2_sky']
+    g1 = xdata['mean_psf_e1_sky']
+    g2 = xdata['mean_psf_e2_sky']
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1]) & np.isfinite(g1) & np.isfinite(g2)
     g1 = g1[sel]
     g2 = g2[sel]
@@ -1416,6 +1411,9 @@ def get_alpha(catalogue, nbins=5, apply_calibration=False, ellipticity_name="e",
         variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
         variance_y12.append( np.std(e2[sel1]) / (e2[sel1].size**0.5) )
         variance_y21.append( np.std(e1[sel2]) / (e1[sel2].size**0.5) )
+
+        if not (np.isfinite(np.array(y22)).all() and np.isfinite(np.array(variance_y22)).all()):
+            import pdb ; pdb.set_trace()
 
     d1 = np.array(y11)
     d2 = np.array(y22)

@@ -1574,15 +1574,6 @@ class im3shape_results_plots:
 			xmin,xmax = -0.015, 0.020, 
 		exec "data = self.res%d"%split_half
 		exec "truth = self.truth%d"%split_half
-		if hasattr(self, "truth") and ("true_g1" not in data.dtype.names):
-			print "Adding columns"
-			data = arr.add_col(data,"true_g1",truth["true_g1"])
-			data = arr.add_col(data,"true_g2",truth["true_g2"])
-			data = arr.add_col(data,"intrinsic_sheared_e1",truth["intrinsic_e1"]+truth["true_g1"])
-			data = arr.add_col(data,"intrinsic_sheared_e2",truth["intrinsic_e2"]+truth["true_g2"])
-			data = arr.add_col(data,"z",truth["cosmos_photoz"])
-			setattr(self, "res%d "%split_half, data)
-
 
 		vec1 = []
 		err_vec1 = []
@@ -1591,18 +1582,18 @@ class im3shape_results_plots:
 		z = []
 
 		for i, edges in enumerate(zip(lower,upper)):
-			sel = (data["z"]>edges[0]) & (data["z"]<edges[1])
+			sel = (xdata["z"]>edges[0]) & (xdata["z"]<edges[1])
 			if bias in ["alpha", "alpha11", "alpha22"]:
 				bias_function = di.get_alpha
 				names = ["alpha","c","alpha11","alpha22","c11","c22"]
 			else:
 				bias_function = di.get_bias
 				names = ["m","c","m11","m22","c11","c22"]
-			b = bias_function(data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
+			b = bias_function(xdata[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
 			# Repeat them if the errorbars need to come from bootstrapping
 			if error_type=="bootstrap":
-				error1 = di.bootstrap_error(6, data[sel], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
-				error2 = di.bootstrap_error(6, data[sel], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error1 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error2 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
 			else:
 				error1 = b["%s11"%bias][1]
 				error2 = b["%s22"%bias][1]
