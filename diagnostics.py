@@ -1402,15 +1402,17 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append( np.sum(w[sel1] * (e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]) )
-        y22.append( np.sum(w[sel2] * (e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]) )
-        y12.append( np.sum(w[sel1] * (e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]) )
-        y21.append( np.sum(w[sel2] * (e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]) )
+        y11.append(np.sum((e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
+        variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+
+        y22.append(np.sum((e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+
+        y12.append(np.sum((e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
+        variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
-        variance_y11.append( np.std(e1[sel1]) / (e1[sel1].size**0.5) )
-        variance_y22.append( np.std(e2[sel2]) / (e2[sel2].size**0.5) )
-        variance_y12.append( np.std(e2[sel1]) / (e2[sel1].size**0.5) )
-        variance_y21.append( np.std(e1[sel2]) / (e1[sel2].size**0.5) )
+        y21.append(np.sum((e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
+        variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
         if not (np.isfinite(np.array(y22)).all() and np.isfinite(np.array(variance_y22)).all()):
             import pdb ; pdb.set_trace()
