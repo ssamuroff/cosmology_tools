@@ -1112,22 +1112,29 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
     """Generic function which takes an array and splits into nsubsamples parts. Then apply an operation
        to each, and find the rms deviation about the mean in the resulting quantity."""
     resampled = []
-    resample_length=len(full_cat)/nsubsamples
+    if isinstance(full_cat, tuple) and (len(full_cat)==2):
+        xdata = full_cat[0]
+        ydata = full_cat[1]
+        separate_xy = True
+    else:
+        separate_xy = False
+        ydata = full_cat
+    resample_length=len(ydata)/nsubsamples
     bootstrap_edges=(np.arange(nsubsamples+1)*resample_length).astype(int)
     for i in xrange(nsubsamples-1):
         b_low = bootstrap_edges[i]
         b_high = bootstrap_edges[i+1]
         #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
         if additional_args is None:
-            if not isinstance(full_cat, list):
+            if not separate_xy:
                 derived_quantity = operation( full_cat[b_low:b_high])
             else:
-                derived_quantity = operation( full_cat[0][b_low:b_high], full_cat[1][b_low:b_high])
+                derived_quantity = operation( xdata[b_low:b_high], ydata[b_low:b_high])
         else:
-            if not isinstance(full_cat, list):
+            if not separate_xy:
                 comm = "derived_quantity = operation(full_cat[b_low:b_high]"
             else:
-                comm = "derived_quantity = operation(full_cat[0][b_low:b_high], full_cat[1][b_low:b_high]"
+                comm = "derived_quantity = operation(xdata[b_low:b_high], ydata[b_low:b_high]"
             for name,val in zip(additional_args, additional_argvals):
                 if isinstance(val,str):
                     comm += ", %s='%s'"%(name,val)
@@ -1135,7 +1142,11 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
                     comm += ", %s=%s"%(name,val)
             comm+=")"
 
-            exec comm
+            try:
+                exec comm
+
+            except:
+                import pdb ; pdb.set_trace()
             #print derived_quantity
 
         resampled.append(derived_quantity)
@@ -1401,7 +1412,10 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
         y22.append(np.sum((e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        if not (np.isfinite(np.array(y22)).all()):
+            import pdb ; pdb.set_trace()
         variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+
 
         y12.append(np.sum((e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
         variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
@@ -1409,8 +1423,7 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         y21.append(np.sum((e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
         variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
-        if not (np.isfinite(np.array(y22)).all() and np.isfinite(np.array(variance_y22)).all()):
-            import pdb ; pdb.set_trace()
+        
 
     d1 = np.array(y11)
     d2 = np.array(y22)

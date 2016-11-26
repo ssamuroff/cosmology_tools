@@ -110,14 +110,17 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		data = data[sel_fit]
 		tr = tr[sel_fit]
 
+		sel_lim = (data["snr"]>slim[0]) & (data["snr"]<slim[1]) & (data["mean_rgpp_rp"]>rlim[0]) & (data["mean_rgpp_rp"]<rlim[1])
+		data = data[sel_lim]
+		tr = tr[sel_lim]
 
 		if isinstance(binning,str) : 
 			if binning.lower()=="uniform":
 				snr_edges = np.logspace(np.log10(slim[0]),np.log10(slim[1]),sbins+1)
 				rgp_edges = np.linspace(rlim[0],rlim[1],rbins+1)
 			elif binning.lower()=="equal_number":
-				snr_edges=di.find_bin_edges(self.res["snr"][(self.res["snr"]>slim[0]) & (self.res["snr"]<slim[1])], sbins)
-				rgp_edges=di.find_bin_edges(self.res["mean_rgpp_rp"][(self.res["mean_rgpp_rp"]>rlim[0]) & (self.res["mean_rgpp_rp"]<rlim[1])], rbins)
+				snr_edges = di.find_bin_edges(np.log10(data["snr"]), sbins)
+				rgp_edges = di.find_bin_edges(np.log10(data["mean_rgpp_rp"]), rbins)
 
 		snr_centres = (snr_edges[1:]+snr_edges[:-1])/2.0
 		rgp_centres = (rgp_edges[1:]+rgp_edges[:-1])/2.0
@@ -134,13 +137,17 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		print "c22 : ", b["c22"]
 		print "c : ", b["c"]
 
+		print "Will do dynamic binning in SNR"
+
 		for i in xrange(len(rgp_edges)-1):
+			snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
+			snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
 			for j in xrange(len(snr_edges)-1):
 				empty=False
-				print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, snr_edges[j], snr_edges[j+1], rgp_edges[i], rgp_edges[i+1] )
+				print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
 
 				# Select in bins of snr and size
-				select = (data['snr'] > snr_edges[j]) & (data['snr'] < snr_edges[j+1]) & (data['mean_rgpp_rp'] > rgp_edges[i]) & (data['mean_rgpp_rp'] < rgp_edges[i+1])
+				select = (np.log10(data['snr']) > snr_edges[j]) & (np.log10(data['snr']) < snr_edges[j+1]) & (np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])
 				ngal = np.nonzero(select.astype(int))[0].size
 
 				# Raise an error if there are too few simulated galaxies in a given bin
@@ -163,11 +170,13 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					list_bias.append([j, i, ngal, 0, vrgp_min, vrgp_max, vsnr_min, vsnr_max, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.	, 0., 0.])
 					continue
 
-				filename_str = 'snr%2.2f.rgpp%2.2f' % (vsnr_mid,vrgp_mid)
+				
+
+				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
 				b = di.get_bias(tr[select], data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
 				a = di.get_alpha(data[select], data[select], nbins=5, xlim=(-0.015, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 
-				list_bias.append([j, i, ngal, vrgp_min, vrgp_max, vsnr_min, vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a[	"alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
+				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
 		lab=["j","i","ngal","rgp_lower","rgp_upper","snr_lower","snr_upper","m","err_m","c","err_c","m1","err_m1","m2","err_m2","c1","err_c1","c2",	"err_c2","alpha","err_alpha","alpha11","err_alpha11","alpha22","err_alpha22"]
 		dt = {'names': lab, 'formats': ['i4']*3 + ['f8']*22 }
@@ -267,7 +276,7 @@ def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0)
 	x = np.array([ (bt["snr_lower"]+bt["snr_upper"])/2,(bt["rgp_lower"]+bt["rgp_upper"])/2 ]).T
 
 	plt.xscale("log")
-	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "lemonchiffon"]
+	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "darkviolet"]
 	pts = ["o", "D", "x", "^", ">", "<", "1", "s", "*", "+", "."]
 	for i,r in enumerate(rgpp):
 		if do_half==1 and i>nbins/2:

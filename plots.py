@@ -1533,7 +1533,7 @@ class im3shape_results_plots:
 
 
 		plt.xscale("log")
-		colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "lemonchiffon", "cyan"]
+		colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "darkviolet", "cyan"]
 		for i,r in enumerate(rgpp):
 			if do_half==1 and i>nbins/2:
 				continue
@@ -1563,14 +1563,14 @@ class im3shape_results_plots:
 		plt.savefig(output)
 		plt.close()
 
-	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="std", nbins=5, legend=True):
+	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
 		bins = np.linspace(0,1.35,nbins+1)
 		lower = bins[:-1]
 		upper = bins[1:]
 
-		if bias=="m":
+		if "m" in bias:
 			xmin,xmax= -1,1
-		elif bias=="a":
+		else:
 			xmin,xmax = -0.015, 0.020, 
 		exec "data = self.res%d"%split_half
 		exec "truth = self.truth%d"%split_half
@@ -1591,14 +1591,12 @@ class im3shape_results_plots:
 				bias_function = di.get_bias
 				xdata = truth
 				names = ["m","c","m11","m22","c11","c22"]
-			try:
-				b = bias_function(xdata[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
-			except:
-				import pdb ; pdb.set_trace()
+			
+			b = bias_function(xdata[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
 			# Repeat them if the errorbars need to come from bootstrapping
 			if error_type=="bootstrap":
-				error1 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
-				error2 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error1 = di.bootstrap_error(6, (xdata[sel], data[sel]), bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error2 = di.bootstrap_error(6, (xdata[sel], data[sel]), bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
 			else:
 				error1 = b["%s11"%bias][1]
 				error2 = b["%s22"%bias][1]
