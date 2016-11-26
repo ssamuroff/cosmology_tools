@@ -1598,7 +1598,7 @@ class im3shape_results_plots:
 				error1 = b["%s11"%bias][1]
 				error2 = b["%s22"%bias][1]
 
-			z.append(data[sel]["z"].mean())
+			z.append(truth[sel]["cosmos_photoz"].mean())
 			vec1.append(b["%s11"%bias][0])
 			err_vec1.append(error1)
 			vec2.append(b["%s22"%bias][0])
