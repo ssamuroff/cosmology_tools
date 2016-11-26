@@ -1582,18 +1582,18 @@ class im3shape_results_plots:
 		z = []
 
 		for i, edges in enumerate(zip(lower,upper)):
-			sel = (xdata["z"]>edges[0]) & (xdata["z"]<edges[1])
+			sel = (truth["cosmos_photoz"]>edges[0]) & (truth["cosmos_photoz"]<edges[1])
 			if bias in ["alpha", "alpha11", "alpha22"]:
 				bias_function = di.get_alpha
 				names = ["alpha","c","alpha11","alpha22","c11","c22"]
 			else:
 				bias_function = di.get_bias
 				names = ["m","c","m11","m22","c11","c22"]
-			b = bias_function(xdata[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
+			b = bias_function(truth[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
 			# Repeat them if the errorbars need to come from bootstrapping
 			if error_type=="bootstrap":
-				error1 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
-				error2 = di.bootstrap_error(6, [xdata[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error1 = di.bootstrap_error(6, [truth[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
+				error2 = di.bootstrap_error(6, [truth[sel], data[sel]], bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[3], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
 			else:
 				error1 = b["%s11"%bias][1]
 				error2 = b["%s22"%bias][1]
