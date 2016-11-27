@@ -1569,9 +1569,7 @@ class im3shape_results_plots:
 		plt.close()
 
 	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
-		bins = di.find_bin_edges(truth["cosmos_photoz"][truth["cosmos_photoz"]<1.8], nbins+1)
-		lower = bins[:-1]
-		upper = bins[1:]
+		
 
 		if "m" in bias:
 			xmin,xmax= -1,1
@@ -1579,6 +1577,10 @@ class im3shape_results_plots:
 			xmin,xmax = -0.015, 0.020, 
 		exec "data = self.res%d"%split_half
 		exec "truth = self.truth%d"%split_half
+
+		bins = di.find_bin_edges(truth["cosmos_photoz"][truth["cosmos_photoz"]<1.8], nbins)
+		lower = bins[:-1]
+		upper = bins[1:]
 
 		vec1 = []
 		err_vec1 = []
@@ -1619,7 +1621,7 @@ class im3shape_results_plots:
 		plt.axhline(0, color="k", lw=2.5)
 		#plt.ylim(-0.7,0.1)
 		plt.xlabel("Redshift $z$")
-		plt.xlim(0,1.8)
+		plt.xlim(0,1.35)
 		return z,vec1,err_vec1, vec2,err_vec2
 
 
