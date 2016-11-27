@@ -19,7 +19,7 @@ args = parser.parse_args()
 config = yaml.load(open(args.config))
 
 def main(args):
-	im3shape_columns = ["e1", "e2", "mean_psf_e1_sky", "mean_psf_e2_sky", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "info_flag", "is_bulge", "tilename"]
+	im3shape_columns = ["e1", "e2", "mean_psf_e1_sky", "mean_psf_e2_sky", "mean_psf_fwhm", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "info_flag", "is_bulge", "tilename"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	# Load the y1 data
