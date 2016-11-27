@@ -60,7 +60,6 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			catalogue_to_calibrate = self.res
 
 		# Apply the best-fit calibration coefficients
-		x = np.array([catalogue_to_calibrate["snr"],catalogue_to_calibrate["mean_rgpp_rp"]]).T
 
 		for bias_name in names:
 			print "creating column %s"%bias_name
@@ -69,11 +68,14 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				com2 = com2%tuple(np.linspace(1,17,17))
 				exec com2
 
-				com="eval_%s(x"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
+				com="eval_%s(np.array([catalogue_to_calibrate['snr'],catalogue_to_calibrate['mean_rgpp_rp']]).T"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
 				com=com%tuple(np.linspace(0,17,18))
 				exec "bias=%s"%com
 			else:
-				bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate["snr"], catalogue_to_calibrate["mean_rgpp_rp"])
+				try:
+					bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate)
+				except:
+					import pdb ; pdb.set_trace()
 
 			if split_half>0:
 				exec "self.res%d = arr.add_col(self.res2, '%s', bias)"%(split_half, bias_name)
@@ -85,6 +87,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				if bias_name=="a":
 					self.res = arr.add_col(self.res, "c1", bias*self.res["mean_psf_e1_sky"])
 					self.res = arr.add_col(self.res, "c2", bias*self.res["mean_psf_e2_sky"])
+
+			print "Finished calibration"
 
 	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
@@ -202,17 +206,27 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["m"], smooth=3, function="multiquadric")
 		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["alpha"], smooth=3, function="multiquadric")
 
-	def do_rbf_interpolation(self, bias, x, y):
-		if bias=="m":
-			return self.rbf_interp_m(np.log10(x)/self.fx, np.log10(y)/self.fy)
-		elif bias=="a":
-			return self.rbf_interp_a(np.log10(x)/self.fx, np.log10(y)/self.fy)
+	def do_rbf_interpolation(self, bias, cat):
+
+		# If the arrays here  are sufficiently large we may need to apply the interpolation to
+		# the catalogue in parts
+		if cat.size>25e6:
+			nslice = cat.size/2
+			if bias=="m":
+				return np.hstack(( self.rbf_interp_m(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_m(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
+			elif bias=="a":
+				return np.hstack(( self.rbf_interp_a(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_a(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
+		else:
+			if bias=="m":
+				return self.rbf_interp_m(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
+			elif bias=="a":
+				return self.rbf_interp_a(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
 
 	def export(self, filename):
 		print "Will write to %s"%filename,
 		out = fi.FITS(filename,"rw")
 		out.write(self.res)
-		out.write_key("EXTNAME", "i3s_data")
+		out.write_header("EXTNAME", "i3s_data")
 		out.close()
 		print "done"
 			

@@ -35,9 +35,9 @@ def main(args):
 		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
 		#hoopoe.res=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["i3s"].read()
 		#hoopoe.truth=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["truth"].read()
-		sel=np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
-		hoopoe.res=hoopoe.res[sel]
-		hoopoe.truth=hoopoe.truth[sel]
+		sel = np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
+		hoopoe.res = hoopoe.res[sel]
+		hoopoe.truth = hoopoe.truth[sel]
 
 		diagnostics(y1v2, hoopoe, vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True)
 		diagnostics(y1v2, hoopoe, histograms=False, alpha=False, table=False, rbf=False)
@@ -76,17 +76,20 @@ def calibrate(data, method="rbf"):
 	nbc_disc.apply(split_half=0, use_rbf=rbf)
 	nbc.res = nbc_disc.res
 	del(nbc_disc.res)
+	print "Done bulge calibration"
 
 	nbc_bulge.res = data.res
 	nbc_bulge.apply(split_half=0, use_rbf=rbf)
 	nbc.res[nbc.res["is_bulge"].astype(bool)] = nbc_bulge.res[nbc.res["is_bulge"].astype(bool)]
 	del(nbc_bulge.res)
+	print "Done disc calibration"
 
 
-	if not os.path.exists(os.path.dirname(output_catalogue)):
-		os.system("mkdir -p %s"%os.path.dirname(output_catalogue))
+	if not os.path.exists(os.path.dirname(config["output_dir"])):
+		os.system("mkdir -p %s"%os.path.dirname(config["output_dir"]))
 
-	nbc.export(filename=output_catalogue)
+	print "Saving calibrated catalogue to %s"%config["output_catalogue"]
+	nbc.export(filename="%s/%s"%(config["output_dir"],config["output_catalogue"]))
 
 
 def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=True, vsredshift=True, rbf=True):
@@ -104,7 +107,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 		plt.close()
 		b = di.get_alpha(hoopoe.res, hoopoe.res, nbins=20, xlim=(-0.015,0.025), binning="equal_number", use_weights=False, visual=True)
 		plt.subplots_adjust(wspace=0, hspace=0, top=0.95, bottom=0.1)
-		plt.title("Y1 v1 Sim, PSF v01")
+		plt.title("Y1 v2 Sim, PSF v02")
 
 		os.system("mkdir -p %s/release/alpha"%config["output_dir"])
 		plt.savefig("%s/release/alpha/alphaplot-e-vs-epsf-linfit.png"%config["output_dir"])

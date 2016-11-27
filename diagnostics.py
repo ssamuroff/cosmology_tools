@@ -149,7 +149,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if not apply_infocuts:
         buff=50000
     else:
-        buff=5000
+        buff=9000
     if ntot!=-1:
         res= np.zeros(ntot*buff, dtype=dt)
     else:

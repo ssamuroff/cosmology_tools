@@ -161,7 +161,8 @@ class shapecat(i3s_plots):
 		if prune:
 			sel = np.isfinite(self.res["mean_psf_e1_sky"]) & np.isfinite(self.res["mean_psf_e2_sky"]) 
 			self.res = self.res[sel]
-			self.truth = self.truth[sel]
+			if hasattr(self, "truth"):
+				self.truth = self.truth[sel]
 
 #		if hasattr(self, "truth"):
 #			sel = self.truth["sextractor_pixel_offset"]<1.0

@@ -1527,8 +1527,11 @@ class im3shape_results_plots:
 		cal.show_table(table, legend=True, name=bias_name*(bias_name=="m") + "alpha"*(bias_name=="a"), do_half=do_half)
 
 		bt = fitsio.FITS(table)[1].read()
-		snr = np.linspace(np.unique(bt["snr_lower"])[0], 250, 1000)
+		snr = np.linspace(10, 250, 1000)
 		rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
+		xy = np.zeros(snr.size, dtype=[("snr", "f8"), ("mean_rgpp_rp", "f8")])
+		xy["snr"] = snr
+
 		nbins = rgpp.size
 
 
@@ -1540,6 +1543,7 @@ class im3shape_results_plots:
 			elif do_half==2 and i<nbins/2:
 				continue
 			x = np.array([snr,np.array([r]*snr.size) ]).T
+
 			if not use_rbf:
 				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
 				com2 = com2%tuple(np.linspace(1,17,17))
@@ -1549,7 +1553,8 @@ class im3shape_results_plots:
 				com = com%tuple(np.linspace(0,17,18))
 				exec "bias=%s"%com
 			else:
-				bias = self.do_rbf_interpolation(bias_name,snr,np.array([r]*snr.size))
+				xy["mean_rgpp_rp"] = np.array([r]*snr.size)
+				bias = self.do_rbf_interpolation(bias_name,xy)
 
 			plt.plot(snr+np.log(i+1), bias, color=colours[i])
 
@@ -1564,7 +1569,7 @@ class im3shape_results_plots:
 		plt.close()
 
 	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
-		bins = np.linspace(0,1.35,nbins+1)
+		bins = di.get_bin_edges(truth["cosmos_photoz"][truth["cosmos_photoz"]<1.8], nbins+1)
 		lower = bins[:-1]
 		upper = bins[1:]
 
@@ -1614,6 +1619,7 @@ class im3shape_results_plots:
 		plt.axhline(0, color="k", lw=2.5)
 		#plt.ylim(-0.7,0.1)
 		plt.xlabel("Redshift $z$")
+		plt.xlim(0,1.8)
 		return z,vec1,err_vec1, vec2,err_vec2
 
 
