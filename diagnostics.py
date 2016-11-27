@@ -149,7 +149,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if not apply_infocuts:
         buff=50000
     else:
-        buff=9000
+        buff=26000
     if ntot!=-1:
         res= np.zeros(ntot*buff, dtype=dt)
     else:
@@ -289,7 +289,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
     dt = fi.FITS(filelist[0])[extension].read(columns=cols).dtype
 
     if apply_infocuts:
-        buff=6000
+        buff=26000
     else:
         buff = 50000
     truth = np.zeros(len(filelist)*buff, dtype=dt)

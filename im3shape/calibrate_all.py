@@ -24,7 +24,7 @@ def main(args):
 	# And the simulation results
 	if args.calculate:
 		hoopoe = s.shapecat(res="%s/bord-fits/main"%config["hoopoe_dir"] ,truth="%s/truth"%config["hoopoe_dir"])
-		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns], ntiles=200)
+		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
 		#hoopoe.res=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["i3s"].read()
 		#hoopoe.truth=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["truth"].read()
 		sel = np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
@@ -61,8 +61,8 @@ def calibrate(data, method="rbf"):
 		nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
 		nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
 	elif method is "rbf":
-		nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
-		nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
+		nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+		nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
 
 	# Apply to get a bias correction for each galaxy in the data
 	nbc_disc.apply(split_half=0, use_rbf=rbf)
@@ -126,6 +126,10 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 	if table:
 		nbc_disc.compute(split_half=1, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
 		nbc_bulge.compute(split_half=1, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
+
+		nbc_disc.compute(split_half=0, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+		nbc_bulge.compute(split_half=0, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
+	
 	
 	if rbf:
 		nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
@@ -190,7 +194,7 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	config = yaml.load(open(args.config))
-	
+
 	mkdirs()
 	main(args)
 
