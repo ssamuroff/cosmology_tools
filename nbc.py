@@ -93,6 +93,17 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
+		if split_half>0:
+			exec "data = self.res%d"%split_half
+			print "using half %d of the catalogue (%d objects)"%(split_half,data.size)
+			if hasattr(self, "truth"):
+				exec "tr = self.truth%d"%split_half
+		else:
+			print "using the full catalogue (%d objects)"%(data.size)
+			if hasattr(self, "truth"):
+				tr = self.truth
+
+
 		if fit.lower()!="bord":
 			print "Using %s only galaxies"%fit
 			val = int(fit.lower()=="bulge")
@@ -100,16 +111,6 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		else:
 			sel_fit = np.ones_like(data).astype(bool)
 
-		if split_half>0:
-			exec "data = self.res%d"%split_half
-			print "using half %d of the catalogue (%d objects)"%(split_half,data.size)
-			if hasattr(self, "truth"):
-				exec "tr = self.truth%d"%split_half
-		else:
-			data = self.res[sel_fit]
-			print "using the full catalogue (%d objects)"%(data.size)
-			if hasattr(self, "truth"):
-				tr = self.truth
 
 		data = data[sel_fit]
 		tr = tr[sel_fit]
