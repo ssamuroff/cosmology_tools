@@ -1,3 +1,4 @@
+import numpy as np
 import tools.nbc as cal
 import tools.shapes as s
 import tools.diagnostics as di
@@ -9,11 +10,14 @@ import os
 
 # Input im3shape results on data
 i3s_dir = "/share/des/disc7/samuroff/des/im3shape-v2-infocuts.fits" 
+# Input im3shape results on simulation
+hoopoe_dir="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/"
 # Where to save the output plots and bias table
 plots_dir = "/home/samuroff/shear_pipeline/bias_calibration/v1.0/release/"
 table_dir ="/home/samuroff/shear_pipeline/bias_calibration/v1.0/nbc_data/"
 # The final calibrated catalogue -  the end result should just be the i3s_dir file saved with some extra columns
 output_catalogue = "/home/samuroff/shear_pipeline/bias_calibration/v1.0/y1a1-im3shape-r-1-2-2.fits"
+
 
 plt.switch_backend("agg")
 
@@ -24,16 +28,32 @@ def main():
 	y1v2 = s.shapecat(res=i3s_dir)
 	y1v2.load(truth=False, prune=True, cols=[im3shape_columns,truth_columns])
 	y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
+	
 
 	# And the simulation results
-	hoopoe = s.shapecat(res="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/results/disc-fits/main",truth="/share/des/disc6/samuroff/y1/hoopoe/y1_collated/truth")
+	hoopoe = s.shapecat(res="%s/results/bord-fits/main"%hoopoe_dir,truth="%s/truth"%hoopoe_dir)
 	hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
+	#hoopoe.res=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["i3s"].read()
+	#hoopoe.truth=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["truth"].read()
+	sel=np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
+	hoopoe.res=hoopoe.res[sel]
+	hoopoe.truth=hoopoe.truth[sel]
 	
+	
+
 	diagnostics(y1v2, hoopoe, rbf=True)
 	diagnostics(y1v2, hoopoe, histograms=False, alpha=False, table=False, rbf=False)
-	calibrate(y1v2, hoopoe)
 
-def calibrate(data, hoopoe, method="rbf"):
+	calibrate(y1v2)
+
+def mkdirs():
+	os.system("mkdir -p %s/inputs"%plots_dir)
+	os.system("mkdir -p %s/outputs"%plots_dir)
+	os.system("mkdir -p %s/rbf"%plots_dir)
+	os.system("mkdir -p %s"%table_dir)
+
+
+def calibrate(data, method="rbf"):
 
 	rbf = (method.lower()=="rbf")
 
@@ -41,13 +61,10 @@ def calibrate(data, hoopoe, method="rbf"):
 	nbc = cal.nbc()
 	nbc_disc = cal.nbc()
 	nbc_bulge = cal.nbc()
-	nbc.get_split_data(data)
-	nbc_disc.load_from_cat(nbc, name="res")
-	nbc_bulge.load_from_cat(nbc, name="res")
+	nbc.res = data.res
+	nbc_disc.res = data.res
+	nbc_bulge.res = data.res
 
-	# Evaluate at fixed points
-	nbc_disc.compute(split_half=0, fit="disc", slim=(10,350), table_name="%s/bias_table_hoopoe-v1-fullcat-disc.fits"%table_dir)
-	nbc_bulge.compute(split_half=0, fit="bulge", slim=(10,350), table_name="%s/bias_table_hoopoe-v1-fullcat-bulge.fits"%table_dir)
 
 	# Fit or interpolate
 	if method is "polynomial":
@@ -59,7 +76,7 @@ def calibrate(data, hoopoe, method="rbf"):
 		nbc_disc.fit_rbf(table="%s/bias_table_hoopoe-v1-halfcat-disc.fits"%table_dir)
 		nbc_bulge.fit_rbf(table="%s/bias_table_hoopoe-v1-halfcat-bulge.fits"%table_dir)
 
-	# Apply to get a bias correction for eacg galaxy in the data
+	# Apply to get a bias correction for each galaxy in the data
 	nbc_disc.apply(split_half=0, use_rbf=rbf)
 	nbc_bulge.apply(split_half=0, use_rbf=rbf)
 	nbc.get_combined_calibration(nbc_disc,nbc_bulge, split_half=0)
@@ -110,8 +127,8 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 	# Fit the binned galaxies. Save one set of calibration data for disc objects, one for bulges
 	if table:
-		nbc_disc.compute(split_half=1, fit="disc", rbins=10, sbins=10, rlim=(1.0,2.0), slim=(10,200), table_name="%s/bias_table_hoopoe-v1-halfcat-disc.fits"%table_dir)
-		nbc_bulge.compute(split_half=1, fit="bulge", rbins=10, sbins=10, rlim=(1.0,2.0), slim=(10,200), table_name="%s/bias_table_hoopoe-v1-halfcat-bulge.fits"%table_dir)
+		nbc_disc.compute(split_half=1, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/bias_table_hoopoe-v1-halfcat-disc.fits"%table_dir)
+		nbc_bulge.compute(split_half=1, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/bias_table_hoopoe-v1-halfcat-bulge.fits"%table_dir)
 	
 	if rbf:
 		nbc_disc.fit_rbf(table="%s/bias_table_hoopoe-v1-halfcat-disc.fits"%table_dir)
@@ -144,7 +161,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 	nbc.get_combined_calibration(nbc_disc,nbc_bulge, split_half=2)
 
-	# Finallt save some diagnostic plots in tomographic bins
+	# Finally save some diagnostic plots in tomographic bins
 	if vsredshift: 
 		nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue")
 		nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple")
@@ -168,6 +185,6 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 
 
-
-#main()
+mkdirs()
+main()
 
