@@ -1569,7 +1569,7 @@ class im3shape_results_plots:
 		plt.close()
 
 	def redshift_diagnostic(self, bias="m", split_half=2, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="bootstrap", nbins=5, legend=True):
-		bins = di.get_bin_edges(truth["cosmos_photoz"][truth["cosmos_photoz"]<1.8], nbins+1)
+		bins = di.find_bin_edges(truth["cosmos_photoz"][truth["cosmos_photoz"]<1.8], nbins+1)
 		lower = bins[:-1]
 		upper = bins[1:]
 

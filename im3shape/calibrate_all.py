@@ -9,14 +9,6 @@ import os, yaml, argparse
 
 plt.switch_backend("agg")
 
-parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument('--config',"-c", type=str, action='store')
-parser.add_argument('--catalogue', action='store_true')
-parser.add_argument('--calculate', action='store_true')
-
-args = parser.parse_args()
-
-config = yaml.load(open(args.config))
 
 def main(args):
 	im3shape_columns = ["e1", "e2", "mean_psf_e1_sky", "mean_psf_e2_sky", "mean_psf_fwhm", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "info_flag", "is_bulge", "tilename"]
@@ -32,7 +24,7 @@ def main(args):
 	# And the simulation results
 	if args.calculate:
 		hoopoe = s.shapecat(res="%s/bord-fits/main"%config["hoopoe_dir"] ,truth="%s/truth"%config["hoopoe_dir"])
-		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
+		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns], ntiles=200)
 		#hoopoe.res=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["i3s"].read()
 		#hoopoe.truth=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["truth"].read()
 		sel = np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
@@ -189,7 +181,16 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 
 
+if __name__ == "__main__":
+	parser = argparse.ArgumentParser(add_help=False)
+	parser.add_argument('--config',"-c", type=str, action='store')
+	parser.add_argument('--catalogue', action='store_true')
+	parser.add_argument('--calculate', action='store_true')
 
-mkdirs()
-main(args)
+	args = parser.parse_args()
+
+	config = yaml.load(open(args.config))
+	
+	mkdirs()
+	main(args)
 
