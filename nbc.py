@@ -99,6 +99,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			if hasattr(self, "truth"):
 				exec "tr = self.truth%d"%split_half
 		else:
+			data = self.res
 			print "using the full catalogue (%d objects)"%(data.size)
 			if hasattr(self, "truth"):
 				tr = self.truth
