@@ -129,8 +129,31 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 		nbc_disc.compute(split_half=0, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
 		nbc_bulge.compute(split_half=0, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
-	
-	
+
+	# Now plot out the points and the resulting smooth fit
+	if vssnr:
+		if rbf:
+			nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+			nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
+		else:
+			nbc_disc.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+			nbc_disc.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+			nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
+			nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
+
+		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"], bias_name="m", do_half=1, output="%s/m-vs-snr-disc-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"], bias_name="a", do_half=1, output="%s/alpha-vs-snr-disc-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		plt.close()
+		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"], bias_name="m", do_half=2, output="%s/m-vs-snr-disc-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"], bias_name="a", do_half=2, output="%s/alpha-vs-snr-disc-v1-2.png"%(config["output_dir"]+"release"+"/rbf"*rbf), use_rbf=rbf)
+		plt.close()
+		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"], bias_name="m", do_half=1, output="%s/m-vs-snr-bulge-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"], bias_name="a", do_half=1, output="%s/alpha-vs-snr-bulge-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		plt.close()
+		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"], bias_name="m", do_half=2, output="%s/m-vs-snr-bulge-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"], bias_name="a", do_half=2, output="%s/alpha-vs-snr-bulge-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
+		plt.close()
+
 	if rbf:
 		nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
 		nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
@@ -139,22 +162,6 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 		nbc_disc.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
 		nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
 		nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
-	
-
-	# Now plot out the points and the resulting smooth fit
-	if vssnr:
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"], bias_name="m", do_half=1, output="%s/m-vs-snr-disc-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"], bias_name="a", do_half=1, output="%s/alpha-vs-snr-disc-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		plt.close()
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"], bias_name="m", do_half=2, output="%s/m-vs-snr-disc-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"], bias_name="a", do_half=2, output="%s/alpha-vs-snr-disc-v1-2.png"%(config["output_dir"]+"release"+"/rbf"*rbf), use_rbf=rbf)
-		plt.close()
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"], bias_name="m", do_half=1, output="%s/m-vs-snr-bulge-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"], bias_name="a", do_half=1, output="%s/alpha-vs-snr-bulge-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		plt.close()
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"], bias_name="m", do_half=2, output="%s/m-vs-snr-bulge-v1-1.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"], bias_name="a", do_half=2, output="%s/alpha-vs-snr-bulge-v1-2.png"%(config["output_dir"]+"/release"+"/rbf"*rbf), use_rbf=rbf)
-		plt.close()
 
 	# Apply to the other half
 	nbc_disc.apply(split_half=2, use_rbf=rbf)
@@ -177,12 +184,6 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 		plt.legend(loc="lower right")
 		plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1.png"%(config["output_dir"],rbf*"/rbf"))
 		plt.close()
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
