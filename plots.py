@@ -1261,6 +1261,29 @@ class im3shape_results_plots:
 		else:
 			return 0
 
+	def map_bulge_fraction(self, thin=1):
+		tiles = np.unique(self.res["tilename"][::thin])
+		bf_col=np.zeros_like(self.res["e1"][::thin])
+		ngal = self.res.size*1.0
+
+		print "Mapping %d galaxies across %d tiles"%(ngal, tiles.size)
+
+		for i, tile in enumerate(tiles):
+			print i, tile, 
+			sel = (self.res["tilename"][::thin]==tile)
+			selb = self.res["is_bulge"][::thin][sel]==1 
+			bf = 1.0 * self.res["e1"][::thin][sel][selb].size/self.res["e1"][::thin][sel].size
+			print bf
+
+			bf_col[sel] += bf
+
+		return bf_col
+
+
+
+
+
+
 	def errorbar_vs_ngal(self, bias, nbins, ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", colour="purple", return_vals=False, logscale=False, refline=0, show=True):
 		import pylab as plt
 		col1=None
@@ -1599,7 +1622,7 @@ class im3shape_results_plots:
 				xdata = truth
 				names = ["m","c","m11","m22","c11","c22"]
 			
-			b = bias_function(xdata[sel], data[sel], nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names)
+			b = bias_function(xdata[sel], data[sel], nbins=20, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=names, xlim=(xmin,xmax))
 			# Repeat them if the errorbars need to come from bootstrapping
 			if error_type=="bootstrap":
 				error1 = di.bootstrap_error(6, (xdata[sel], data[sel]), bias_function, additional_args=["names", "nbins", "apply_calibration", "silent", "ellipticity_name", "xlim"], additional_argvals=[names[2], 6, apply_calibration, True, ellipticity_name, (xmin,xmax)])
@@ -1914,7 +1937,24 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 
 
 
+def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=None, clim=None):
 
+	from astropy.coordinates import SkyCoord
+	from astropy import units as u
+	c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+
+	ra_rad = c.ra.wrap_at(180 * u.deg).radian
+	dec_rad = c.dec.radian
+
+	plt.figure(figsize=(8,4.2))
+	plt.subplot(111,projection="mollweide")
+	plt.grid(True)
+	plt.scatter(ra_rad, dec_rad, c=colour)
+	plt.clim(clim[0],clim[1])
+	plt.colorbar(fraction=0.036, pad=0.04, label=label)
+	plt.subplots_adjust(top=0.95,bottom=0.08, right=0.85)
+	plt.savefig(name)
+	plt.close()
 
 
 

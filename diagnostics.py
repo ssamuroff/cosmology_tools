@@ -1245,7 +1245,7 @@ def compute_weight(e1, verbose=True):
 
 
 
-def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
 
     g1 = xdata['true_g1']
     g2 = xdata['true_g2']
@@ -1256,6 +1256,12 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), el
 
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
+
+    if weights is not None:
+        print "Will use weights provided"
+        w = weights
+    else:
+        w = np.ones_like(e1)
 
     if apply_calibration:
         m = catalogue["m"][sel]
@@ -1284,16 +1290,16 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), el
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append(np.sum((e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
+        y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
         variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
-        y22.append(np.sum((e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
 
-        y12.append(np.sum((e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
+        y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
-        y21.append(np.sum((e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
+        y21.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
         variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
     d1 = np.array(y11)-x
@@ -1358,11 +1364,31 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, xlim=(-1,1), el
 
     return out
 
+def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None)):
+    """Return a set of weights which will force one distribution to look like another."""
 
-def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", use_weights=True, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+    if xlim[0] is None:
+        dx=(unweighted.max()-unweighted.min())/nbins
+        xlim=( unweighted.min()-dx, unweighted.max()+dx)
 
-    g1 = xdata['mean_psf_e1_sky']
-    g2 = xdata['mean_psf_e2_sky']
+    n_uw, bins_uw = np.histogram(unweighted, bins=nbins, normed=1, range=xlim)
+    n_tar, bins_tar = np.histogram(target, bins=nbins, normed=1, range=xlim)
+
+    import scipy.interpolate
+    x_tar = (bins_tar[1:]+bins_tar[:-1])/2.
+    p_tar = scipy.interpolate.interp1d(x_tar, n_tar)
+
+    x_uw = (bins_uw[1:]+bins_uw[:-1])/2.
+    p_uw = scipy.interpolate.interp1d(x_uw, n_uw)
+
+    return p_tar(unweighted)/p_uw(unweighted)
+
+
+
+def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean__hsm_psf_e%d_sky", use_weights=True, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+
+    g1 = xdata[xdata_name%1]
+    g2 = xdata[xdata_name%2]
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1]) & np.isfinite(g1) & np.isfinite(g2)
     g1 = g1[sel]
     g2 = g2[sel]
@@ -1372,6 +1398,9 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
 
     if "weight" in catalogue.dtype.names and (use_weights):
         w = catalogue["weight"][sel]
+    elif weights is not None:
+        print "Will use weights provided"
+        w = weights[sel]
     else:
         w = np.ones_like(e1)
 
@@ -1408,19 +1437,19 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append(np.sum((e1[sel1]-c1[sel1])) / np.sum(1+m[sel1]))
+        y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
         variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
-        y22.append(np.sum((e2[sel2]-c2[sel2])) / np.sum(1+m[sel2]))
+        y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         if not (np.isfinite(np.array(y22)).all()):
             import pdb ; pdb.set_trace()
         variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
 
 
-        y12.append(np.sum((e1[sel2]-c1[sel2])) / np.sum(1+m[sel2]))
+        y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
-        y21.append(np.sum((e2[sel1]-c2[sel1])) / np.sum(1+m[sel1]))
+        y21.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
         variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
         

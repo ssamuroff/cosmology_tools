@@ -23,8 +23,14 @@ def main(args):
 
 	# And the simulation results
 	if args.calculate:
-		hoopoe = s.shapecat(res="%s/bord-fits/main"%config["hoopoe_dir"] ,truth="%s/truth"%config["hoopoe_dir"])
-		hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
+		if ".fits" not in config["hoopoe_dir"]:
+			hoopoe = s.shapecat(res="%s/bord-fits/main"%config["hoopoe_dir"] ,truth="%s/truth"%config["hoopoe_dir"])
+			hoopoe.load(truth=True, cols=[im3shape_columns,truth_columns])
+
+		else:
+			hoopoe = s.shapecat(res=config["hoopoe_dir"], truth=config["hoopoe_dir"] )
+			hoopoe.res = fi.FITS(config["hoopoe_dir"])["i3s"].read()
+			hoopoe.truth = fi.FITS(config["hoopoe_dir"])["truth"].read()
 		#hoopoe.res=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["i3s"].read()
 		#hoopoe.truth=fi.FITS("/share/des/disc7/samuroff/des/hoopoe-y1a1-v02-bord.fits")["truth"].read()
 		sel = np.isfinite(hoopoe.res["mean_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_psf_e2_sky"])
@@ -178,10 +184,10 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 		plt.savefig("%s/release/%s/m-vs-redshift-diagnostic-v1.png"%(config["output_dir"],rbf*"/rbf"))
 		plt.close()
 
-		nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue")
-		nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple")
+		nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue", error_type="std")
+		nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple", error_type="std")
 		plt.ylabel(r"PSF Leakage $\alpha$")
-		plt.legend(loc="lower right")
+		plt.legend(loc="upper left")
 		plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1.png"%(config["output_dir"],rbf*"/rbf"))
 		plt.close()
 
