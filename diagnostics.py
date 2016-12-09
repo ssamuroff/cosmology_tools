@@ -1385,7 +1385,7 @@ def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None)):
 
 
 
-def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean__hsm_psf_e%d_sky", use_weights=True, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=True, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
