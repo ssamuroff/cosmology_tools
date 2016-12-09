@@ -274,7 +274,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			com ="""
 for i, bias in enumerate(names):
 	bulge = self.res['is_bulge'].astype(bool)
-	if i==0: print 'bulge :', self.res[bulge].size, 'disc : ', self.res[bulge].size, 'total : ', self.res.size
+	if i==0: print 'bulge :', self.res[bulge].size, 'disc : ', self.res[np.invert(bulge)].size, 'total : ', self.res.size
 	self.res = arr.add_col(self.res, bias, np.zeros_like(self.res['e1']))
 
 	print 'column : ', bias

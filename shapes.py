@@ -10,7 +10,7 @@ import py3shape.i3meds as i3meds
 import py3shape.utils as utils
 import py3shape.options as i3opt
 import tools.diagnostics as di
-#import pylab as plt
+from scipy.interpolate import Rbf
 import tools.arrays as arr
 from plots import im3shape_results_plots as i3s_plots
 import py3shape as p3s
@@ -28,7 +28,7 @@ class shapecat(i3s_plots):
 	"""Class for handling im3shape results and,
 	   if relevant, truth catalogues.
 	"""
-	def __init__(self, res=None, truth=None, coadd=False, fit="disc", noisefree=False):
+	def __init__(self, res=None, truth=None, coadd=False, fit="disc", noisefree=False, res_arr=None):
 		if res is None and truth is None:
 			print "Please specify at least one of res=, truth="
 		self.res_path = res
@@ -39,6 +39,9 @@ class shapecat(i3s_plots):
 		self.noisefree=noisefree
 
 		self.corr={}
+
+		if res_arr is not None:
+			self.res=res_arr
 
 		print "Initialised."
 
@@ -73,6 +76,115 @@ class shapecat(i3s_plots):
 				except:
 					print "Once results catalogue found (no splits)"
 
+	def get_weights_grid(self, sbins=10, rbins=5,rlim=(1,3), slim=(10,1000), binning="equal_number"):
+		print 'calculating weights on a grid'
+
+		data = self.res
+		
+
+		sel_lim = (data["snr"]>slim[0]) & (data["snr"]<slim[1]) & (data["mean_rgpp_rp"]>rlim[0]) & (data["mean_rgpp_rp"]<rlim[1])
+		data = data[sel_lim]
+
+		if isinstance(binning,str) : 
+			if binning.lower()=="uniform":
+				snr_edges = np.logspace(np.log10(slim[0]),np.log10(slim[1]),sbins+1)
+				rgp_edges = np.linspace(rlim[0],rlim[1],rbins+1)
+			elif binning.lower()=="equal_number":
+				snr_edges = di.find_bin_edges(np.log10(data["snr"]), sbins)
+				rgp_edges = di.find_bin_edges(np.log10(data["mean_rgpp_rp"]), rbins)
+
+		
+		snr_centres = (snr_edges[1:]+snr_edges[:-1])/2.0
+		rgp_centres = (rgp_edges[1:]+rgp_edges[:-1])/2.0
+
+		w_list=[]
+		w_grid=[]
+
+		print "Will do dynamic binning in SNR"
+
+		for i in xrange(len(rgp_edges)-1):
+			snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
+			snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
+			for j in xrange(len(snr_edges)-1):
+				empty=False
+				print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
+
+				# Select in bins of snr and size
+				select = (np.log10(data['snr']) > snr_edges[j]) & (np.log10(data['snr']) < snr_edges[j+1]) & (np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])
+				ngal = np.nonzero(select.astype(int))[0].size
+
+				# Raise an error if there are too few simulated galaxies in a given bin
+				if ngal < 60:
+					print "Warning: <100 galaxies in bin %d, %d (ngal=%d)"%(i,j, ngal)
+					empty=False
+				if ngal==0:
+					print "Warning: no galaxies in bin %d, %d "%(i,j)
+					empty=True
+
+				vrgp_mid = rgp_centres[i]
+				vsnr_mid = snr_centres[j]
+				vrgp_min = rgp_edges[i]
+				vsnr_min = snr_edges[j]
+				vrgp_max = rgp_edges[i+1]
+				vsnr_max = snr_edges[j+1]
+
+				if ngal==0:
+					print "Warning: no galaxies in bin %d, %d"%(i,j)
+					w_list.append([i,j,ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, 0])
+					continue
+
+				w1 = di.compute_weight(data["e1"][select], verbose=False)
+				w2 = di.compute_weight(data["e2"][select], verbose=False)
+				w = (w1+w2)/2.0
+				
+				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
+				w_list.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, w])
+
+		dt = [("j", int), ("i", int), ("ngal", int), ("rgp_lower", float), ("rgp_upper", float), ("snr_lower", float), ("snr_upper", float), ("weight", float),]
+		arr_weights = np.zeros(np.array(w_list).T[0].size, dtype=dt)
+
+		for a,b in enumerate(arr_weights.dtype.names):
+			arr_weights[b] = np.array(w_list).T[a]
+
+		filename_table_bias = '/home/samuroff/weights_table.fits'
+		
+		import fitsio as fi
+
+		out = fi.FITS(filename_table_bias, "rw")
+		out.write(arr_weights)
+		out[-1].write_key("EXTNAME", "im3shapev1_weights")
+		out.close()
+		print 'saved %s'%filename_table_bias
+
+		self.weights_table = arr_weights
+
+	def interpolate_weights_grid(self, nslice=100):
+		sel = (np.isfinite(np.log10(self.res["snr"])) & np.isfinite(np.log10(self.res["rgpp_rp"])))
+		x = np.sqrt(self.weights_table["snr_lower"]*self.weights_table["snr_upper"])
+		y = np.sqrt(self.weights_table["rgp_lower"]*self.weights_table["rgp_upper"])
+		fx = np.log10(self.res["snr"][sel]).max()
+		fy = np.log10(self.res["rgpp_rp"][sel]).max()
+		ngal = self.res["rgpp_rp"][sel].size
+		interpolator = Rbf(np.log10(x)/fx, np.log10(y)/fy, self.weights_table["weight"], smooth=3, function="multiquadric")
+
+		print "Will do interpolation in %d sections."%nslice
+
+		galaxy_weights=np.zeros(ngal)
+		start=0
+		end=ngal/nslice
+
+		for i in xrange(nslice):
+			print i, start, end
+			galaxy_weights[start:end] = interpolator(np.log10(self.res["snr"][sel][start:end])/fx, np.log10(self.res["rgpp_rp"][sel][start:end])/fy)
+			start += ngal/nslice
+			end += ngal/nslice 
+			
+		print "Calculated weights for %s galaxies"%galaxy_weights.size
+		print "Mean weight : %2.4f, Min : %2.4f, Max : %2.4f"%(galaxy_weights.mean(), galaxy_weights.min(), galaxy_weights.max())
+
+		return sel, galaxy_weights
+
+
 	def load(self, res=True, truth=False, epoch=False, coadd=False, prune=False, cols=[None,None], postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[], ntiles=None):
 		
 		if res and (not hasattr(self, "res")):
@@ -83,6 +195,7 @@ class shapecat(i3s_plots):
 
 			if ntiles is not None:
 				files = files[:ntiles]
+
 			print "%s/*%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
@@ -1119,26 +1232,26 @@ class meds_wrapper(i3meds.I3MEDS):
 
 	
 		if show:
-		    cmap = plt.get_cmap("jet")
+			import pylab as plt
+			cmap = plt.get_cmap("jet")
+			image = np.hstack(tuple(galaxy_stack)) 
+			wt = inputs.all('weight')
 
-		    image = np.hstack(tuple(galaxy_stack)) 
-		    wt = inputs.all('weight')
+			nrow = 2
 
-		    nrow = 2
-	
-		    plt.subplot(nrow,ncols, col)
-		    plt.title("Image")
-		    plt.imshow(image, interpolation="none", cmap=cmap)
-		    plt.colorbar()
-		    plt.subplot(nrow,ncols,ncols+col)
-		    plt.title("Best fit")
-		    plt.imshow(best_img, interpolation="none", cmap=cmap)
-		    print "Pixel max:%f"%best_img.max()
-		    plt.colorbar() 
+			plt.subplot(nrow,ncols, col)
+			plt.title("Image")
+			plt.imshow(image, interpolation="none", cmap=cmap)
+			plt.colorbar()
+			plt.subplot(nrow,ncols,ncols+col)
+			plt.title("Best fit")
+			plt.imshow(best_img, interpolation="none", cmap=cmap)
+			print "Pixel max:%f"%best_img.max()
+			plt.colorbar() 
 
 	
 		if return_vals:
-			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
+			return result.get_params(), image, best_img, np.hstack(tuple(wt)), psfs 
 		else:
 			return result, result.get_params()
 
