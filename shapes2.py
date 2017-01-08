@@ -1,20 +1,17 @@
 import numpy as np
-import astropy.io.fits as pf
+import pyfits as pf
 import fitsio as fio
 import glob
-#import treecorr as tc
+import treecorr as tc
 import meds, fitsio
 import galsim
 import os, math
 import py3shape.i3meds as i3meds
-import py3shape.utils as utils
 import py3shape.options as i3opt
 import tools.diagnostics as di
-from scipy.interpolate import Rbf
+import pylab as plt
 import tools.arrays as arr
-import tools.neighbours as nf
 from plots import im3shape_results_plots as i3s_plots
-import py3shape as p3s
 
 
 BLACKLIST_CACHE = {}
@@ -29,7 +26,7 @@ class shapecat(i3s_plots):
 	"""Class for handling im3shape results and,
 	   if relevant, truth catalogues.
 	"""
-	def __init__(self, res=None, truth=None, coadd=False, fit="disc", noisefree=False, res_arr=None):
+	def __init__(self, res=None, truth=None, coadd=False, fit="disc", noisefree=False):
 		if res is None and truth is None:
 			print "Please specify at least one of res=, truth="
 		self.res_path = res
@@ -41,185 +38,19 @@ class shapecat(i3s_plots):
 
 		self.corr={}
 
-		if res_arr is not None:
-			self.res=res_arr
-
 		print "Initialised."
 
 	def load_from_array(self, array, name="res"):
 		setattr(self, name, array)
 
-	def load_from_cat(self, cat, name="res"):
-		if name is not "all":
-			table = getattr(cat, name) 
-			setattr(self, name, table)
-			setattr(self, "%s_path"%name, getattr(cat, "%s_path"%name))
-			self.files = cat.files
-			try:
-				self.indices = cat.indices
-			except: 
-					print "No indices column"
-
-		else:
-			if hasattr(cat, "truth") and name=="all":
-				self.truth = cat.truth
-				try:
-					self.truth1 = cat.truth1
-					self.truth2 = cat.truth2
-				except:
-					print "Once truth catalogue found (no splits)"
-
-			if hasattr(cat, "res") and name=="all":
-				self.res = cat.res
-				try:
-					self.res1 = cat.res1
-					self.res2 = cat.res2
-				except:
-					print "Once results catalogue found (no splits)"
-
-
-	def do_rbf_interpolation(self, bias, cat):
-
-		# If the arrays here  are sufficiently large we may need to apply the interpolation to
-		# the catalogue in parts
-		if cat.size>25e6:
-			nslice = cat.size/2
-			if bias=="m":
-				return np.hstack(( self.rbf_interp_m(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_m(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
-			elif bias=="a":
-				return np.hstack(( self.rbf_interp_a(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_a(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
-		else:
-			if bias=="m":
-				return self.rbf_interp_m(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
-			elif bias=="a":
-				return self.rbf_interp_a(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
-
-	def get_weights_grid(self, sbins=10, rbins=5,rlim=(1,3), slim=(10,1000), binning="equal_number"):
-		print 'calculating weights on a grid'
-
-		data = self.res
+	def load(self, res=True, truth=False, epoch=False,coadd=False, postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits"):
 		
-
-		sel_lim = (data["snr"]>slim[0]) & (data["snr"]<slim[1]) & (data["mean_rgpp_rp"]>rlim[0]) & (data["mean_rgpp_rp"]<rlim[1])
-		data = data[sel_lim]
-
-		if isinstance(binning,str) : 
-			if binning.lower()=="uniform":
-				snr_edges = np.logspace(np.log10(slim[0]),np.log10(slim[1]),sbins+1)
-				rgp_edges = np.linspace(rlim[0],rlim[1],rbins+1)
-			elif binning.lower()=="equal_number":
-				snr_edges = di.find_bin_edges(np.log10(data["snr"]), sbins)
-				rgp_edges = di.find_bin_edges(np.log10(data["mean_rgpp_rp"]), rbins)
-
-		
-		snr_centres = (snr_edges[1:]+snr_edges[:-1])/2.0
-		rgp_centres = (rgp_edges[1:]+rgp_edges[:-1])/2.0
-
-		w_list=[]
-		w_grid=[]
-
-		print "Will do dynamic binning in SNR"
-
-		for i in xrange(len(rgp_edges)-1):
-			snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
-			snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
-			for j in xrange(len(snr_edges)-1):
-				empty=False
-				print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
-
-				# Select in bins of snr and size
-				select = (np.log10(data['snr']) > snr_edges[j]) & (np.log10(data['snr']) < snr_edges[j+1]) & (np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])
-				ngal = np.nonzero(select.astype(int))[0].size
-
-				# Raise an error if there are too few simulated galaxies in a given bin
-				if ngal < 60:
-					print "Warning: <100 galaxies in bin %d, %d (ngal=%d)"%(i,j, ngal)
-					empty=False
-				if ngal==0:
-					print "Warning: no galaxies in bin %d, %d "%(i,j)
-					empty=True
-
-				vrgp_mid = rgp_centres[i]
-				vsnr_mid = snr_centres[j]
-				vrgp_min = rgp_edges[i]
-				vsnr_min = snr_edges[j]
-				vrgp_max = rgp_edges[i+1]
-				vsnr_max = snr_edges[j+1]
-
-				if ngal==0:
-					print "Warning: no galaxies in bin %d, %d"%(i,j)
-					w_list.append([i,j,ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, 0])
-					continue
-
-				w1 = di.compute_weight(data["e1"][select], verbose=False)
-				w2 = di.compute_weight(data["e2"][select], verbose=False)
-				w = (w1+w2)/2.0
-				
-				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
-				w_list.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, w])
-
-		dt = [("j", int), ("i", int), ("ngal", int), ("rgp_lower", float), ("rgp_upper", float), ("snr_lower", float), ("snr_upper", float), ("weight", float),]
-		arr_weights = np.zeros(np.array(w_list).T[0].size, dtype=dt)
-
-		for a,b in enumerate(arr_weights.dtype.names):
-			arr_weights[b] = np.array(w_list).T[a]
-
-		filename_table_bias = '/home/samuroff/weights_table.fits'
-		
-		import fitsio as fi
-
-		out = fi.FITS(filename_table_bias, "rw")
-		out.write(arr_weights)
-		out[-1].write_key("EXTNAME", "im3shapev1_weights")
-		out.close()
-		print 'saved %s'%filename_table_bias
-
-		self.weights_table = arr_weights
-
-	def interpolate_weights_grid(self, nslice=100):
-		sel = (np.isfinite(np.log10(self.res["snr"])) & np.isfinite(np.log10(self.res["rgpp_rp"])))
-		x = np.sqrt(self.weights_table["snr_lower"]*self.weights_table["snr_upper"])
-		y = np.sqrt(self.weights_table["rgp_lower"]*self.weights_table["rgp_upper"])
-		fx = np.log10(self.res["snr"][sel]).max()
-		fy = np.log10(self.res["rgpp_rp"][sel]).max()
-		ngal = self.res["rgpp_rp"][sel].size
-		interpolator = Rbf(np.log10(x)/fx, np.log10(y)/fy, self.weights_table["weight"], smooth=3, function="multiquadric")
-
-		print "Will do interpolation in %d sections."%nslice
-
-		galaxy_weights=np.zeros(ngal)
-		start=0
-		end=ngal/nslice
-
-		for i in xrange(nslice):
-			print i, start, end
-			galaxy_weights[start:end] = interpolator(np.log10(self.res["snr"][sel][start:end])/fx, np.log10(self.res["rgpp_rp"][sel][start:end])/fy)
-			start += ngal/nslice
-			end += ngal/nslice 
-			
-		print "Calculated weights for %s galaxies"%galaxy_weights.size
-		print "Mean weight : %2.4f, Min : %2.4f, Max : %2.4f"%(galaxy_weights.mean(), galaxy_weights.min(), galaxy_weights.max())
-
-		return sel, galaxy_weights
-
-
-	def load(self, res=True, truth=False, epoch=False, coadd=False, prune=False, cols=[None,None], postprocessed=True, keyword="DES", apply_infocuts=True, ext=".fits", match=[], ntiles=None):
-		
-		if res and (not hasattr(self, "res")):
+		if res:
 			if "%s"%ext in self.res_path:
 				files=[self.res_path]
 			else:
 				files = glob.glob("%s/*%s"%(self.res_path,ext))
-
-			if ntiles is not None:
-				files = files[:ntiles]
-			if len(match)>0:
-				tiles = [os.path.basename(f)[:12] for f in files]
-				select=np.array([(t in match )for t in tiles])
-				files=np.array(files)[select]
-				ntiles = files.size
-
-			print "%s/*%s"%(self.res_path,ext)
+			print "%s/*.%s"%(self.res_path,ext)
 			single_file=False
 			print "loading %d results file(s) from %s"%(len(files),self.res_path)
 
@@ -227,13 +58,13 @@ class shapecat(i3s_plots):
 				self.res = pf.getdata(files[0])
 				tmp, noise_free_infocuts = self.get_infocuts(exclude=["chi"], return_string=True)
 
-				#noise_free_infocuts = noise_free_infocuts.replace("cuts= ((", "cuts= ((%s['chi2_pixel']>0.004) & (%s['chi2_pixel']<0.2) & (")
+				noise_free_infocuts = noise_free_infocuts.replace("cuts= ((", "cuts= ((%s['chi2_pixel']>0.004) & (%s['chi2_pixel']<0.2) & (")
 
 			if len(files)>1:
 				if apply_infocuts and self.noisefree:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=False, additional_cuts=noise_free_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
 				else:
-					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
+					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True)
 			else:
 				if ext.lower()==".fits":
 					self.res = fio.FITS(files[0])[1].read()
@@ -242,8 +73,6 @@ class shapecat(i3s_plots):
 				self.files=files
 				single_file=True
 				i=None
-
-			self.indices=i
 
 
 		if truth:
@@ -255,21 +84,19 @@ class shapecat(i3s_plots):
 
 			print "loading truth files from %s"%self.truth_path
 			if len(files)>1:
-				if res:
-					self.truth = di.load_truth(truth_path=self.truth_path, cols=cols[1], apply_infocuts=apply_infocuts, match=self.files, ind=self.indices, res=self.res)
-				else:
-					self.truth = di.load_truth(truth_path=self.truth_path, cols=cols[1], apply_infocuts=apply_infocuts)
+				self.truth = di.load_truth(truth_path=self.truth_path, match=self.files, ind=i, res=self.res)
 			else:
 				self.truth = pf.getdata(files[0])
 
 		if truth and res:
-			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id")
+			self.res, self.truth = di.match_results(self.res,self.truth)
 			if ("ra" in self.res.dtype.names): 
 				if not (self.res["ra"]==self.truth["ra"]).all():
 					self.res["ra"] = self.truth["ra"]
 					self.res["dec"] = self.truth["dec"]
 
 			print "Found catalogue of %d objects after matching to truth table"%len(self.res)
+
 
 		if coadd:
 			if ".fits" in self.coadd_path:
@@ -294,19 +121,13 @@ class shapecat(i3s_plots):
 			except:
 				self.epoch = di.load_epoch(path.replace("bord", "disc"))
 
-		if prune:
-			sel = np.isfinite(self.res["mean_psf_e1_sky"]) & np.isfinite(self.res["mean_psf_e2_sky"]) 
-			self.res = self.res[sel]
-			if hasattr(self, "truth"):
-				self.truth = self.truth[sel]
-
-#		if hasattr(self, "truth"):
-#			sel = self.truth["sextractor_pixel_offset"]<1.0
-#			self.truth = self.truth[sel]
-#			if hasattr(self, "res"):
-#				self.res = self.res[sel]
-#			if coadd:
-	#			self.coadd = self.coadd[sel]
+		if hasattr(self, "truth"):
+			sel = self.truth["sextractor_pixel_offset"]<1.0
+			self.truth = self.truth[sel]
+			if hasattr(self, "res"):
+				self.res = self.res[sel]
+			if coadd:
+				self.coadd = self.coadd[sel]
 
 	def add_bpz_cols(self, fil="/share/des/disc3/samuroff/y1/photoz/bpz/NSEVILLA_PHOTOZ_TPL_Y1G103_1_bpz_highzopt_2_9_16.fits", array=None, exclude=None):
 		print "Loading BPZ results from %s"%fil
@@ -469,59 +290,6 @@ class shapecat(i3s_plots):
 		print "%d/%d (%f percent) survived info cuts."%(len(self.res), n0, 100.*len(self.res)/n0)
 		return 0
 
-	def tune_neighbour_pool(self, task_number=0, tiles=[]):
-		self.ncat.tune(self, task_number=task_number, tiles=tiles)
-
-	def fast_neighbour_search(self, truth=None, repetition=False):
-		if truth is None:
-			truth = self.truth_path
-
-		self.tiles = np.unique(self.res["tilename"]).astype("S12")
-		object_tiles = self.res["tilename"].astype("S12")
-
-		columns=['id', 'DES_id', 'cosmos_ident', 'cosmos_photoz', 'spectral_type', 'flags', 'star_flag', 'nearest_neighbour_pixel_dist', 'nearest_neighbour_index', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'intrinsic_e1_hsm', 'intrinsic_e2_hsm', 'hlr',  'ra', 'dec', 'mag', 'flux', 'nexp', 'mean_psf_e1', 'mean_psf_e2', 'mean_psf_fwhm']
-
-		if not repetition:
-			neighbours=[]
-		else:
-			neighbours=np.zeros_like(self.truth)
-
-		print "Searching for neighbours in %d truth tables."%self.tiles.size
-
-		for i, tile in enumerate(self.tiles):
-			
-			select = (object_tiles==tile)
-			print i+1, tile, object_tiles[select].size
-
-			filename = glob.glob("%s/%s*.fz"%(truth,tile))
-			if len(filename)==0:
-				print "Truth table is missing."
-				continue
-			if len(filename)>1:
-				print "Warning - multiple truth tables found." 
-				print "Will use %s"%filename[0]
-
-			filename = filename[0]
-
-			truth_table = fitsio.FITS(filename)[1].read(columns=columns)
-			required = self.truth["nearest_neighbour_index"][select] 
-	
-			if repetition:
-				finder=np.arange(0,len(truth_table), 1)
-				indices=np.array([ finder[truth_table["DES_id"]==ni][0] for ni in required])
-				neighbours[select] = truth_table[indices]
-			else:
-				extract = np.in1d(truth_table["DES_id"],required)  
-				neighbours.append(truth_table[extract])
-
-		if not repetition:
-			neighbours = np.concatenate(neighbours)
-
-		self.ncat = nf.neighbours(truth=neighbours)
-
-		return neighbours
-
-
 	def get_neighbours(self):
 		import copy
 		from sklearn.neighbors import NearestNeighbors
@@ -530,33 +298,22 @@ class shapecat(i3s_plots):
 		fulltruth = di.load_truth(self.truth_path)
 
 		import fitsio as fi
-		reference=fitsio.FITS("/share/des/disc6/samuroff/y1/hoopoe/y1a1-v2.2_10/meds/y1a1_positions.fits")[1].read()
-		fulltruth,ref = di.match_results(fulltruth,reference, name1="coadd_objects_id", name2="DES_id")
-		fulltruth["ra"]=ref["ra"]
-		fulltruth["dec"]=ref["dec"]
-		self.truth,ref = di.match_results(self.truth,reference, name1="coadd_objects_id", name2="DES_id")
-		self.truth["ra"]=ref["ra"]
-		self.truth["dec"]=ref["dec"]
-		self.truth,self.res = di.match_results(self.truth,self.res, name1="coadd_objects_id", name2="DES_id")
-
+		reference=fi.FITS("/home/samuroff/y1a1_16tiles_positions.fits")[1].read()
+		fulltruth,reference = di.match_results(fulltruth,reference, name1="coadd_objects_id", name2="DES_id")
+		fulltruth["ra"]=reference["ra"]
+		fulltruth["dec"]=reference["dec"]
 
 		meds_path=self.truth_path.replace("truth", "meds/*/*")
 		meds_info = di.get_pixel_cols(meds_path)
 		pool_of_possible_neighbours,fulltruth = di.match_results(meds_info,fulltruth, name1="DES_id", name2="coadd_objects_id" )
 		fulltruth = arr.add_col(fulltruth, "ix", pool_of_possible_neighbours["ix"])
 		fulltruth = arr.add_col(fulltruth, "iy", pool_of_possible_neighbours["iy"])
-		try:
-			fulltruth = arr.add_col(fulltruth, "tile", pool_of_possible_neighbours["tile"])
-		except:
-			fulltruth["tile"] = pool_of_possible_neighbours["tile"]
+		fulltruth = arr.add_col(fulltruth, "tile", pool_of_possible_neighbours["tile"])
 
 		objects_needing_neighbours,self.truth = di.match_results(meds_info,self.truth, name1="DES_id", name2="coadd_objects_id" )
 		self.truth = arr.add_col(self.truth, "ix", objects_needing_neighbours["ix"])
 		self.truth = arr.add_col(self.truth, "iy", objects_needing_neighbours["iy"])
-		try:
-			self.truth = arr.add_col(self.truth, "tile", objects_needing_neighbours["tile"])
-		except:
-			self.truth["tile"] = objects_needing_neighbours["tile"]
+		self.truth = arr.add_col(self.truth, "tile", objects_needing_neighbours["tile"])
 
 
 
@@ -577,14 +334,14 @@ class shapecat(i3s_plots):
 
 			# All positions where an object was simulated
 			# Restrict the search to this tile
-			x_pool = fulltruth["ra"][sel0] #pool_of_possible_neighbours["ix"][sel0]
-			y_pool = fulltruth["dec"][sel0] #pool_of_possible_neighbours["iy"][sel0]
+			x_pool = pool_of_possible_neighbours["ix"][sel0]
+			y_pool = pool_of_possible_neighbours["iy"][sel0]
 			xy_pool=np.vstack((x_pool,y_pool))
 
 			# Positions of those objects for which we have im3shape results
 			# We want to find neighbours for these objects
-			x_tar = self.truth["ra"][sel1]
-			y_tar = self.truth["dec"][sel1]
+			x_tar = self.truth["ix"][sel1]
+			y_tar = self.truth["iy"][sel1]
 			xy_tar=np.vstack((x_tar,y_tar))
 
 			# Build a tree using the pool
@@ -605,56 +362,6 @@ class shapecat(i3s_plots):
 		neighbour_cat.res["dec"]= fulltruth[indices.astype(int)]["dec"]
 		neighbour_cat.truth= fulltruth[indices.astype(int)]
 		neighbour_cat.truth["nearest_neighbour_pixel_dist"] = distances
-
-		return neighbour_cat
-
-	def match_to_faint(self):
-		import copy
-		from sklearn.neighbors import NearestNeighbors
-		import scipy.spatial as sps
-
-		faint = di.load_truth(self.truth_path, faint=True, add_tilename_col=True)
-
-		indices = np.zeros(self.res.size)
-		distances = np.zeros(self.res.size)
-		lookup = np.linspace(0,faint.size-1, faint.size).astype(int)
-
-		tiles = np.unique(self.truth["tilename"])
-
-		for it in tiles:
-			print "Matching in pixel coordinates, tile %s"%it
-			sel0 = faint["tilename"]==it
-			sel1 = self.truth["tilename"]==it
-			
-
-			# All positions where an object was simulated
-			# Restrict the search to this tile
-			x_pool = faint["ra"][sel0] #pool_of_possible_neighbours["ix"][sel0]
-			y_pool = faint["dec"][sel0] #pool_of_possible_neighbours["iy"][sel0]
-			xy_pool=np.vstack((x_pool,y_pool))
-
-			# Positions of those objects for which we have im3shape results
-			# We want to find neighbours for these objects
-			x_tar = self.truth["ra"][sel1]
-			y_tar = self.truth["dec"][sel1]
-			xy_tar=np.vstack((x_tar,y_tar))
-
-			# Build a tree using the pool
-			nbrs = NearestNeighbors(n_neighbors=2, algorithm='kd_tree', metric="euclidean").fit(xy_pool.T)
-			# Query it for the target catalogue
-			d,i = nbrs.kneighbors(xy_tar.T)
-			distances[sel1], indices[sel1] = d.T[1], lookup[sel0][i.T[1]]
-
-		neighbour_cat = copy.deepcopy(self)
-
-		neighbour_cat.res["id"]= faint[indices.astype(int)]["associated_object"]
-		neighbour_cat.res["coadd_objects_id"]= faint[indices.astype(int)]["associated_object"]
-		neighbour_cat.res["e1"]= faint[indices.astype(int)]["intrinsic_e1"]+faint[indices.astype(int)]["true_g1"] 
-		neighbour_cat.res["e2"]= faint[indices.astype(int)]["intrinsic_e2"]+faint[indices.astype(int)]["true_g2"]
-		neighbour_cat.res["ra"]= faint[indices.astype(int)]["ra"]
-		neighbour_cat.res["dec"]= faint[indices.astype(int)]["dec"]
-		neighbour_cat.truth= faint[indices.astype(int)]
-		neighbour_cat.truth = arr.add_col(neighbour_cat.truth, "nearest_neighbour_pixel_dist", distances)
 
 		return neighbour_cat
 
@@ -720,8 +427,6 @@ class shapecat(i3s_plots):
 		self.get_beta_col(ncat)
 
 	def get_2pt(self, corr1, corr2, nbins=12, error_type="bootstrap", xmin=1, xmax=300, units="arcmin"):
-
-                import treecorr as tc
 		correlation_lookup = {"psf":("mean_psf_e%d_sky", self.res), "gal":("e%d", self.res)}
 
 		if hasattr(self,"truth"): correlation_lookup["int"] = ("intrinsic_e%d", self.truth)
@@ -814,14 +519,10 @@ class dummy_im3shape_options():
 		self.padding = 4
 		self.stamp_size = 48
 		self.psf_input = "bundled-psfex"
-		self.use_image_flags="Y"
-
 
 class meds_wrapper(i3meds.I3MEDS):
-	def __init__(self, filename, options=None,update=False):
-		if options is None:
-			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
-		super(meds_wrapper, self).__init__(filename, options)
+	def __init__(self, filename, update=False):
+		super(meds_wrapper, self).__init__(filename)
 		setattr(self, "filename", self._filename)
 
 		if update:
@@ -829,10 +530,7 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "Beware: FITS file can be overwritten in update mode."
 			self._fits = fitsio.FITS(filename, "rw")
 
-		try:
-			self.options=p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
-		except:
-			self.setup_dummy_im3shape_options()
+		self.setup_dummy_im3shape_options()
 
 	def setup_dummy_im3shape_options(self):
 		self.options = dummy_im3shape_options()
@@ -856,37 +554,6 @@ class meds_wrapper(i3meds.I3MEDS):
 			return "noise_cutouts"
 		else: raise ValueError("bad cutout type '%s'" % type)
 
-	def get_zpmag_scaling(self, iobj, iexp):
-
-		exposure_id = self._cat["file_id"][iobj,iexp]
-		zpmag = self._image_info["magzp"][exposure_id]
-		zpmag_coadd = self._image_info["magzp"][0]
-
-		return 10 **((zpmag_coadd - zpmag)/2.5)
-
-	def get_stack_correction(self, iobj, silent=False):
-		boxsize = self._cat["box_size"][iobj]
-		images = np.array([f for f in self._cat["file_id"][iobj] if f>0])
-		nexp = len(images)
-
-		if not silent:
-			print "Object %d has %d exposures"%(iobj, nexp)
-
-		correction_stack = np.ones((boxsize*(nexp+1), boxsize))
-
-		for iexp in xrange(nexp+1) :
-			alpha = self.get_zpmag_scaling(iobj, iexp)
-			correction_stack[boxsize*iexp : (boxsize*iexp + boxsize)] *= alpha
-
-		return correction_stack
-
-	def get_coadd_cat(self, path=None):
-		if path is None:
-			path = os.path.dirname(self._filename).split("meds")[0]
-			
-		tile = os.path.basename(self._filename)[:12]
-
-
 	def remove_noise(self, silent=False, outdir="noisefree"):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
@@ -903,14 +570,9 @@ class meds_wrapper(i3meds.I3MEDS):
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
 
 			# COSMOS profile + neighbours
-			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
-			pixels0 = p0[i0:i1] - noise[i0:i1]*scale_stack
-			pixels0*=p0[i0:i1].astype(bool).astype(int)
-
-			import pdb ; pdb.set_trace()
-
+			pixels = p0[i0:i1] - noise[i0:i1]
+			pixels*=p0[i0:i1].astype(bool).astype(int)
 			p0[i0:i1] = pixels
-
 
 		print "Writing to MEDS file"
 		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
@@ -918,15 +580,10 @@ class meds_wrapper(i3meds.I3MEDS):
 		return 0
 
 
-	def remove_neighbours(self, silent=False, outdir="neighbourfree", noise=True, remove_masks=True):
+	def remove_neighbours(self, silent=False, outdir="neighbourfree"):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
-		try:
-			pn = self._fits["noise_cutouts"]
-		except:
-		    print "WARNING: No noise cutouts found"
-		    pn = np.zeros_like(p0) 
-		seg = self._fits["seg_cutouts"].read()
+		noise = self._fits["noise_cutouts"]
 
 		if not silent:
 			print "will remove neighbours"
@@ -938,36 +595,20 @@ class meds_wrapper(i3meds.I3MEDS):
 			i0 = self._cat["start_row"][iobj][0]
 			i1 = self._cat["start_row"][iobj][0]+self._cat["box_size"][iobj]*self._cat["box_size"][iobj]*self._cat["ncutout"][iobj]
 
-			mask = seg[i0:i1]
-			if remove_masks and (np.unique(mask).size>2):
-				# Get the central pixel in the coadd seg map
-				nx = self._cat["box_size"][iobj]
-				seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
-				# Remove any masks other than the one around the central object
-				np.putmask(mask, mask!=seg_id, 0)
-
-			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
-
 			# COSMOS profile + noise
-			if noise:
-				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack - pn[i0:i1]
-			else:
-				neighbours = p0[i0:i1]- real[i0:i1]*scale_stack
+			neighbours = p0[i0:i1]- real[i0:i1] - noise[i0:i1]
 			pixels = p0[i0:i1] - neighbours
 			pixels *= p0[i0:i1].astype(bool).astype(int)
-
 			p0[i0:i1] = pixels
-			seg[i0:i1] = mask
 
 		print "Writing to MEDS file"
-		self.clone(data=p0, colname="image_cutouts", data2=seg, colname2="seg_cutouts", newdir=outdir)
+		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
 
 		return 0
 
-	def remove_model_bias(self, shapecat, silent=False, outdir="analytic", noise=True, neighbours=True, remove_masks=False):
+	def remove_model_bias(self, shapecat, silent=False, outdir="analytic"):
 		p0 = self._fits["image_cutouts"].read()
 		real = self._fits["model_cutouts"]
-		seg = self._fits["seg_cutouts"].read()
 
 		if not silent:
 			print "will insert analytic profiles"
@@ -1003,67 +644,37 @@ class meds_wrapper(i3meds.I3MEDS):
 			gal = self.construct_analytic_profile(res, shapecat.fit, truth=truth)
 			stack = self.make_stack(gal,iobj)
 
-			mask = seg[i0:i1]
-			if remove_masks and (np.unique(mask).size>2):
-				# Get the central pixel in the coadd seg map
-				nx = self._cat["box_size"][iobj]
-				seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
-				# Remove any masks other than the one around the central object
-				np.putmask(mask, mask!=seg_id, 0)
-
-			scale_stack = self.get_stack_correction(iobj, silent=True).flatten()
-
-			if noise and (not neighbours):
-				remove = p0[i0:i1]- real[i0:i1] * scale_stack - noise[i0:i1] * scale_stack
-			elif (not noise) and (not neighbours):
-				remove = p0[i0:i1]- real[i0:i1] * scale_stack
-			elif (not noise) and neighbours:
-				remove = noise * scale_stack
-			elif noise and neighbours:
-				remove = 0.0
-
 			# noise + neighbours + analytic profile
 			try:
-				pixels = pixels + stack - remove
+				pixels+=stack
 			except:
 				import pdb ; pdb.set_trace()
 
 			p0[i0:i1] = stack
 
-			
-
-		print "Writing to MEDS file %s"%outdir
+		print "Writing to MEDS file"
 		self.clone(data=p0, colname="image_cutouts", newdir=outdir)
 
 		return 0
 
-	def clone(self, data=None, colname="image_cutouts", data2=None, colname2="image_cutouts", newdir=None):
-		out=fitsio.FITS("%s/%s"%(newdir,os.path.basename(self._filename).replace(".fz","")), "rw")
+	def clone(self, data=None, colname="image_cutouts", newdir=None):
+		out=fitsio.FITS("%s/%s"%(newdir,self._filename.replace(".fz","")), "rw")
 
 		for j, h in enumerate(self._fits[1:]):
 			hdr=h.read_header()
 			extname=hdr["extname"]
 			if extname in ["model_cutouts", "noise_cutouts"]:
-				continue
+				extname
 			print extname
 			if (data is not None) and extname==colname:
 				print "new data in HDU %s"%colname
 				dat = data
-			elif (data2 is not None) and extname==colname2:
-				print "new data in HDU %s"%colname2
-				dat = data2
 			else:
 				dat=h.read()
 			out.write(dat, header=hdr)
 			out[-1].write_key('EXTNAME', extname)
 
 		out.close()
-
-		print "Compressing output file"
-		filename = "%s/%s"%(newdir,os.path.basename(self._filename).replace(".fz",""))
-		fpack_cmd = "fpack  -qz 4.0 -t 10240,1 {}".format(filename)
-		os.system(fpack_cmd)
-		os.system("rm -rf %s"%filename)
 
 	def make_stack(self,profile,iobj):
 		boxsize = self._cat["box_size"][iobj]
@@ -1079,18 +690,17 @@ class meds_wrapper(i3meds.I3MEDS):
 			magzp = self._image_info[i_image]["magzp"]
 			rf = 10**( (magzp - 30) / 2.5 )
 
-			psf = self.get_bundled_psfex_psf(iobj, iexp, return_profile=True)
+			psf = self.get_bundled_psfex_psf(iobj, iexp, self.options, return_profile=True)
 
 			if (profile is not None) and (psf is not None):
-				final = galsim.Convolve([profile,psf[0]]) * rf
+				final = galsim.Convolve([profile,psf]) * rf
 			elif profile is None:
-				final = psf[0]
+				final = psf
 			elif psf is None:
 				final = profile
 			
-			if final is not None:
-				stamp = galsim.ImageD(boxsize, boxsize)
-				tmp = final.drawImage(stamp, scale=1, offset=offset, method='no_pixel')
+			if final is not None:	
+				stamp = final.drawImage(wcs=wcs, nx=boxsize, ny=boxsize, method='no_pixel',offset=offset)
 			else:
 				stamp=blank_stamp(boxsize)
 
@@ -1098,87 +708,83 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return np.concatenate(stack)
 
+	def get_bundled_psfex_psf(self, iobj, iexp, options, return_profile=False):
 
-#	def get_bundled_psfex_psf(self, iobj, iexp, return_profile=False):
-#
-#		wcs_path = self.get_source_info(iobj,iexp)[3].strip()
-#
-#		wcs_path = check_wcs(wcs_path)
-#
-#		#Find the exposure name
-#		source_path = self.get_source_path(iobj, iexp)
-#		source = os.path.split(source_path)[1].split('.')[0]
-#
-#		#PSF blacklist
-#		if source in self.blacklist:
-#			if self.options.verbosity>2:
-#				print "%s blacklisted" % source
-#			return None
-#
-#		#get the HDU name corresponding to that name.
-#		#Might need to tweak that naming
-#		hdu_name = "psf_"+self.options.psfex_rerun_version+"_"+source+"_psfcat"
-#
-#		#Maybe we have it in the cache already
-#		if hdu_name in PSFEX_CACHE:
-#			psfex_i = PSFEX_CACHE[hdu_name]
-#			if psfex_i is None:
-#				return None
-#
-#		else:
-#    		#Turn the HDU into a PSFEx object
-#    		#PSFEx expects a pyfits HDU not fitsio.
-#    		#This is insane.  I know this.
-#			import galsim.des
-#			try:
-#				pyfits = galsim.pyfits
-#			except AttributeError:
-#				from galsim._pyfits import pyfits
-#
-#			try:
-#				hdu = pyfits.open(self._filename)[hdu_name]
-#			except KeyError:
-#				PSFEX_CACHE[hdu_name] = None
-#				if self.options.verbosity>3:
-#					print "Could not find HDU %s in %s" % (hdu_name, self._filename)
-#
-#				return None
-#
-#			try:
-#				psfex_i = galsim.des.DES_PSFEx(hdu, wcs_path)
-#			except IOError:
-#				print "PSF bad but not blacklisted: %s in %s"%(hdu_name, self._filename)
-#				psfex_i = None
-#
-#			PSFEX_CACHE[hdu_name] = psfex_i
-#
-#		if psfex_i == None:
-#			return None
-#
-#		#Get the image array
-#		return self.extract_psfex_psf(psfex_i, iobj, iexp, return_profile=return_profile, orig_func=True)
-#
-#
-#
-#	def extract_psfex_psf(self, psfex_i, iobj, iexp, return_profile=False, orig_func=False):
-#		psf_size=(self.options.stamp_size+self.options.padding)*self.options.upsampling
-#		orig_col = self['orig_col'][iobj][iexp]
-#		orig_row = self['orig_row'][iobj][iexp]
-#
-#		x_image_galsim = orig_col+1
-#		y_image_galsim = orig_row+1
-#
-#		if orig_func:
-#			psf = utils.getPSFExarray(psfex_i, orig_col, orig_row, psf_size, psf_size, self.options.upsampling, return_profile=return_profile)
-#			return psf
-#
-#		else:
-#			psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
-#
-#			image = galsim.ImageD(psf_size, psf_size)
-#
-#			if return_profile:
-#				return psf
+		wcs_path = self.get_source_info(iobj,iexp)[3].strip()
+
+		wcs_path = check_wcs(wcs_path)
+
+		#Find the exposure name
+		source_path = self.get_source_path(iobj, iexp)
+		source = os.path.split(source_path)[1].split('.')[0]
+
+		#PSF blacklist
+		if source in self.blacklist:
+			if options.verbosity>2:
+				print "%s blacklisted" % source
+			return None
+
+		#get the HDU name corresponding to that name.
+		#Might need to tweak that naming
+		hdu_name = "psf_"+options.psfex_rerun_version+"_"+source+"_psfcat"
+
+		#Maybe we have it in the cache already
+		if hdu_name in PSFEX_CACHE:
+			psfex_i = PSFEX_CACHE[hdu_name]
+			if psfex_i is None:
+				return None
+
+		else:
+    		#Turn the HDU into a PSFEx object
+    		#PSFEx expects a pyfits HDU not fitsio.
+    		#This is insane.  I know this.
+			import galsim.des
+			try:
+				pyfits = galsim.pyfits
+			except AttributeError:
+				from galsim._pyfits import pyfits
+
+			try:
+				hdu = pyfits.open(self._filename)[hdu_name]
+			except KeyError:
+				PSFEX_CACHE[hdu_name] = None
+				if options.verbosity>3:
+					print "Could not find HDU %s in %s" % (hdu_name, self._filename)
+
+				return None
+
+			try:
+				psfex_i = galsim.des.DES_PSFEx(hdu, wcs_path)
+			except IOError:
+				print "PSF bad but not blacklisted: %s in %s"%(hdu_name, self._filename)
+				psfex_i = None
+
+			PSFEX_CACHE[hdu_name] = psfex_i
+
+		if psfex_i == None:
+			return None
+
+		#Get the image array
+		return self.extract_psfex_psf(psfex_i, iobj, iexp, options, return_profile=return_profile)
+
+
+
+	def extract_psfex_psf(self, psfex_i, iobj, iexp, options, return_profile=False):
+		psf_size=(options.stamp_size+options.padding)*options.upsampling
+		orig_col = self['orig_col'][iobj][iexp]
+		orig_row = self['orig_row'][iobj][iexp]
+
+		x_image_galsim = orig_col+1
+		y_image_galsim = orig_row+1
+
+
+		psf = psfex_i.getPSF(galsim.PositionD(x_image_galsim, y_image_galsim))
+
+		image = galsim.ImageD(psf_size, psf_size)
+		#psf.drawImage(image, scale=1.0/self.options.upsampling, offset=None, method='no_pixel')
+
+		if return_profile:
+			return psf
 
 	def get_wcs(self, iobj, iexp):
 
@@ -1214,8 +820,7 @@ class meds_wrapper(i3meds.I3MEDS):
 			g1 = truth["true_g1"]
 			g2 = truth["true_g2"]
 			hlr = truth["hlr"]
-			mag = truth["mag"]
-			flux = 10 **(-1.0 * (mag - 30) / 2.5)
+			flux = truth["flux"]
 
 			if (g1==-9999.) or (g2==-9999.):
 				return None
@@ -1248,19 +853,6 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return gal
 
-	def download_source_data(self):
-
-		import pdb ; pdb.set_trace()
-		
-		for iobj, object_id in enumerate(self._cat["id"]):
-			nexp = self._cat["ncutout"][iobj]
-			i0 = 0
-			i1 = nexp
-			if not coadd:
-				i0+=1
-			if not red:
-				i1=0
-
 	def download_source_images(self, coadd=False, red=True):
 		
 		for iobj, object_id in enumerate(self._cat["id"]):
@@ -1277,73 +869,11 @@ class meds_wrapper(i3meds.I3MEDS):
 				path = self._image_info["image_path"][file_id].strip()
 				path = check_wcs(path,iexp)
 
-	def i3s(self, iobj, sub_image=[None,None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=-9999, return_vals=False):
-		# Setup im3shape inputs
-		opt = self.options
-		if coadd_objects_id!=-9999:
-			iobj=np.argwhere(self._fits["object_data"].read()["id"]==coadd_objects_id)[0,0]
-			print coadd_objects_id, iobj
-		inputs = self.get_im3shape_inputs(iobj)
-		psfs = inputs.all('psf')
-		bands = self.get_band() * (len(inputs))
-
-		galaxy_stack = inputs.all('image')
-
-
-		# Run the MCMC
-		if sub_image[0] is not None:
-			print "Warning: will substitute in new image (weight, PSFs, masks upchanged)"
-			galaxy_stack = sub_image
-			result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
-		else:
-			print "bands:", bands
-			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
-
-		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(best_img[:,wt.shape[0]*i:wt.shape[0]*i+wt.shape[0]],wt) for i,wt in enumerate(weights) ]
-		print "Mean Mask Fraction : %f"%(1-np.array(unmasked_fraction).mean())
-		boxsize = wt.shape[0]
-		nexp = len(wt)
-		effective_npix = boxsize*boxsize * nexp * (1-np.array(unmasked_fraction).mean())
-		print "chi2 per pixel : -2 x %f / %f = %f"%(result.obj.likelihood, effective_npix, -2*result.obj.likelihood / effective_npix)
-
-		if isinstance(save,str):
-			galaxy_stack = inputs.all('image')
-			wt = inputs.all('weight')
-			image = np.hstack(tuple(galaxy_stack))
-			np.savetxt(save+"/model.txt", best_img )
-			np.savetxt(save+"/image.txt", image )
-			np.savetxt(save+"/weights.txt", np.hstack(tuple(wt)) )
-
-	
-		if show:
-			import pylab as plt
-			cmap = plt.get_cmap("jet")
-			image = np.hstack(tuple(galaxy_stack)) 
-			wt = inputs.all('weight')
-
-			nrow = 2
-
-			plt.subplot(nrow,ncols, col)
-			plt.title("Image")
-			plt.imshow(image, interpolation="none", cmap=cmap)
-			plt.colorbar()
-			plt.subplot(nrow,ncols,ncols+col)
-			plt.title("Best fit")
-			plt.imshow(best_img, interpolation="none", cmap=cmap)
-			print "Pixel max:%f"%best_img.max()
-			plt.colorbar() 
-
-	
-		if return_vals:
-			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
-		else:
-			return result, result.get_params()
-
 
 
 def check_wcs(wcs_path, iexp=-9999):
 	if not os.path.exists(wcs_path):
-		wcs_path = "/share/des/disc3/samuroff/y1/data/OPS"+wcs_path.split("OPS")[-1].strip()
+		wcs_path = "/share/des/disc3/samuroff/y1/data/OPS/"+wcs_path.split("OPS")[-1].strip()
 		if iexp==0:
 			wcs_path=wcs_path.replace(".fz","")
 
@@ -1399,4 +929,3 @@ def split_by(array, column_name, pivot, return_mask=False, logger=None):
 
 	else:
 		return f, upper, lower
-

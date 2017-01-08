@@ -7,6 +7,7 @@ import pdb
 import fitsio as fi
 import tools.arrays as arr
 import scipy.optimize as optimise
+from scipy.interpolate import Rbf
 
 def text_to_fits(filename, keyword='fornax'):
     res = load_results0(keyword=keyword)
@@ -142,6 +143,12 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if ntot!=-1:
         files=files[:ntot]
 
+    if len(match)!=0:
+        tiles = [os.path.basename(f)[:12] for f in files]
+        select = np.array([t in match for t in tiles])
+        files=np.array(files)[select]
+        ntot = len(files)
+
     dt = fi.FITS(files[0])[1].read(columns=cols).dtype
 
   # Generate empty array to fill
@@ -153,16 +160,17 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     if ntot!=-1:
         res= np.zeros(ntot*buff, dtype=dt)
     else:
-        res= np.zeros(2000*buff, dtype=dt)
+        res= np.zeros(len(files)*buff, dtype=dt)
 
     print "initial length of buffer : %d"%res.shape
+
             
     for f in files:
         tile = os.path.basename(f)[:12]
         if (len(match)>0):
             if  (tile not in match):
-                print "Excluding %s"%f
-                print "file exists but is not in the specified list of tiles."
+                #print "Excluding %s"%f
+                #print "file exists but is not in the specified list of tiles."
                 continue 
         if format.lower()=="fits":
             fits = fi.FITS(f)
@@ -308,7 +316,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
         if ind!=None and res!=None:
             #selres=res[ind[i][0]:ind[i][1]]
             selres = res[res["tilename"]==tile]
-            r,dat=match_results(selres,dat, name2="coadd_objects_id")
+            r,dat=match_results(selres,dat, name1="DES_id", name2="coadd_objects_id")
 
         if add_tilename_col and ("tilename" not in dat.dtype.names):
             dat = arr.add_col(dat, "tilename", dat.shape[0]*[tile])
@@ -354,14 +362,18 @@ def get_bord_results(disc,bulge):
     order = np.argsort(res_bord['id'])
     return res_bord[order]
 
-def match_results(res,tr, table3=None, name1="DES_id", name2="coadd_objects_id", name3=None, unique=True):
+def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_objects_id", name3=None, unique=False, verbose=True):
 
     if table3 is not None:
         third_dataset=True
+        if verbose:
+            print "Found 3 catalogues to match"
     else:
         third_dataset=False
 
     if unique:
+        if verbose:
+            print "Enforcing unique entries."
         un,ind=np.unique(res[name2], return_index=True)
         res=res[ind]
         un,ind=np.unique(tr[name1], return_index=True)
@@ -370,42 +382,30 @@ def match_results(res,tr, table3=None, name1="DES_id", name2="coadd_objects_id",
             un,ind = np.unique(table3[name3], return_index=True)
             table3 = table3[ind]
 
-
-    tr_id = tr[name1]
-    res_id = res[name2]
     if third_dataset:
-        t3_id = table3[name3]
-        t3_order = np.argsort(t3_id)
-        table3 = table3[t3_order]
+        table3 = table3[np.argsort(table3[name3])]
 
-    tr_order = np.argsort(tr_id)
-    res_order = np.argsort(res_id)
-    
-    tr = tr[tr_order]
-    res = res[res_order]
-
+    if verbose:
+        print "Sorting..."
+    tr = tr[np.argsort(tr[name1])]
+    res = res[np.argsort(res[name2])]
 
     if (res.shape==tr.shape) and (np.all(res[name2]==tr[name1])):
         print 'Matched %d objects'%len(tr[name1])
     else:
-        sel1 = np.in1d(tr[name1], res[name2])
-        tr = tr[sel1]
-
-        sel2 = np.in1d(res[name2], tr[name1])
-        res = res[sel2]
+        if verbose:
+            print "Matching..."
+        tr = tr[np.in1d(tr[name1], res[name2])]
+        res = res[np.in1d(res[name2], tr[name1])]
 
         if third_dataset:
-            print "Matching to third array"
-            sel3 = np.in1d(table3[name3], res[name2])
-            table3 = table3[sel3]
-            sel4 = np.in1d(table3[name3], tr[name1])
-            table3 = table3[sel4]
+            if verbose:
+                print "Matching to third array"
+            table3 = table3[np.in1d(table3[name3], res[name2])]
+            table3 = table3[np.in1d(table3[name3], tr[name1])]
 
-            sel5 = np.in1d(tr[name1], table3[name3])
-            tr = tr[sel5]
-
-            sel6 = np.in1d(res[name2], table3[name3])
-            res = res[sel6]
+            tr = tr[np.in1d(tr[name1], table3[name3])]
+            res = res[np.in1d(res[name2], table3[name3])]
 
             return res, tr, table3
 
@@ -1108,51 +1108,119 @@ def psf_leakage(res, savedir=None, mode="show", equal_number_bins=False):
 
     return (alpha11, cova11[0,0]), (alpha22, cova22[0,0]), (c11psf, cova11[1,1]), (c22psf, cova22[1,1]) 
 
-def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, additional_argvals=None):
+def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, additional_argvals=None, method="split", sample_frac=0.1, columns_needed=[]):
     """Generic function which takes an array and splits into nsubsamples parts. Then apply an operation
        to each, and find the rms deviation about the mean in the resulting quantity."""
+
+    methods=["sky_coord", "split", "randomise"]
+    if method not in methods:
+        raise ValueError("Unrecognised method: %s"%method)
+    else:
+        print "Generating bootstrap errorbars: %s"%method
+        print "Using %d samples"%nsubsamples
     resampled = []
     if isinstance(full_cat, tuple) and (len(full_cat)==2):
-        xdata = full_cat[0]
-        ydata = full_cat[1]
+        if len(columns_needed)>0:
+            print "Using selected columns"
+            dtx= [ ( n, str(full_cat[0].dtype[n]) ) for n in full_cat[0].dtype.names if n in columns_needed] 
+            dty= [ ( n, str(full_cat[1].dtype[n]) ) for n in full_cat[1].dtype.names if n in columns_needed]
+            dt = np.dtype(dtx + dty)
+            data = np.zeros(full_cat[0].size, dtype=dt)
+            xdata = full_cat[0]
+            ydata = full_cat[1]
+            
+            for col in np.dtype(dtx).names: 
+                data[col] = full_cat[0][col]
+            for col in np.dtype(dty).names:
+                data[col] = full_cat[1][col]
+            merged_table = True
+        else:
+            xdata = full_cat[0]
+            ydata = full_cat[1]
+            merged_table = False
         separate_xy = True
+       
     else:
         separate_xy = False
         ydata = full_cat
-    resample_length=len(ydata)/nsubsamples
-    bootstrap_edges=(np.arange(nsubsamples+1)*resample_length).astype(int)
-    for i in xrange(nsubsamples-1):
-        b_low = bootstrap_edges[i]
-        b_high = bootstrap_edges[i+1]
+    if method=="split":
+        resample_length=len(ydata)/nsubsamples
+    else:
+        ntot = ydata.size
+        resample_length = int(sample_frac * ntot)
+
+    if (not method=="sky_coord"):
+        bootstrap_edges=(np.arange(nsubsamples+1)*resample_length).astype(int)
+    else:
+        # Split the footprint into a set of ra rows
+        ndir = int(np.sqrt(nsubsamples))
+        ra_bins = find_bin_edges(ydata["ra"], ndir)
+        ra_bins = zip(ra_bins[:-1], ra_bins[1:] )
+        print "Splitting data into %dx%d bootstrap patches"%(ndir,ndir)
+
+        ira = 0
+        idec= 0
+
+    for i in xrange(nsubsamples):
+        print "    %d"%(i+1)
+
+        if (method=="split"):
+            b_low = bootstrap_edges[i]
+            b_high = bootstrap_edges[i+1]
+            indices = np.arange(b_low, b_high, 1)
+        elif (method=="sky_coord"):
+
+            if ira==ndir: continue
+
+            # Galaxies in this ra bin
+            sel_ra = (ydata["ra"]>ra_bins[ira][0]) & (ydata["ra"]<ra_bins[ira][1])
+
+            dec_bins =  find_bin_edges(ydata["dec"][sel_ra], ndir)
+            dec_bins = zip(dec_bins[:-1], dec_bins[1:] )
+            # Galaxies in this dec bin
+            sel_dec = (ydata["dec"]>dec_bins[idec][0]) & (ydata["dec"]<dec_bins[idec][1])
+
+            # Cut this region out and repeat the calculation using only the galaxies outside it
+            indices = np.invert(sel_ra & sel_dec)
+
+            if idec==ndir-1:
+                idec=0
+                ira+=1
+            else:
+                idec+=1
+
+        else:
+            indices = np.random.rand(ntot)<sample_frac #np.random.choice(ntot-1,resample_length)
         #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
         if additional_args is None:
             if not separate_xy:
-                derived_quantity = operation( full_cat[b_low:b_high])
+                derived_quantity = operation( full_cat[indices])
             else:
-                derived_quantity = operation( xdata[b_low:b_high], ydata[b_low:b_high])
+                derived_quantity = operation( xdata[indices], ydata[indices])
         else:
-            if not separate_xy:
-                comm = "derived_quantity = operation(full_cat[b_low:b_high]"
-            else:
-                comm = "derived_quantity = operation(xdata[b_low:b_high], ydata[b_low:b_high]"
+            kwargs = {}
             for name,val in zip(additional_args, additional_argvals):
-                if isinstance(val,str):
-                    comm += ", %s='%s'"%(name,val)
+                kwargs[name] = val
+
+
+
+            if not separate_xy:
+                derived_quantity = operation(full_cat[indices], **kwargs)
+            else:
+                if not merged_table:
+                    derived_quantity = operation(xdata[indices], ydata[indices], **kwargs)
                 else:
-                    comm += ", %s=%s"%(name,val)
-            comm+=")"
+                    dat = data[indices]
+                    derived_quantity = operation(dat, dat, **kwargs)
 
-            try:
-                exec comm
-
-            except:
-                import pdb ; pdb.set_trace()
             #print derived_quantity
+
 
         resampled.append(derived_quantity)
 
     fmean = np.mean(resampled)
     dev = (np.array(resampled)-fmean) * (np.array(resampled)-fmean)
+
     return np.sqrt(np.mean(dev))
 
 def find_bin_edges(x,nbins,w=None):
@@ -1245,21 +1313,29 @@ def compute_weight(e1, verbose=True):
 
 
 
-def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], binning="equal_number", silent=False):
+def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], visual=False, binning="equal_number", silent=False, mask=None):
 
     g1 = xdata['true_g1']
     g2 = xdata['true_g2']
+
     
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1])
+    if mask is not None:
+        sel = sel & mask
     g1 = g1[sel]
     g2 = g2[sel]
 
-    e1 = catalogue["%s1"%ellipticity_name][sel]
-    e2 = catalogue["%s2"%ellipticity_name][sel]
+    try:
+        e1 = catalogue["%s1"%ellipticity_name][sel]
+        e2 = catalogue["%s2"%ellipticity_name][sel]
+    except:
+        if ellipticity_name is "true_sheared_e":
+            e1 = catalogue["intrinsic_e1"][sel] + g1
+            e2 = catalogue["intrinsic_e2"][sel] + g2
 
     if weights is not None:
         print "Will use weights provided"
-        w = weights
+        w = weights[sel]
     else:
         w = np.ones_like(e1)
 
@@ -1272,6 +1348,7 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
         m = np.zeros_like(e1)
         c1 = np.zeros_like(e1)
         c2 = np.zeros_like(e1)
+
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -1308,17 +1385,13 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
     # Four linear fits to do here
 
     # m11, c11
-    w11 = d1 * (np.array(variance_y11)/np.array(y11))
-    w11= 1/w11/w11
-    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=d1 * (np.array(variance_y11)/np.array(y11)), p0=[0.05,1e-4])
+    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.05,1e-4])
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
     m11,c11 = p11  
 
     # m22, c22
-    w22 = d2 * (np.array(variance_y22)/np.array(y22))
-    w22= 1.0/w22/w22
-    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=d2 * (np.array(variance_y22)/np.array(y22)), p0=[0.05,1e-4])
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=np.array(variance_y22), p0=[0.05,1e-4])
     if not np.isfinite(cov22).all():
         p22,cov22 = stabilised_fit(x,d2,w22)
     m22,c22 = p22
@@ -1334,6 +1407,17 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
     if not np.isfinite(cov21).all():
         p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
     m21,c21 = p21
+
+    if visual:
+        import pylab as plt
+        plt.subplots_adjust(left=0.15,right=0.95)
+        plt.errorbar(x, d1, yerr=np.array(variance_y11), fmt="o", color="purple", label="$e_1$")
+        plt.errorbar(x, d2, yerr=np.array(variance_y22), fmt="D", color="steelblue", label="$e_2$")
+        plt.plot(x, x*m11+c11, "-", lw=2.5, color="purple")
+        plt.plot(x, x*m22+c22, "-", lw=2.5, color="steelblue")
+        plt.xlabel("Input Shear $g_i$")
+        plt.ylabel("Residual Shear $<e_i> - <g_i>$")
+        plt.legend(loc="lower left")
 
     if not silent:
         print 'm11=%f +- %f'%(m11,cov11[0,0]**0.5)
@@ -1383,9 +1467,202 @@ def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None)):
 
     return p_tar(unweighted)/p_uw(unweighted)
 
+def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), verbose=False):
+    print "Constructing histograms."
+    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False, range=(xlim,ylim))
+    wts = np.zeros(source[0].size)
 
 
-def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=True, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+    if (target[1].size!=source[1].size):
+        trunc = min(target[1].size,source[1].size)
+        if verbose: 
+            print "Enforcing equal sized arrays. Size %d"%trunc
+
+        target_pool = [[],[]]
+        source_pool = [[],[]]     
+        target_pool[0] = target[0][:trunc]
+        target_pool[1] = target[1][:trunc]
+        source_pool[0] = source[0][:trunc]
+        source_pool[1] = source[1][:trunc]
+    else:
+        target_pool = target
+        source_pool = source
+
+    for i, edges in enumerate(zip(x_tar[:-1], x_tar[1:])):
+        sel_t = (target_pool[0]>edges[0]) & (target_pool[0]<edges[1])
+        sel_s = (source_pool[0]>edges[0]) & (source_pool[0]<edges[1])
+        tg = target_pool[1][sel_t]
+        sc = source_pool[1][sel_s]
+
+        for j, edges_inner in enumerate(zip(y_tar[:-1], y_tar[1:])):
+            if verbose:
+                print "Processing node (%d %d) edges : [%3.3f - %3.3f] [%3.3f - %3.3f]"%(i+1, j+1, edges[0], edges[1], edges_inner[0], edges_inner[1])
+
+            target_inner = (tg>edges_inner[0]) & (tg<edges_inner[1])
+            source_inner = (sc>edges_inner[0]) & (sc<edges_inner[1])
+           
+            try:
+                select = (source[1]>edges_inner[0]) & (source[1]<edges_inner[1]) & (source[0]>edges[0]) & (source[0]<edges[1])
+                wts[select] = tg[target_inner].size * 1.0 / sc[source_inner].size 
+            except:
+                select = (source[1]>edges_inner[0]) & (source[1]<edges_inner[1]) & (source[0]>edges[0]) & (source[0]<edges[1])
+                wts[select] = np.nan
+
+    wts[np.invert(np.isfinite(wts))]=0
+
+    return wts
+
+
+
+def get_nd_wts(target, source, nbins=60, verbose=False):
+    print "Constructing histograms."
+
+    # work out the number of dimensions required
+    # Define the binning in each
+    bounds=[]
+    bins = []
+    edges=[]
+    for dimension in source:
+        bounds.append((dimension.min(), dimension.max()))
+        bins.append(np.linspace(0, nbins-1, nbins).astype(int))
+        bin_centres=np.linspace(bounds[-1][0], bounds[-1][1], nbins+1)
+        edges.append(zip( bin_centres[:-1], bin_centres[1:]))
+    ndim = len(bounds)
+    if verbose:
+        print "Found %d dimensions"%ndim
+    bins_all = np.meshgrid(*bins)
+
+    wts = np.zeros(source[0].size)
+
+    # Truncate the arrays to ensure the comparison is meaningful
+    if (target[1].size!=source[1].size):
+        trunc = min(target[1].size,source[1].size)
+        if verbose: 
+            print "Enforcing equal sized arrays. Size %d"%trunc
+        target_pool = []
+        source_pool = []     
+        for i in xrange(ndim):
+            target_pool.append( target[i][:trunc])
+            source_pool.append(source[i][:trunc])     
+    else:
+        target_pool = target
+        source_pool = source
+
+    # Now loop over the ndim dimensional grid
+    ntot = nbins**ndim
+
+    for i in xrange(ntot):
+        if verbose:
+                print "Processing node %d/%d edges : "%(i+1, ntot),
+        data_source = source_pool
+        data_target = target_pool
+        selection = np.ones_like(wts).astype(bool)
+        for j, dimension in enumerate(zip(bins_all, edges)):
+            bin_index = dimension[0].flatten()[i]
+            lower,upper = dimension[1][bin_index][0], dimension[1][bin_index][1]
+
+            if verbose: print "[%3.3f - %3.3f]"%(lower,upper),
+            selection = selection & (source[j]<upper) & (source[j]>lower)
+            selection_source = (data_source[j]<upper) & (data_source[j]>lower)
+            data_source = [ dat[selection_source] for dat in data_source]
+            selection_target = (data_target[j]<upper) & (data_target[j]>lower)
+            data_target = [ dat[selection_target] for dat in data_target]
+
+        try:
+            wts[selection] = data_target[0].size * 1.0 / data_source[0].size 
+            if verbose: print ""
+
+        except:
+            wts[selection] = 0.0
+            if verbose: print 0
+
+
+    wts[np.invert(np.isfinite(wts))]=0
+
+    np.savetxt("weights_column.txt", wts)
+
+    return wts
+
+
+def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(None,None), split=False, do_diagnostic_plot=False):
+    """Return a 2d weight grid which will force one distribution to look like another."""
+
+    print "Constructing histograms."
+    n_uw, x_uw , y_uw= np.histogram2d(unweighted[0], unweighted[1], bins=nbins, normed=False, range=(xlim,ylim))
+    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False, range=(xlim,ylim))
+
+
+    if xlim[1] is not None:
+        fx = np.log10(xlim[1])
+        fy = np.log10(ylim[1])
+    else:
+        fx = np.log10(x_tar).max()
+        fy = np.log10(y_tar).max()
+
+    import scipy.interpolate
+    print "Setting up interpolators...",
+    print "1",
+    x_tar = (x_tar[1:]+x_tar[:-1])/2.
+    y_tar = (y_tar[1:]+y_tar[:-1])/2.
+    xx,yy=np.meshgrid(x_tar,y_tar)
+    norm = np.trapz([np.trapz(n, y_tar) for n in n_tar], x_tar)
+    p_tar = setup_rbf_interpolator(xx.flatten(), yy.flatten(), n_tar.flatten(), logx=True, logy=True, scale=[fx,fy])
+
+    
+    print "2"
+    x_uw = (x_uw[1:]+x_uw[:-1])/2.
+    y_uw = (y_uw[1:]+y_uw[:-1])/2.
+    xx0,yy0 = np.meshgrid(x_uw,y_uw)
+    norm_s = np.trapz([np.trapz(n, x_uw) for n in n_uw], y_uw)
+    p_uw = setup_rbf_interpolator(xx0.flatten(), yy0.flatten(), (n_uw.flatten()+1e-5), logx=True, logy=True, scale=[fx,fy])
+
+    if do_diagnostic_plot:
+        import tools.plots as pl
+        mcx = np.random.rand(xx.size/2)*(xx.max()-xx.min()) + xx.min()
+        mcy = np.random.rand(yy.size/2)*(yy.max()-yy.min()) + yy.min()
+        samples = p_tar(np.log10(mcx)/fx, np.log10(mcy)/fy)
+        pl.interpolator_diagnostic(n_tar, xx.flatten(), yy.flatten(), samples, mcx, mcy)
+
+    print "Interpolating to data."
+
+    if not split:
+        try:
+            pt = p_tar(np.log10(unweighted[0])/fx, np.log10(unweighted[1])/fy)/norm
+            ps = p_uw(np.log10(unweighted[0])/fx, np.log10(unweighted[1])/fy)/norm_s
+            p = pt/ps *  (ps>1e-4).astype(int)
+        except Exception as error:
+            print "Whole array interpolation did not work. The error was", error
+            split=True
+
+    if split:
+        stalle=False
+        npieces = 4
+        ngal=unweighted[0].size
+        p = np.zeros(ngal)
+
+        while not stalle:
+            lpiece = ngal/npieces
+            print "Trying %d pieces of length %3.3f M ..."%(npieces, lpiece/1e6),
+            for n in xrange(npieces):
+                pt = p_tar(np.log10(unweighted[0][n*lpiece : (n+1)*lpiece])/fx, np.log10(unweighted[1][n*lpiece : (n+1)*lpiece])/fy)
+                ps = p_uw(np.log10(unweighted[0][n*lpiece : (n+1)*lpiece])/fx, np.log10(unweighted[1][n*lpiece : (n+1)*lpiece])/fy)
+                p[n*lpiece : (n+1)*lpiece] = pt/ps * ((ps>1e-3) & (pt>1e-3)).astype(int)
+            print "done."
+
+            stalle = True
+#            except:
+#                print "no - will try again."
+#                npieces *= 2
+#                continue
+
+    p[p<0] = 0
+
+    import pdb ; pdb.set_trace()
+
+
+    return p
+
+def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
@@ -1460,27 +1737,27 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
     # Four linear fits to do here
 
     # m11, c11
-    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=d1 * (np.array(variance_y11)/np.array(y11)), p0=[0.15,1e-5])
+    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.15,1e-5])
     if not np.isfinite(cov11).all():
-        p11,cov11 = stabilised_fit(x,d1,1.0/np.array(variance_y11)/np.array(variance_y11))
+        p11,cov11 = stabilised_fit(x, d1, variance_y11)
     m11,c11 = p11
 
     # m22, c22
-    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=d2 * (np.array(variance_y22)/np.array(y22)), p0=[0.15,1e-5])
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=np.array(variance_y22), p0=[0.15,1e-5])
     if not np.isfinite(cov22).all():
-        p22,cov22 = stabilised_fit(x,d2,1.0/np.array(variance_y22)/np.array(variance_y22))
+        p22,cov22 = stabilised_fit(x, d2, variance_y22)
     m22,c22 = p22
 
     # m12, c12
     p12, cov12 =  optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.15,1e-5])
     if not np.isfinite(cov12).all():
-        p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
+        p12,cov12 = stabilised_fit(x, y12, variance_y12)
     m12,c12 = p12
 
     # m21, c21
     p21, cov21 =  optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.15,1e-5])
     if not np.isfinite(cov21).all():
-        p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
+        p21,cov21 = stabilised_fit(x, y21, variance_y21)
     m21,c21 = p21
 
     if not silent:
@@ -1546,6 +1823,148 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
 
 def fline(x, m, c):
     return m*x + c
+
+def find_distance_self(array, name="cosmos_ident", check_array=[], verbose=True):
+    import scipy.spatial as sps
+    R = [] #np.zeros_like(array[name]).astype(float)
+    ids = np.unique(array[name])
+
+    ind=[]
+
+
+    print "Found %d unique ids."%ids.size
+    for n, i in enumerate(ids):
+        if len(check_array)!=0:
+            if array["DES_id"][array[name]==i][0] in check_array["coadd_objects_id"]:
+                continue
+        #select = np.argwhere(array[name]==i).T[0]
+        xy = np.vstack((array["ra"][array[name]==i], array["dec"][array[name]==i]))
+
+        if xy.shape[1]<2:
+            result = [9000.]
+        else:
+            tree = sps.KDTree(xy.T)
+            result = tree.query(xy.T, k=2)[0].T[1]
+
+        with open("self_distance.txt", "a") as f:
+            out = np.vstack((array["DES_id"][array[name]==i], result))
+            np.savetxt(f, out.T)
+
+
+        R+=list(result)
+        ind+=list(array[array[name]==i])
+
+       # R[select] = result
+
+        if verbose:
+            print n, i
+
+    R = np.array(R)*60*60/0.27
+    ind = np.array(ind).astype(int)
+#
+    dt = [(name, int),("self_distance", float)]
+    out = np.zeros(R.size, dtype=dt)
+    out[name] = array[name]
+    out["self_distance"] = R
+#
+    file = fi.FITS("cosmos_self_distance.fits", "rw")
+    file.write(out, clobber=True)
+    file.close()
+
+    return R
+
+def extract_cosmos_column(cosmos, target, column_name, outfile=None, start_point=0, return_vals=True):
+    ids = np.unique(target["cosmos_ident"])
+    column = np.zeros_like(target["cosmos_ident"]).astype(float)
+
+    if outfile is None:
+        outfile = "%s.txt"%column_name
+
+    if os.path.exists(outfile):
+        reference = open(outfile).read()
+    else:
+        reference=[]
+
+    print "Writing to disc %s"%outfile
+    f = open(outfile, "wa")
+
+    print "Found %d unique ids."%ids.size
+
+    print "Will start from element %d"%start_point
+
+    for n, i in enumerate(target["cosmos_ident"][start_point:]):
+        if "%d"%target["DES_id"][n] in reference:
+            print "%d %d -- already done "%(n, i)
+            continue 
+        val = cosmos[cosmos["ident"]==i][0][column_name]
+        if return_vals: 
+            column[(target["cosmos_ident"]==i)] = val
+
+        f.write("%d %f \n"%(target["DES_id"][n],val))
+
+        print n, i
+    f.close()
+
+    if return_vals:
+        print "packaging array"
+
+        out = np.zeros(len(column), dtype=(column[0].dtype, "%s"%column_name))
+        out[column_name] = column
+
+        return out
+        
+
+
+
+
+def get_correct_boxsize(cosmos, results, truth):
+    f = np.sqrt(-2*np.log(0.5))
+    for i, row in enumerate(results):
+        print i
+        c = cosmos[cosmos["ident"]==data["cosmos_ident"]]
+        rp = f * results["mean_hsm_psf_sigma"]/3
+
+def identity(inp):
+    return inp
+
+def setup_rbf_interpolator(x, y, z, logx=True, logy=True, scale=[]):
+
+    if logx:
+        xfunction = np.log10
+    else:
+        xfunction = di.identity
+    if logy:
+        yfunction = np.log10
+    else:
+        yfunction = di.identity
+        
+    # Set up the RBF interpolation
+    if len(scale)>0:
+        fx = xfunction(scale[0])
+        fy = yfunction(scale[1])
+    else:
+        fx = fy = 1
+
+    return Rbf(xfunction(x)/fx, yfunction(y)/fy, z, smooth=0, function="multiquadric")
+        
+
+
+#
+#f=np.sqrt(-2*np.log(0.5))                    # HLR - sigma conversion
+#fac=2.35                                     # sigma - FWHM conversion
+#R=hoopoe.truth["hlr"]/f                      #Gaussian sigma galaxy, arcsec
+#rp=hoopoe.res["mean_hsm_psf_sigma"]*0.27/3   # sigma PSF, factor of 3 for the upsampling, arcsec
+#
+#sig=np.sqrt(R*R + rp*rp)/0.27                # sigma convolved, pixels                                
+#eps = (1-q0)
+#b = 2*5* sig * (1+eps)
+#
+#boxsize=np.zeros_like(q0)
+#for b0,b1 in zip(allowed_boxsizes[:-1], allowed_boxsizes[1:]):
+#    select = (b>b0) & (b<b1)
+#    boxsize[select] = b1
+#    print b1
+
 
 relevant_parameters = ['ra_as', 'dec_as', 'e1', 'e2', 'radius', 'radius_ratio', 'bulge_a', 'disc_a', 'coadd_objects_id', 'time', 'bulge_flux', 'disc_flux', 'flux_ratio', 'snr', 'old_snr', 'min_residuals', 'max_residuals', 'model_min', 'model_max', 'likelihood', 'levmar_start_error', 'levmar_end_error', 'levmar_resid_grad', 'levmar_vector_diff', 'levmar_error_diff', 'levmar_comp_grad', 'levmar_iterations', 'levmar_reason', 'levmar_like_evals', 'levmar_grad_evals', 'levmar_sys_evals', 'mean_flux', 'n_exposure', 'stamp_size', 'mean_rgpp_rp', 'mean_psf_e1_sky', 'mean_psf_e2_sky', 'fails_psf_e2_sky', 'mean_psf_fwhm', 'mean_unmasked_flux_frac', 'fails_unmasked_flux_frac', 'mean_model_edge_mu', 'mean_model_edge_sigma', 'mean_edge_mu', 'fails_edge_mu', 'mean_edge_sigma', 'mean_hsm_psf_e1_sky', 'mean_hsm_psf_e2_sky', 'mean_hsm_psf_sigma', 'mean_hsm_psf_rho4', 'mean_mask_fraction',  'round_snr',  'round_snr_mw', 'ra', 'dec', 'chi2_pixel', 'mag_auto_g', 'mag_auto_r', 'mag_auto_i', 'mag_auto_z', 'desdm_zp']
     

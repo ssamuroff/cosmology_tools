@@ -14,7 +14,7 @@ import matplotlib
 import pylab as plt
 matplotlib.rcParams['font.family']='serif'
 matplotlib.rcParams['font.size']=14
-matplotlib.rcParams['legend.fontsize']=14
+matplotlib.rcParams['legend.fontsize']=10
 matplotlib.rcParams['xtick.major.size'] = 10.0
 matplotlib.rcParams['ytick.major.size'] = 10.0
 
@@ -750,8 +750,22 @@ def generate_fig4_samples(c,number=10,xmin=0.02, xmax=0.1, write_script=True, ol
 
 
 
+def interpolator_diagnostic(histogram, x, y, samples, xnew, ynew):
+	import pylab as plt
 
 
+	plt.imshow(histogram, extent=(x.min(),x.max(), y.min(), y.max()), aspect=140, origin="lower", interpolation="none")
+
+	plt.scatter(xnew, ynew, c=samples, s=45, marker="*", vmin=histogram.min(), vmax=histogram.max())
+	plt.ylim(1.1,2.5)
+	plt.xlim(10,200)
+
+	plt.colorbar(label="$p(SNR, R)$")
+	plt.ylabel("Size $R_{gpp}/R_{p}$")
+	plt.xlabel("Signal-to-Noise $SNR_w$")
+	plt.clim(histogram.min(), histogram.max())
+	plt.savefig("/home/samuroff/tmp_priorinterp.png")
+	plt.close()
 
 class xi:
 	def __init__(self, filename="/home/samuroff/cosmosis/mpp/wl_requirements/covariance/ee_y1_joachimicov.fits"):
@@ -1077,7 +1091,7 @@ class im3shape_results_plots:
 		else:
 			return 0
 
-	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, extra_selection=[], xdata=None):
+	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, xdata=None, mask=None):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1103,19 +1117,15 @@ class im3shape_results_plots:
 		# Deal with the axis bounds
 		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
 
-		if len(extra_selection)>0:
-			sel = extra_selection
+		if mask is not None:
+			sel = mask
 		else:
 			sel = np.ones_like(self.res["e1"]).astype(bool)
 
 		data = self.res[axis_lower & axis_upper & sel]
 		if hasattr(self, "truth"):
 			tr = self.truth[axis_lower & axis_upper & sel]
-			data = arr.add_col(data,"true_g1",tr["true_g1"])
-			data = arr.add_col(data,"true_g2",tr["true_g2"])
-			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
-			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
-
+		
 		if xdata is not None:
 			data[name] = xdata
 
@@ -1141,11 +1151,11 @@ class im3shape_results_plots:
 			if bias not in data.dtype.names:
 				# Do the linear fits
 				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = di.get_bias(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
+				b = di.get_bias(tr[bin], data[bin], nbins=15, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
 					try:
-						error = di.bootstrap_error(6, data[bin], di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+						error = di.bootstrap_error(6, (tr[bin], data[bin]), di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
 					except:
 						error = -1
 				else:
@@ -1175,7 +1185,7 @@ class im3shape_results_plots:
 		else:
 			return 0
 
-	def alpha_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0):
+	def alpha_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=(-0.03,0.05), ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1202,12 +1212,12 @@ class im3shape_results_plots:
 		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
 
 		data = self.res[axis_lower & axis_upper]
-		if hasattr(self, "truth"):
-			tr = self.truth[axis_lower & axis_upper]
-			data = arr.add_col(data,"true_g1",tr["true_g1"])
-			data = arr.add_col(data,"true_g2",tr["true_g2"])
-			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
-			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
+#		if hasattr(self, "truth"):
+#			tr = self.truth[axis_lower & axis_upper]
+#			data = arr.add_col(data,"true_g1",tr["true_g1"])
+#			data = arr.add_col(data,"true_g2",tr["true_g2"])
+#			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
+#			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
 
 
 		print "Total galaxies:%d"%data.size
@@ -1231,10 +1241,10 @@ class im3shape_results_plots:
 			if bias not in data.dtype.names:
 				# Do the linear fits
 				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = di.get_alpha(data[bin], nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["alpha","c","alpha11","alpha22","c11","c22"], use_weights=False)
+				b = di.get_alpha(data[bin],data[bin], nbins=15, ellipticity_name=ellipticity_name, binning="equal_number", xlim=xlim, names=["alpha","c","alpha11","alpha22","c11","c22"], use_weights=False)
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
-					error = di.bootstrap_error(6, data[bin], di.get_alpha, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+					error = di.bootstrap_error(6, data[bin], di.get_alpha, additional_args=["names", "silent", "ellipticity_name", "xlim"], additional_argvals=[bias, True, ellipticity_name, xlim])
 				else:
 					error = b[bias][1]
 
@@ -1301,14 +1311,7 @@ class im3shape_results_plots:
 		lab2,col2=labels[bias]
 
 		data = self.res
-		if hasattr(self, "truth"):
-			tr = self.truth
-			data = arr.add_col(data,"true_g1",tr["true_g1"])
-			data = arr.add_col(data,"true_g2",tr["true_g2"])
-			data = arr.add_col(data,"intrinsic_sheared_e1",tr["intrinsic_e1"]+tr["true_g1"])
-			data = arr.add_col(data,"intrinsic_sheared_e2",tr["intrinsic_e2"]+tr["true_g2"])
-
-
+	
 		print "Total galaxies:%d"%data.size
 
 		#Now the binning
@@ -1316,18 +1319,20 @@ class im3shape_results_plots:
 		y=[]
 		err=[]
 
+		ntot = data.size
+
 		for i, frac in enumerate(x):
 
-			ngal = frac*data.size
-			subset = np.random.choice(data,ngal.astype(int))
+			ngal = frac*ntot
+			indices = np.random.rand(ntot)<frac
 			# Case where we are calculating biases
 			if bias not in data.dtype.names:
 				# Do the linear fits
 				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = bias_function(subset, nbins=5, ellipticity_name=ellipticity_name, silent=np.invert(show), binning="equal_number", names=[bias])
+				b = bias_function(self.truth[indices],self.res[indices], nbins=18, ellipticity_name=ellipticity_name, xlim=(-0.08,0.08), silent=False, binning="equal_number", names=[bias])
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
-					error = di.bootstrap_error(6, subset, bias_function, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
+					error = di.bootstrap_error(500, (self.truth[indices], self.res[indices]), di.get_bias, additional_args=["names", "silent", "xlim", "nbins" ], additional_argvals=[bias, True, (-0.08,0.08), 18], method="randomise", sample_frac=0.25, columns_needed=["e1", "e2", "true_g1", "true_g2"])
 				else:
 					error = b[bias][1]
 
@@ -1597,7 +1602,7 @@ class im3shape_results_plots:
 		if "m" in bias:
 			xmin,xmax= -1,1
 		else:
-			xmin,xmax = -0.015, 0.020, 
+			xmin,xmax = -0.03, 0.050, 
 		exec "data = self.res%d"%split_half
 		exec "truth = self.truth%d"%split_half
 

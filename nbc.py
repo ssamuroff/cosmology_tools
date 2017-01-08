@@ -134,14 +134,14 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		list_bias = []
 		bias_grid=[]
 
-		b = di.get_bias(tr, data, nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-		print "Global biases:"
-		print "m11 : ", b["m11"]
-		print "m22 : ", b["m22"]
-		print "m : ", b["m"]
-		print "c11 : ", b["c11"]
-		print "c22 : ", b["c22"]
-		print "c : ", b["c"]
+#		b = di.get_bias(tr, data, nbins=5, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+#		print "Global biases:"
+#		print "m11 : ", b["m11"]
+#		print "m22 : ", b["m22"]
+#		print "m : ", b["m"]
+#		print "c11 : ", b["c11"]
+#		print "c22 : ", b["c22"]
+#		print "c : ", b["c"]
 
 		print "Will do dynamic binning in SNR"
 
@@ -180,7 +180,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
 				b = di.get_bias(tr[select], data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-				a = di.get_alpha(data[select], data[select], nbins=5, xlim=(-0.015, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				a = di.get_alpha(data[select], data[select], nbins=5, xlim=(-0.03, 0.05), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 
 				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
@@ -228,7 +228,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		print "Will write to %s"%filename,
 		out = fi.FITS(filename,"rw")
 		out.write(self.res)
-		out.write_header("EXTNAME", "i3s_data")
+		out[-1].write_header("EXTNAME", "i3s_data")
 		out.close()
 		print "done"
 			

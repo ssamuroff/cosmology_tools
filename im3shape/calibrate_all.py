@@ -37,6 +37,13 @@ def main(args):
 		hoopoe.res = hoopoe.res[sel]
 		hoopoe.truth = hoopoe.truth[sel]
 
+		sel = ((hoopoe.res["snr"] > 12) & (hoopoe.res["snr"] < 200) & (hoopoe.res["mean_rgpp_rp"] > 1.13) & (hoopoe.res["mean_rgpp_rp"] < 3.0))
+		hoopoe.res=hoopoe.res[sel]
+		hoopoe.truth=hoopoe.truth[sel] 
+
+		sel = ((y1v2.res["snr"] > 12) & (y1v2.res["snr"] < 200) & (y1v2.res["mean_rgpp_rp"] > 1.13) & (y1v2.res["mean_rgpp_rp"] < 3.0))
+		y1v2.res=y1v2.res[sel]
+
 		diagnostics(y1v2, hoopoe, vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True)
 		diagnostics(y1v2, hoopoe, histograms=False, alpha=False, table=False, rbf=False)
 
@@ -103,7 +110,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 	if alpha:
 		# Global fit of alpha to compare with previous runs
 		plt.close()
-		b = di.get_alpha(hoopoe.res, hoopoe.res, nbins=20, xlim=(-0.015,0.025), binning="equal_number", use_weights=False, visual=True)
+		b = di.get_alpha(hoopoe.res, hoopoe.res, nbins=20, xlim=(-0.03,0.05), binning="equal_number", use_weights=False, visual=True)
 		plt.subplots_adjust(wspace=0, hspace=0, top=0.95, bottom=0.1)
 		plt.title("Y1 v2 Sim, PSF v02")
 
@@ -130,11 +137,11 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 
 	# Fit the binned galaxies. Save one set of calibration data for disc objects, one for bulges
 	if table:
-		nbc_disc.compute(split_half=1, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
-		nbc_bulge.compute(split_half=1, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
+		nbc_disc.compute(split_half=1, fit="disc", rbins=10, sbins=10, rlim=(1.12,3.5), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-disc.fits"%config["output_dir"])
+		nbc_bulge.compute(split_half=1, fit="bulge", rbins=10, sbins=10, rlim=(1.12,3.5), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-halfcat-bulge.fits"%config["output_dir"])
 
-		nbc_disc.compute(split_half=0, fit="disc", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
-		nbc_bulge.compute(split_half=0, fit="bulge", rbins=10, sbins=10, rlim=(0.9,4.5), slim=(10,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
+		nbc_disc.compute(split_half=0, fit="disc", rbins=10, sbins=10, rlim=(1.12,3.5), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc.fits"%config["output_dir"])
+		nbc_bulge.compute(split_half=0, fit="bulge", rbins=10, sbins=10, rlim=(1.12,3.5), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge.fits"%config["output_dir"])
 
 	# Now plot out the points and the resulting smooth fit
 	if vssnr:
@@ -176,16 +183,16 @@ def diagnostics(y1v2, hoopoe, histograms=True, alpha=True, table=True, vssnr=Tru
 	nbc.get_combined_calibration(nbc_disc,nbc_bulge, split_half=2)
 
 	# Finally save some diagnostic plots in tomographic bins
-	if vsredshift: 
-		nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue")
-		nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple")
+	if vsredshift:
+		nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", error_type="bootstrap")
+		nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", error_type="bootstrap")
 		plt.ylabel("Multiplicative Bias $m$")
 		plt.legend(loc="lower left")
 		plt.savefig("%s/release/%s/m-vs-redshift-diagnostic-v1.png"%(config["output_dir"],rbf*"/rbf"))
 		plt.close()
 
-		nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue", error_type="std")
-		nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple", error_type="std")
+		nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue", error_type="bootstrap")
+		nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple", error_type="bootstrap")
 		plt.ylabel(r"PSF Leakage $\alpha$")
 		plt.legend(loc="upper left")
 		plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1.png"%(config["output_dir"],rbf*"/rbf"))
