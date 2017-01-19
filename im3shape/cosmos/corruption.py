@@ -2,33 +2,36 @@ import numpy as np
 import glob, os, yaml, fitsio
 import scipy.spatial as sps
 import tools.diagnostics as di
+import astropy.table as tb
 
-reasons={"artifact":1, "box_too_small":2, "no_galaxy":3, "two_galaxies":4, "off_centre":5}
+reasons=["artifact", "smallstamp", "nogalaxy", "twogalaxies", "offcenter"]
+lookup={"artifact":1, "smallstamp":2, "nogalaxy":3, "twogalaxies":4, "offcenter":5, "assumedbad":6}
 
 levels={"xiping":[1,2,3,4,5], "trump":[1,2,3,5], "milverton":[1,2], "hewitt":[4],"sahlin":[5]}
 
 class whistleblower:
-    def __init__(self, validated="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/validated", blacklist="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/corruption_table"):
+    def __init__(self, validated="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/good_180117.tab", blacklist="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/bad_180117.tab"):
         print "Blacklisted COSMOS profiles from %s"%blacklist
-        self.reason, self.blacklisted_ids = np.loadtxt(blacklist).T
+        tab = tb.Table.read(blacklist, format="ascii", names=["ident", "reason"])
+        self.reason, self.blacklisted_ids = tab["reason"], tab["ident"]
         self.good_ids=np.loadtxt(validated)
 
     def research(self, catalogue):
         self.report = np.zeros(catalogue.res.size)
 
-        for reason in [0,1,2,3,4]:
+        for reason in reasons:
             blacklist = self.blacklisted_ids[self.reason==reason]
             mask = np.in1d(catalogue.truth["cosmos_ident"], blacklist)
-            self.report[mask] = reason
+            self.report[mask] = lookup[reason]
 
-    def publish(self, level="milverton"):
+    def publish(self, level="xiping"):
         exclude = levels[level]
-        exclude.append(-9999)
+        exclude.append(6)
         return np.invert(np.in1d(self.report, exclude))
 
     def vindicate(self, catalogue):
         mask = np.in1d(catalogue.truth["cosmos_ident"], self.good_ids)
-        self.report = np.zeros(catalogue.res.size) - 9999
+        self.report = np.ones(catalogue.res.size) * 6
         self.report[mask] = 0
 
 
