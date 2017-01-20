@@ -4,16 +4,22 @@ import scipy.spatial as sps
 import tools.diagnostics as di
 import astropy.table as tb
 
-reasons=["artifact", "smallstamp", "nogalaxy", "twogalaxies", "offcenter"]
-lookup={"artifact":1, "smallstamp":2, "nogalaxy":3, "twogalaxies":4, "offcenter":5, "assumedbad":6}
+reasons=["artifact", "smallstamp", "nogalaxy", "twogalaxies", "offcenter", "other"]
+lookup={"artifact":1, "smallstamp":2, "nogalaxy":3, "twogalaxies":4, "offcenter":5, "other":6,"assumedbad":7}
 
-levels={"xiping":[1,2,3,4,5], "trump":[1,2,3,5], "milverton":[1,2], "hewitt":[4],"sahlin":[5]}
+levels={"xiping":[1,2,3,4,5,6], "trump":[1,2,3,5,6], "milverton":[1,2], "hewitt":[4],"sahlin":[5]}
 
 class whistleblower:
-    def __init__(self, validated="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/good_180117.tab", blacklist="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/bad_180117.tab"):
+    def __init__(self, validated="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/good_190117.tab", blacklist="/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/cosmos/bad_190117.tab"):
         print "Blacklisted COSMOS profiles from %s"%blacklist
-        tab = tb.Table.read(blacklist, format="ascii", names=["ident", "reason"])
-        self.reason, self.blacklisted_ids = tab["reason"], tab["ident"]
+        
+        try:
+            tab = tb.Table.read(blacklist, format="ascii", names=["ident", "reason"])
+            self.reason, self.blacklisted_ids = tab["reason"], tab["ident"]
+        except:
+            tab = tb.Table.read(blacklist, format="ascii", names=["ident"])
+            self.blacklisted_ids = tab["ident"]
+
         self.good_ids=np.loadtxt(validated)
 
     def research(self, catalogue):
@@ -26,12 +32,12 @@ class whistleblower:
 
     def publish(self, level="xiping"):
         exclude = levels[level]
-        exclude.append(6)
+        exclude.append(7)
         return np.invert(np.in1d(self.report, exclude))
 
     def vindicate(self, catalogue):
         mask = np.in1d(catalogue.truth["cosmos_ident"], self.good_ids)
-        self.report = np.ones(catalogue.res.size) * 6
+        self.report = np.ones(catalogue.res.size) * 7
         self.report[mask] = 0
 
 
