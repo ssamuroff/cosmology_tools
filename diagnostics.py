@@ -1320,6 +1320,9 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
 
     
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1])
+    if apply_calibration:
+        mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
+        sel = sel & mask_nans
     if mask is not None:
         sel = sel & mask
     g1 = g1[sel]
@@ -1385,7 +1388,9 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
     # Four linear fits to do here
 
     # m11, c11
-    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.05,1e-4])
+    try:
+        p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.05,1e-4])
+    except: import pdb ; pdb.set_trace()
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
     m11,c11 = p11  
@@ -1448,14 +1453,107 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
 
     return out
 
-def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None)):
+def get_selection_to_match(target, unweighted, nbins=40, xlim=(None,None), existing_weights=None):
+    """Return a selection mask which will resample one distribution to look like another."""
+
+    if xlim[0] is None:
+        dx=(unweighted.max()-unweighted.min())/nbins
+        xlim=( unweighted.min()-dx, unweighted.max()+dx)
+
+    if target.size>unweighted.size:
+        target = target[:unweighted.size]
+
+    n_uw, bins_uw = np.histogram(unweighted, bins=nbins, range=xlim, weights=existing_weights)
+    n_tar, bins_tar = np.histogram(target, bins=nbins, range=xlim)
+
+    # Set up a blank selection function to fill
+    mask = np.ones_like(unweighted).astype(bool)
+
+    centres=(bins_uw[1:]+bins_uw[:-1])/2
+
+    frac = n_tar*1.0/n_uw / (n_tar*1.0/n_uw).max() 
+
+    ntot=unweighted.size
+
+    for i, edges in enumerate(zip(bins_uw[:-1], bins_uw[1:])):
+        lower = edges[0]
+        upper = edges[1]
+        print "%d [%2.3f-%2.3f]"%(i,lower,upper)
+
+        select_subset = (unweighted<upper) & (unweighted>lower)
+        nbin = mask[select_subset].size
+        mask_subset = np.ones(nbin)
+
+        bin_frac = frac[i]
+
+        nremove = nbin - bin_frac*nbin
+        nremove = int(nremove)
+
+        print "Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin))
+
+        indices_to_keep = np.random.choice(range(nbin), nremove, replace=False)
+        mask_subset[indices_to_keep] = 0
+
+        mask[select_subset] = mask_subset.astype(bool)
+   
+
+    return mask
+
+
+def get_selection_to_match_3d(target, unweighted, nbins=40, xlim=(None,None), existing_weights=None):
+    """Return a selection mask which will resample one distribution to look like another."""
+
+
+
+    if target[0].size>unweighted[0].size:
+        target = [t[:unweighted[0].size] for t in target]
+
+    n_uw, bins_uw = np.histogramdd(unweighted, bins=nbins)
+    n_tar, bins_tar = np.histogramdd(target, bins=nbins)
+
+    # Set up a blank selection function to fill
+    mask = np.ones_like(unweighted[0]).astype(bool)
+
+    frac = n_tar*1.0/n_uw
+    frac[np.invert(np.isfinite(frac))]=0
+    frac/= frac.max() 
+
+    ndim = len(bins_tar)
+
+    for i, edges0 in enumerate(zip(bins_uw[0][:-1], bins_uw[0][1:])):
+        for j, edges1 in enumerate(zip(bins_uw[1][:-1], bins_uw[1][1:])):
+            for k, edges2 in enumerate(zip(bins_uw[2][:-1], bins_uw[2][1:])):
+
+                print "%d %d %d [%2.3f-%2.3f] [%2.3f-%2.3f] [%2.3f-%2.3f]"%(i,j,k, edges0[0], edges0[1], edges1[0], edges1[1], edges2[0], edges2[1])
+
+                select_subset = (unweighted[0]<edges0[1]) & (unweighted[0]>edges0[0]) & (unweighted[1]<edges1[1]) & (unweighted[1]>edges1[0]) & (unweighted[2]<edges2[1]) & (unweighted[2]>edges2[0])
+                nbin = mask[select_subset].size
+                if nbin==0: continue
+                mask_subset = np.ones(nbin)
+
+                bin_frac = frac[i,j,k]
+
+                nremove = nbin - bin_frac*nbin
+                nremove = int(nremove)
+
+                print "Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin))
+
+                indices_to_keep = np.random.choice(range(nbin), nremove, replace=False)
+                mask_subset[indices_to_keep] = 0
+
+                mask[select_subset] = mask_subset.astype(bool)
+   
+
+    return mask
+
+def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None), existing_weights=None):
     """Return a set of weights which will force one distribution to look like another."""
 
     if xlim[0] is None:
         dx=(unweighted.max()-unweighted.min())/nbins
         xlim=( unweighted.min()-dx, unweighted.max()+dx)
 
-    n_uw, bins_uw = np.histogram(unweighted, bins=nbins, normed=1, range=xlim)
+    n_uw, bins_uw = np.histogram(unweighted, bins=nbins, normed=1, range=xlim, weights=existing_weights)
     n_tar, bins_tar = np.histogram(target, bins=nbins, normed=1, range=xlim)
 
     import scipy.interpolate
@@ -1469,7 +1567,11 @@ def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None)):
 
 def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), verbose=False):
     print "Constructing histograms."
-    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False, range=(xlim,ylim))
+    if (xlim[0] is not None) or (ylim[0] is not None):
+        rge=(xlim,ylim)
+    else:
+        rge=None
+    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False, range=rge)
     wts = np.zeros(source[0].size)
 
 
@@ -1667,6 +1769,9 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1]) & np.isfinite(g1) & np.isfinite(g2)
+    if apply_calibration:
+        mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
+        sel = sel & mask_nans
     g1 = g1[sel]
     g2 = g2[sel]
 
