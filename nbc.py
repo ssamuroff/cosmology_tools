@@ -35,8 +35,10 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		else:
 			print "Please specify either from_disc=True or from_memory=True"
 
-	def get_split_data(self, cat):
+	def get_split_data(self, cat, weights=None):
 		self.res = cat.res
+		# Fix this so the random split for a given input is always the same
+		np.random.seed(9000)
 		sel = np.random.randint(0,2,cat.res.size).astype(bool)
 		self.res1 = self.res[sel]
 		self.res2 = self.res[np.invert(sel)]
@@ -46,10 +48,58 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			self.truth1 = cat.truth[sel]
 			self.truth2 = cat.truth[np.invert(sel)]
 
-	def apply(self, names=["m","a"], split_half=2, use_rbf=False):
+		if weights is not None:
+			return weights[sel], weights[np.invert(sel)]
 
-		if use_rbf:
+	def bias_by_grid_cells(self, bias_name, catalogue_to_calibrate):
+		print "Will calibrate in grid cells"
+	
+		print "Found grid points of dimensions", self.bias_grid.shape
+
+		bias = np.zeros(catalogue_to_calibrate.size)
+
+		# Go through each size bin in turn
+		for i, rbounds in enumerate(zip( np.unique(self.bias_grid["rgp_lower"]), np.unique(self.bias_grid["rgp_upper"]) )):
+			r_lower = rbounds[0]
+			r_upper = rbounds[1]
+
+			# Make the selection within these size bounds
+			select_r = (catalogue_to_calibrate["mean_rgpp_rp"]<r_upper) & (catalogue_to_calibrate["mean_rgpp_rp"]>r_lower)
+
+			# Get the SNR edges within this size bin
+			snr_lower = self.bias_grid["snr_lower"][(self.bias_grid["i"]==i)]
+			snr_upper = self.bias_grid["snr_upper"][(self.bias_grid["i"]==i)]
+
+			for j, sbounds in enumerate(zip(snr_lower, snr_upper)):
+				s_lower = sbounds[0]
+				s_upper = sbounds[1]
+
+				print "%d [%3.2f-%3.2f] %d [%3.2f-%3.2f]"%(i, s_lower, s_upper, j, r_lower, r_upper ),
+
+				# Make the SNR selection
+				select_s = (catalogue_to_calibrate["snr"]<s_upper) & (catalogue_to_calibrate["snr"]>s_lower)
+
+				if bias_name=="m":
+					# Single value in this grid cell
+					val = self.bias_grid["m"][(self.bias_grid["i"]==i) & (self.bias_grid["j"]==j)][0]
+				elif bias_name=="a":
+					# Single value in this grid cell
+					val = self.bias_grid["alpha"][(self.bias_grid["i"]==i) & (self.bias_grid["j"]==j)][0]
+
+				bias[select_r & select_s] = val 
+
+				print " %d galaxies, %s=%2.3f"%(bias[select_r & select_s].size, bias_name, val)
+
+		return bias
+					
+
+	def apply(self, names=["m","a"], split_half=2, scheme="rbf"):
+
+		if scheme=="rbf":
 			print "Using RBF interpolation"
+			use_rbf=True
+		elif scheme=="grid":
+			print "Using simple gridded bias"
 		else:
 			print "Using polynomial fit"
 
@@ -63,7 +113,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 		for bias_name in names:
 			print "creating column %s"%bias_name
-			if not use_rbf:
+			if scheme=="polynomial":
 				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
 				com2 = com2%tuple(np.linspace(1,17,17))
 				exec com2
@@ -71,26 +121,42 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				com="eval_%s(np.array([catalogue_to_calibrate['snr'],catalogue_to_calibrate['mean_rgpp_rp']]).T"%bias_name + ", a%d "*self.optimised_coefficients_m.size+")"
 				com=com%tuple(np.linspace(0,17,18))
 				exec "bias=%s"%com
-			else:
+			elif scheme=="grid":
+				bias = self.bias_by_grid_cells(bias_name, catalogue_to_calibrate)
+			elif use_rbf:
 				try:
 					bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate)
 				except:
 					import pdb ; pdb.set_trace()
 
 			if split_half>0:
-				exec "self.res%d = arr.add_col(self.res2, '%s', bias)"%(split_half, bias_name)
+				try:
+					exec "self.res%d = arr.add_col(self.res%d, '%s', bias)"%(split_half, split_half, bias_name)
+				except:
+					exec "self.res%d['%s'] = bias"%(split_half, bias_name)
 				if bias_name=="a":
-					exec "self.res%d = arr.add_col(self.res2, 'c1', bias*self.res%d['mean_psf_e1_sky'])"%(split_half, split_half)
-					exec "self.res%d = arr.add_col(self.res2, 'c2', bias*self.res%d['mean_psf_e2_sky'])"%(split_half, split_half)
+					try:
+						exec "self.res%d = arr.add_col(self.res%d, 'c1', bias*self.res%d['mean_hsm_psf_e1_sky'])"%(split_half, split_half, split_half)
+						exec "self.res%d = arr.add_col(self.res%d, 'c2', bias*self.res%d['mean_hsm_psf_e2_sky'])"%(split_half, split_half, split_half)
+					except:
+						exec "self.res%d['c1'] = bias * self.res%d['mean_hsm_psf_e1_sky']"%(split_half, split_half)
+						exec "self.res%d['c2'] = bias * self.res%d['mean_hsm_psf_e2_sky']"%(split_half, split_half)
 			else:
-				self.res = arr.add_col(self.res, bias_name, bias)
+				if bias_name not in self.res.dtype.names:
+					self.res = arr.add_col(self.res, bias_name, bias)
+				else:
+					self.res[bias_name]=bias
 				if bias_name=="a":
-					self.res = arr.add_col(self.res, "c1", bias*self.res["mean_psf_e1_sky"])
-					self.res = arr.add_col(self.res, "c2", bias*self.res["mean_psf_e2_sky"])
+					if "c1" not in self.res.dtype.names:
+						self.res = arr.add_col(self.res, "c1", bias*self.res["mean_hsm_psf_e1_sky"])
+						self.res = arr.add_col(self.res, "c2", bias*self.res["mean_hsm_psf_e2_sky"])
+					else:
+						self.res["c1"] = bias * self.res["mean_hsm_psf_e1_sky"]
+						self.res["c2"] = bias * self.res["mean_hsm_psf_e2_sky"]
 
 			print "Finished calibration"
 
-	def compute(self, split_half=0, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, weights=None, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
 		if split_half>0:
@@ -115,10 +181,12 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 		data = data[sel_fit]
 		tr = tr[sel_fit]
+		wts=weights[sel_fit]
 
 		sel_lim = (data["snr"]>slim[0]) & (data["snr"]<slim[1]) & (data["mean_rgpp_rp"]>rlim[0]) & (data["mean_rgpp_rp"]<rlim[1])
 		data = data[sel_lim]
 		tr = tr[sel_lim]
+		wts = wts[sel_lim]
 
 		if isinstance(binning,str) : 
 			if binning.lower()=="uniform":
@@ -179,8 +247,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				
 
 				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
-				b = di.get_bias(tr[select], data[select], apply_calibration=apply_calibration, nbins=5, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-				a = di.get_alpha(data[select], data[select], nbins=5, xlim=(-0.03, 0.05), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				b = di.get_bias(tr[select], data[select], weights=wts[select], apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				a = di.get_alpha(data[select], data[select], weights=wts[select], nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 
 				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
@@ -197,7 +265,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
 		print 'saved %s'%filename_table_bias
 
-	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits"):
+	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits", smoothing=3):
 		bt = fi.FITS(table)[1].read()
 		snr = (bt["snr_lower"]+bt["snr_upper"])/2
 		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
@@ -205,8 +273,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		# Set up the RBF interpolation
 		self.fx = np.log10(snr).max()
 		self.fy = np.log10(rgpp).max()
-		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["m"], smooth=3, function="multiquadric")
-		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["alpha"], smooth=3, function="multiquadric")
+		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["m"], smooth=smoothing, function="multiquadric")
+		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["alpha"], smooth=smoothing, function="multiquadric")
 
 	def do_rbf_interpolation(self, bias, cat):
 
@@ -260,7 +328,10 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		print "Will combine bulge and disc calibration fits."
 		if split_half==0:
 			for bias in names:
-				self.res = arr.add_col(self.res, bias, np.zeros_like(self.res['e1']))
+				if "m" not in self.res.dtype.names:
+					self.res = arr.add_col(self.res, "m", np.zeros_like(self.res['e1']))
+					self.res = arr.add_col(self.res, "c1", np.zeros_like(self.res['e1']))
+					self.res = arr.add_col(self.res, "c2", np.zeros_like(self.res['e1']))
 				bulge = self.res["is_bulge"].astype(bool)
 				print "column : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
 				try:
@@ -305,7 +376,7 @@ def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0)
 		else:
 			plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
 
-	plt.xlim(10,300)
+	plt.xlim(10,250)
 	plt.axhline(0, lw=2, color="k")
 	
 	plt.xlabel("Signal-to-Noise $SNR_w$")
