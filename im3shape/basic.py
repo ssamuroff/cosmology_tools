@@ -7,6 +7,7 @@ import fitsio
 import glob, argparse, os
 import tools.shapes as s
 import py3shape as p3s
+import gc
 from py3shape import utils
 
 sersic_indices={"disc":1, "bulge":4}
@@ -116,7 +117,7 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
 
         obj2= galsim.Convolve([gal2,psf,pix])
 
-        pos2 = galsim.PositionD(x=int(neighbour[0]), y=int(neighbour[1]))
+        pos2 = galsim.PositionD(x=neighbour[0], y=neighbour[1])
 
         im2 = obj2.drawImage(wcs=local_wcs, nx=large_boxsize, ny=large_boxsize, method='no_pixel', offset=pos2)
 
@@ -125,7 +126,31 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
     trim = (large_boxsize-boxsize)/2
     lim = galsim.BoundsI(xmin=trim, xmax=large_boxsize-trim-1, ymin=trim, ymax=large_boxsize-trim-1)
 
+    del(wcs)
+    gc.collect()
+
     return im3[lim], psf_image
+
+
+def i3s(sub_image=[None], psfs=[None], coadd_objects_id=-9999, meds=None, return_model=False, return_all_i3s=False):
+        # Setup im3shape inputs
+        #meds=s.meds_wrapper(meds)
+        opt = meds.options
+      
+        bands = "r"
+
+        # Run the MCMC
+        print "Warning: will substitute in new image (weight, PSFs, masks upchanged)"
+        galaxy_stack = sub_image
+        trans=[transform(sub_image[0].shape[0], opt)]
+        result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, [np.ones_like(sub_image[0])], trans, meds.options, ID=3000000, bands=bands)
+
+        if return_model:
+            return result.get_params(), best_img
+        elif return_all_i3s:
+            return result, trans, result.get_params(), best_img
+        else:
+            return result.get_params()
 
 def run(galaxy_image, psf_image, save=None, show=False, weights=[[None]], opt=None, ncols=1, col=1, return_cat=False, flat_background=0, noise=0, check=False):
     if opt is None:
@@ -211,16 +236,18 @@ def transform(boxsize, opt=None):
     transform.x0 = boxsize/2
     transform.y0 = boxsize/2
     print "starting chain with centroid position (%d %d)"% (transform.x0 ,transform.y0 )
-    dudcol=1.0
-    dudrow=0.0
-    dvdcol=0.0
-    dvdrow=1.0
+    dudcol=0.27
+    dudrow=-1e-7
+    dvdcol=-1e-7
+    dvdrow=0.27
     B = np.array([ [dudcol,dudrow],[dvdcol,dvdrow]])
     A = np.linalg.inv(B)
+
     transform.A[0][0] = A[0,0]
     transform.A[0][1] = A[0,1]
     transform.A[1][0] = A[1,0]
     transform.A[1][1] = A[1,1]
+
     #print 'transform det = ', np.linalg.det(B)
     #print 'A = ', A
     return transform

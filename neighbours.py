@@ -24,6 +24,34 @@ class neighbours:
 
     	print "Initialised neighbour catalogue"
 
+    def load_distance_cat(self, catalogue, path="/share/des/disc7/samuroff/des/hoopoe/neighbour_catalogue.fits"):
+    	print "Loading neighbour lookup catalogue from %s"%path
+    	self.distance_cat = ncat=fi.FITS(path)[1].read(columns=["coadd_objects_id", "neighbour_distance", "truth_index"])
+
+    	dmask =np.in1d(self.distance_cat["coadd_objects_id"],catalogue.res["coadd_objects_id"])
+    	self.distance_cat,catalogue.res=di.match_results(self.distance_cat[dmask], catalogue.res)
+
+    def generate_from_truth(self, catalogue, truth_path="/share/des/disc8/cambridge/truth/"):
+    	container=np.zeros_like(catalogue.truth)
+
+    	if not hasattr(catalogue, "tiles"):
+    		catalogue.tiles = catalogue.res["tilename"].astype("S12")
+
+    	for i,tile in enumerate(catalogue.tiles):
+    		print i, tile
+
+    		truth_file = glob.glob("%s/%s*.fz"%(truth_path,tile))
+    		if (len(truth_file)==0 ) :
+    			continue
+    		else:
+    			truth_file=truth_file[0]
+
+    		truth = fi.FITS(truth_file)[1].read()
+    		select = (hoopoe.res["tilename"].astype("S12")==tile)
+    		container[select] = truth[truth["DES_id"]!=-9999][ncat["truth_index"][select]]
+
+
+
     def tune(self, target, ntiles=np.inf, task_number=0, tiles=[]):
     	print "setting up..."
 
