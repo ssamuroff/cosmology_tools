@@ -44,13 +44,11 @@ def main(args):
 				hoopoe.truth = hoopoe.truth[selection]
 				weights = weights[selection]
 
-				print "Final selection : %d galaxies"%hoopoe.res["coadd_objects_id"].size
-				print "Final selection : %d unique COSMOS IDs"%np.unique(hoopoe.truth["cosmos_ident"]).size
-
 		if (not apply_selection) or (not config["reweight"]):
 			weights = np.ones(hoopoe.res["coadd_objects_id"].size)
 
 		if (config["resample"]):
+			print "Will apply resampling to match data"
 			edat = np.sqrt(y1v2.res["e1"]**2+y1v2.res["e2"]**2)
 			eh = np.sqrt(hoopoe.res["e1"]**2+hoopoe.res["e2"]**2)
 			subsample = di.get_selection_to_match(edat,eh,nbins=35)

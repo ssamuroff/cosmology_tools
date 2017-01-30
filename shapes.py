@@ -658,10 +658,25 @@ class shapecat(i3s_plots):
 
 		return neighbour_cat
 
+	def get_tangential_shear(self, x0, y0, x, y):
+		dx = x-x0
+		dy = y-y0
+		sel = np.invert((dy==0) | (dx==0))
+
+		theta = np.arctan2(dy[sel],dx[sel])
+
+		et = -1*(self.res["e1"][sel]*np.cos(2*theta) + self.res["e2"][sel]*np.sin(2*theta))
+		ex = -1*(self.res["e2"][sel]*np.cos(2*theta) - self.res["e1"][sel]*np.sin(2*theta))
+
+		return et, ex, sel
+
 	def get_phi_col(self,neighbour_cat):
 		print "Computing ellipticity-ellipticity misalignment between each object and its nearest neighbour."
 		eres = self.res["e1"]+ 1j*self.res["e2"]
-		eneigh = neighbour_cat.res["e1"] + 1j*neighbour_cat.res["e2"]
+		try:
+			eneigh = neighbour_cat.res["e1"] + 1j*neighbour_cat.res["e2"]
+		except:
+			eneigh = neighbour_cat.truth["intrinsic_e1"] + 1j*neighbour_cat.truth["intrinsic_e2"]
 
 		phi_res = np.angle(eres)
 		phi_neigh = np.angle(eneigh)
@@ -684,11 +699,11 @@ class shapecat(i3s_plots):
 
 		self.res = arr.add_col(self.res,"dphi",dphi)
 
-	def get_beta_col(self,ncat):
+	def get_beta_col(self,cat, ncat):
 		print "Computing ellipticity-position misalignment angle between each object and its nearest neighbour."
 		
-		dx = self.truth["ra"] - ncat.truth["ra"]
-		dy = self.truth["dec"] - ncat.truth["dec"]
+		dx = cat["x_image"] - ncat["x_image"]
+		dy = cat["y_image"] - ncat["y_image"]
 
 		# position angle of the separation vector, in sky coordinates
 		# has bounds [-pi,pi]
@@ -713,7 +728,9 @@ class shapecat(i3s_plots):
 
 		beta/=np.pi
 
-		self.res = arr.add_col(self.res,"dbeta",beta)
+		return beta
+
+		#self.res = arr.add_col(self.res,"dbeta",beta)
 
 	def angle_cols(self, ncat):
 		self.get_phi_col(ncat)
