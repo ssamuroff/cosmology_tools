@@ -1112,7 +1112,7 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
     """Generic function which takes an array and splits into nsubsamples parts. Then apply an operation
        to each, and find the rms deviation about the mean in the resulting quantity."""
 
-    methods=["sky_coord", "split", "randomise"]
+    methods=["sky_coord", "split", "random", "cosmos"]
     if method not in methods:
         raise ValueError("Unrecognised method: %s"%method)
     else:
@@ -1189,8 +1189,13 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
             else:
                 idec+=1
 
-        else:
+        elif (method=="random"):
             indices = np.random.rand(ntot)<sample_frac #np.random.choice(ntot-1,resample_length)
+        elif (method=="cosmos"):
+            print "Subdividing catalogue by COSMOS identifier"
+            cosmos_ids = np.unique(xdata["cosmos_ident"])
+            selected_ids = np.random.choice(cosmos_ids, cosmos_ids.size/2, replace=False)
+            indices = np.in1d(xdata["cosmos_ident"], selected_ids)
         #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
         if additional_args is None:
             if not separate_xy:
@@ -1280,7 +1285,82 @@ def find_bin_edges(x,nbins,w=None):
 
     return r
 
-def compute_weight(e1, verbose=True):
+
+def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/home/samuroff/shear_pipeline/im3shape-weights_column.fits", sbins=15, rbins=15, simdat=None):
+
+    if len(data.dtype.names)>3:
+        print "Extracting columns required"
+        placeholder=data
+        data = np.zeros(data.size, dtype=[("snr", float ), ("mean_rgpp_rp", float), ("e1", float)])
+        for col in data.dtype.names:
+            data[col] = placeholder[col]
+
+    
+    if bins_from_table:
+        bt = fi.FITS(table)[1].read()
+        rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
+        nbins = rgpp.size
+
+        print "Will evaluate weights on grid from %s"%table
+    else:
+        bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
+        bins = find_bin_edges(data["mean_rgpp_rp"], rbins)
+        bt["rgp_lower"] = bins[:-1]
+        bt["rgp_upper"] = bins[1:]
+
+    
+    wt_vec=[]
+    for i, (rgpp_lower, rgpp_upper) in enumerate(zip(np.unique(bt["rgp_lower"]), np.unique(bt["rgp_upper"]))):
+
+        row_data = data[ (data["mean_rgpp_rp"]>rgpp_lower) & (data["mean_rgpp_rp"]<rgpp_upper) ]
+
+        if simdat is not None:
+            sim_row_data = simdat[ (simdat["mean_rgpp_rp"]>rgpp_lower) & (simdat["mean_rgpp_rp"]<rgpp_upper) ]
+
+        if bins_from_table:
+            select_row = (bt["i"]==i)
+            snr_edges0 = bt["snr_lower"][select_row]
+            snr_edges1 = bt["snr_upper"][select_row]
+        else:
+            snr_edges = find_bin_edges(row_data["snr"], sbins)
+            snr_edges0 = snr_edges[:-1]
+            snr_edges1 = snr_edges[1:]
+
+        for j, (snr_lower, snr_upper) in enumerate(zip(snr_edges0, snr_edges1)):
+
+            cell_sample = (row_data["snr"]>snr_lower) &  (row_data["snr"]<snr_upper)
+
+            wt = compute_im3shape_weight(row_data["e1"][cell_sample], verbose=False)
+            ngal  = row_data["e1"][cell_sample].size
+
+            if simdat is not None:
+                sim_cell_sample= (sim_row_data["snr"]>snr_lower) &  (sim_row_data["snr"]<snr_upper)
+                wt_sim = compute_im3shape_weight(sim_row_data["e1"][sim_cell_sample], verbose=False)
+                nsim = sim_row_data["e1"][sim_cell_sample].size
+            else:
+                wt_sim = 0
+                nsim = 0
+
+            print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
+
+            wt_vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, wt, nsim, wt_sim ])
+
+    if filename is not None:
+        out_fits = fi.FITS(filename, "rw")
+
+        out_table = np.zeros(len(wt_vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", float), ("inverse_weight", float), ("nsim", float), ("simulation_inverse_weight", float)])
+        for i, col in enumerate(out_table.dtype.names):
+            print "Writing column %s"%col
+            out_table[col] = np.array(wt_vec).T[i]
+
+        out_fits.write(out_table, clobber=True)
+        out_fits.close()
+    return out_table
+
+
+
+
+def compute_im3shape_weight(e1, verbose=True):
     """Return either the direct measurement of the variance, or the width of the best fit Gaussian distribution"""
     sigma_direct = e1.std()
 
@@ -1307,6 +1387,50 @@ def compute_weight(e1, verbose=True):
         print "WARNING: neither variance estimate is finite. Using default (0.25)"
         return 0.25
 
+def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".", outfile="im3shape_weights.fits"):
+    from scipy.interpolate import Rbf
+    # Set up the interpolator with some fixed scale factor
+    print "Setting up variance interpolator"
+    rgpp = np.sqrt(weights_grid["rgpp_lower"] * weights_grid["rgpp_upper"])
+    snr = np.sqrt(weights_grid["snr_lower"] * weights_grid["snr_upper"])
+    fx = np.log10(snr).max()
+    fy = np.log10(rgpp).max()
+
+    interpolator = Rbf(np.log10(snr)/fx, np.log10(rgpp)/fy, weights_grid["weight"], smooth=smoothing, function="multiquadric")
+
+    print "Performing interpolation"
+    ngal = target_data["snr"].size
+    if ngal<10e6:
+        interpolated_sigma = interpolator( np.log10(target_data["snr"])/fx, np.log10(target_data["mean_rgpp_rp"])/fy )
+    else:
+        print "Splitting array"
+        ngal = target_data["snr"].size
+        nchunk = ngal/4
+        interpolated_sigma=[]
+        for i in xrange(4):
+            print i
+            interpolated_sigma.append( interpolator( np.log10(target_data["snr"][i*nchunk:(i+1)*nchunk])/fx, np.log10(target_data["mean_rgpp_rp"][i*nchunk:(i+1)*nchunk])/fy ) )
+        if ngal!=4*nchunk:
+            interpolated_sigma.append( interpolator( np.log10(target_data["snr"][(i+1)*nchunk:])/fx, np.log10(target_data["mean_rgpp_rp"][(i+1)*nchunk:])/fy ) )
+
+        interpolated_sigma = np.concatenate(interpolated_sigma)
+
+    print "Setting up output arrays"
+    out = np.empty(target_data.size, dtype=[("coadd_objects_id", int), ("weight", int)])
+    out["coadd_objects_id"] = target_data["coadd_objects_id"] 
+    out["weight"] = 1./(interpolated_sigma * interpolated_sigma)
+
+    print "Saving output to %s/%s"%(outdir, outfile)
+    out_fits = fi.FITS("%s/%s"%(outdir, outfile), "rw")
+    out_fits.write(out)
+    out_fits[-1].write_key("EXTNAME", "i3s_weights_col")
+    out_fits.close()
+    print "Done"
+
+
+
+
+
 
 
 
@@ -1321,7 +1445,10 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
     
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1])
     if apply_calibration:
-        mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
+        try:
+            mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
+        except:
+            mask_nans = np.isfinite(catalogue["m"])
         sel = sel & mask_nans
     if mask is not None:
         sel = sel & mask
@@ -1343,10 +1470,15 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
         w = np.ones_like(e1)
 
     if apply_calibration:
-        m = catalogue["m"][sel]
-        c1 = catalogue["c1"][sel]
-        c2 = catalogue["c2"][sel]
         print "Applying calibration columns"
+        m = catalogue["m"][sel]
+        if "c1" in catalogue.dtype.names:
+            c1 = catalogue["c1"][sel]
+            c2 = catalogue["c2"][sel]
+        else:
+            print "No additive column found"
+            c1 = np.zeros_like(e1)
+            c2 = np.zeros_like(e1)
     else:
         m = np.zeros_like(e1)
         c1 = np.zeros_like(e1)
@@ -1371,16 +1503,16 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
         sel2 = (g2>lower) & (g2<upper)
 
         y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+        variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
         y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+        variance_y22.append( compute_im3shape_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
 
         y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+        variance_y12.append( compute_im3shape_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
         y21.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
+        variance_y21.append( compute_im3shape_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
     d1 = np.array(y11)-x
     d2 = np.array(y22)-x
@@ -1452,6 +1584,26 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
         out = biases_dict[names][0]
 
     return out
+
+
+
+def setup_resampling_function(source, nbin):
+    """Set up a function which takes a set of bin coefficients and
+       resamples a predefined histogram with predefined bin edges."""
+
+    def resampling_function(*args):
+        """ Apply a set of bin coefficients to resample a histogram
+            The only parameters this function should take is a list
+            of cofficients and the bin edges.
+            The idea here is that once defined, we can fit this 
+            function to an an arbitrary target distribution."""
+        bins = args[0]
+        bin_fractions = args[1:nbin+1] 
+        pq = np.histogram(source, bins=bins)[0]
+        return (pq * np.array(bin_fractions) ).astype(int)
+
+    return resampling_function
+
 
 def get_selection_to_match(target, unweighted, nbins=40, xlim=(None,None), existing_weights=None):
     """Return a selection mask which will resample one distribution to look like another."""
@@ -1820,19 +1972,19 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         sel2 = (g2>lower) & (g2<upper)
 
         y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y11.append( compute_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+        variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
         y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         if not (np.isfinite(np.array(y22)).all()):
             import pdb ; pdb.set_trace()
-        variance_y22.append( compute_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+        variance_y22.append( compute_im3shape_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
 
 
         y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y12.append( compute_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+        variance_y12.append( compute_im3shape_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
        
         y21.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y21.append( compute_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
+        variance_y21.append( compute_im3shape_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
 
         
 
