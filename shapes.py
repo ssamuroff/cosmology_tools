@@ -236,7 +236,7 @@ class shapecat(i3s_plots):
 					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 			else:
 				if ext.lower()==".fits":
-					self.res = fio.FITS(files[0])[1].read()
+					self.res = fio.FITS(files[0])[1].read(cols=cols[0])
 				elif ext.lower()==".txt":
 					self.res = np.genfromtxt(files[0], names=True)
 				self.files=files
@@ -263,7 +263,7 @@ class shapecat(i3s_plots):
 				self.truth = pf.getdata(files[0])
 
 		if truth and res:
-			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id")
+			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id", unique=True)
 			if ("ra" in self.res.dtype.names): 
 				if not (self.res["ra"]==self.truth["ra"]).all():
 					self.res["ra"] = self.truth["ra"]
@@ -845,11 +845,6 @@ class meds_wrapper(i3meds.I3MEDS):
 			self._fits.close()
 			print "Beware: FITS file can be overwritten in update mode."
 			self._fits = fitsio.FITS(filename, "rw")
-
-		try:
-			self.options=p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
-		except:
-			self.setup_dummy_im3shape_options()
 
 	def setup_dummy_im3shape_options(self):
 		self.options = dummy_im3shape_options()
