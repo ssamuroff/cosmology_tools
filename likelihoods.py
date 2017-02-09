@@ -412,6 +412,32 @@ class fig5:
 		plt.close()
 
 
+def kullback_leibler(samples1, samples2, show=False, savename="kullback_leibler_comparison.png"):
+	"""Generic function to calculate the relative entropy of two histograms.
+	"""
+	p1, bins1 = np.histogram(samples1, bins=50, normed=1)
+	x = (bins1[1:]+bins1[:-1])/2
+	p2, bins2 = np.histogram(samples2, bins=bins1, normed=1)
+
+	integrand = np.log(p1/p2)*p1
+	kl = np.trapz(np.log(p1/p2)*p1, x)
+
+	if show:
+		import pylab as plt
+		plt.switch_backend("agg")
+		plt.hist(samples1, alpha=0.4, color="purple", bins=50, normed=1)
+		plt.hist(samples2, alpha=0.4, color="steelblue", bins=50, normed=1)
+		plt.plot(x,p1, "-", lw=2.5, color="purple")
+		plt.plot(x,p2, "--", lw=2.5, color="steelblue")
+		plt.title("$KL[p_1, p_2]=%3.3f$"%kl)
+		plt.savefig("/home/samuroff/shear_pipeline/plot_dump/%s"%savename)
+	print "KL=",kl
+
+	return kl
+
+
+
+
 
 
 
