@@ -1,5 +1,6 @@
 import numpy as np
 import galsim
+import astropy.table as tb
 from py3shape import structs
 import math
 import pylab as plt
@@ -10,6 +11,7 @@ import tools.shapes as s
 import py3shape as p3s
 from py3shape import utils
 from tools.im3shape import basic as i3s
+import tools.diagnostics as di
 
 
 class mcmc_toy_model:
@@ -31,16 +33,17 @@ class mcmc_toy_model:
         for p in self.params.keys(): print "%s : %3.3f"%(p, self.params[p])
 
     def sanity_check(self):
-        comm = ""
+        insane = False
 
         for p in self.params.keys():
             if (self.params[p] < self.priors[p][0]) or (self.params[p] > self.priors[p][1]):
                 print "Parameter %s is outside the allowed bounds (%3.3f-%3.3f)"%(p, self.priors[p][0], self.priors[p][1])
-                comm="continue"
+                insane = True
         else:
-            comm = "print 'Parameter values are allowed.'"
+            print 'Parameter values are allowed.'
+            insane = False
 
-        return comm
+        return insane
 
     def run(self, distributions, niterations=2000, filename="mc_toy_model-results", size=1, rank=0):
         # Highest level loop - Sets model parameters
@@ -57,7 +60,7 @@ class mcmc_toy_model:
         angles = np.linspace(0,2*np.pi,20) 
 
         self.params={"fc":0,"fn":0,"dgn":0,"Rc":0,"Rn":0, "psf_size":0}
-        self.priors={"fc":[200,8000],"fn":[200,8000],"dgn":[1,70],"Rc":[0.1,4.0],"Rn":[0.1,4.0], "psf_size":[0.1,4.0]}
+        self.priors={"fc":[200,8000],"fn":[2,9000],"dgn":[1,70],"Rc":[0.1,6.0],"Rn":[0.1,6.0], "psf_size":[0.1,4.0]}
         index_c = np.random.choice(distributions.size, niterations*50)
         index_n = np.random.choice(distributions.size, niterations*50)
 
@@ -67,7 +70,9 @@ class mcmc_toy_model:
             if ireal%size!=rank:
                 continue
             self.get_realisation(distributions, icent, ineigh, ireal)
-            exec self.sanity_check()
+            outside_allowed =  self.sanity_check()
+            if outside_allowed:
+                continue
 
             if idone>niterations: continue
 
@@ -89,7 +94,7 @@ class mcmc_toy_model:
                     y = self.params["dgn"]*np.sin(theta)
                     print "theta = %2.3f degrees, position = (%3.2f,%3.2f)"%(theta*60., x, y)
 
-                    gal,psf = i3s.setup_simple(boxsize=32,shear=(g,0.0), psf_size=self.params["psf_size"],  size=self.params["Rc"], neighbour_ellipticity=(0.0,0.0), neighbour_flux=self.params["fn"], flux=self.params["fc"], neighbour_size=self.params["Rn"], neighbour=[x,y], opt=meds.options)
+                    gal,psf = i3s.setup_simple(boxsize=96,shear=(g,0.0), psf_size=self.params["psf_size"],  size=self.params["Rc"], neighbour_ellipticity=(0.0,0.0), neighbour_flux=self.params["fn"], flux=self.params["fc"], neighbour_size=self.params["Rn"], neighbour=[x,y], opt=meds.options)
                     res = i3s.i3s([gal.array],[psf], meds=meds)
                     if ireal in [0,1,2,3]:
                         plt.matshow(gal.array)
@@ -108,6 +113,7 @@ class mcmc_toy_model:
             residual_e2 = np.array(evec_g).T[1]
 
             self.m.append([(residual_e1[-1]-residual_e1[0])/(shears[-1]-shears[0]), (residual_e2[-1]-residual_e2[0])/(shears[-1]-shears[0])]) 
+            if abs(self.m[-1][0])>2: continue
             self.write_output_line(filename)
             idone+=1
         
@@ -204,3 +210,52 @@ class mcmc_toy_model:
             print alpha[-1]
 
         return samples, alpha
+
+
+
+class results:
+    def __init__(self, directory="/home/samuroff/hoopoe_paper/toy_model_data", impose_priors=True):
+        self.samples=[]
+        files = glob.glob("%s/mc_toy_model-results*.txt"%directory)
+        for f in files:
+            print os.path.basename(f)
+            self.samples.append(tb.Table.read(f, format="ascii", names=['Rc','Rn', 'fc', 'fn','dgn','psf_size', 'm', 'm12']))
+
+        self.samples = np.concatenate(self.samples)
+
+        self.priors={"fc":[200,8000],"fn":[0.,12000],"dgn":[1,70],"Rc":[0.1,8.0],"Rn":[0.1,8.0], "psf_size":[0.1,4.0]}
+        if impose_priors:
+            self.impose_priors()
+
+    def reset_priors(self, priors, name=None):
+        if isinstance(priors, dict):
+            self.priors = priors
+        elif isinstance(priors, dict) and (name is not None):
+            self.priors[name] = priors
+        else:
+            print "Priors given in unrecognised format"
+
+    def impose_priors(self):
+        nsamp = self.samples.size
+        for q in self.priors.keys():
+            select = (self.samples[q]>self.priors[q][0]) & (self.samples[q]<self.priors[q][1])
+            ncut = nsamp - len(self.samples[select])
+            print "Prior on %s [%3.2f-%3.2f] removes %d (%3.3f percent) samples"%(q, self.priors[q][0], self.priors[q][1], ncut, ncut*100./nsamp )
+            self.samples = self.samples[select]
+
+    def generate_binned_data(self, nbin=6):
+        self.vec={}
+        for name in self.samples.dtype.names: 
+            if name in ["m", "m12"]: continue
+            print name
+            bins=di.find_bin_edges(self.samples[name], nbin)
+            tmp=[]
+            x=[]           
+            for b in zip(bins[:-1], bins[1:]):
+                print b
+                selection = (self.samples[name]<b[1]) & (self.samples[name]>b[0]) 
+                tmp.append([self.samples["m"][selection].mean(), self.samples["m"][selection].std(), self.samples["m"][selection].size])
+                x.append(self.samples[name][selection].mean())
+            self.vec[name]=(x,tmp)
+
+
