@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+import scipy.interpolate as spi
 import scipy.spatial as sps
 import astropy.io.fits as pyfits
 
@@ -569,6 +570,83 @@ class combined_pz(calculator):
 			self.pz.append(interpolated_pz)
 
 
+class nofz:
+	def __init__(self, filename):
+		self.z = np.loadtxt(filename).T[0]
+
+		self.bins=[]
+		for nz in np.loadtxt(filename).T[1:]: self.bins.append(nz/np.trapz(nz,self.z))
+
+	def generate_interpolators(self):
+		print "Setting up p(z) interpolators"
+
+		self.pz=[]
+
+		for nz in self.bins:
+			self.pz.append(spi.interp1d(self.z, nz, kind="cubic"))
+
+	def assign_galaxies_to_bins(self, z_true, verbose=True, zlim=True):
+
+		self.true_z = z_true
+		if zlim:
+			self.bin_allocation = np.zeros_like(z_true)
+			z_true[z_true<self.z.min()] = self.z.min()
+			upper_redshift_limit = (z_true<self.z.max())
+			z_true = z_true[upper_redshift_limit] 
+
+
+		# Evaluate each of the p(z) at a specific COSMOS (true) redshift
+		if verbose:
+			print "Evaluating p(z)"
+		peval = [pev(z_true) for pev in self.pz]
+
+		ptot = np.array(peval).sum(axis=0)
+
+		# Divide through by the total weight at this true redshift
+		# This should give us a probablility of finding each COSMOS galaxy in each 
+		# of the redshift bins
+		if verbose:
+			print "Converting to bin probabilities"
+		for i in xrange(len(peval)): peval[i] = peval[i]/ptot
+
+		# Now generate a random number for each COSMOS galaxy
+		random = np.random.rand(peval[0].size)
+
+		# Finally map that onto the bins to assign a DES redshift bin
+		if verbose:
+			print "Allocating galaxies across %d bins"%len(peval)
+		edges = [np.array(peval)[:i].sum(axis=0) for i in xrange(len(peval)+1)]
+
+		ntot = peval[0].size
+		bin_allocation=np.zeros_like(peval[0])-1
+		for i, (lower,upper) in enumerate(zip(edges[:-1], edges[1:])):
+			selection = (random<upper) & (random>lower)
+			bin_allocation[selection] = (i+1)
+			ngal = bin_allocation[selection].size
+			if verbose:
+				print "%d/%d (%3.3f percent ) galaxies assigned to bin %d"%(ngal,ntot,100.*ngal/ntot,i+1)
+
+		self.bin_allocation[upper_redshift_limit] = bin_allocation
+
+		return self.bin_allocation
+
+	def histograms(self, filename="/home/samuroff/shear_pipeline/plot_dump/hoopoe/hoopoe_redshift_bin_allocation.png"):
+		import pylab as plt
+		labels=["True COSMOS Redshift", None,None,None]
+		labels2=["DES BPZ", None,None,None]
+
+		for i, n in enumerate(self.bins):
+			plt.plot(self.z, n, lw=2.5, color=colors[i], alpha=0.5, label=labels2[i])
+
+		for i in [0,1,2,3]:
+			plt.hist(self.true_z[self.bin_allocation==i+1], lw=2.5, color=colors[i], normed=1, bins=60, histtype="step" , ls="dashed", label=labels[i] )
+
+		plt.xlabel("Redshift $z$")
+		plt.xlim(0,1.8)
+		plt.legend()
+		plt.yticks(visible=False)
+
+		plt.savefig(filename)
 
 
 
