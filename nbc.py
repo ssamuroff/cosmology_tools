@@ -35,11 +35,19 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		else:
 			print "Please specify either from_disc=True or from_memory=True"
 
-	def get_split_data(self, cat, weights=None):
+	def get_split_data(self, cat, weights=None, method="random"):
 		self.res = cat.res
 		# Fix this so the random split for a given input is always the same
 		np.random.seed(9000)
-		sel = np.random.randint(0,2,cat.res.size).astype(bool)
+		if method=="random":
+			print "Subdividing catalogue by coadd objects ID"
+			sel = np.random.randint(0,2,cat.res.size).astype(bool)
+		elif method=="cosmos":
+			print "Subdividing catalogue by COSMOS identifier"
+			cosmos_ids = np.unique(cat.truth["cosmos_ident"])
+			selected_ids = np.random.choice(cosmos_ids, cosmos_ids.size/2, replace=False)
+			sel = np.in1d(cat.truth["cosmos_ident"], selected_ids)
+
 		self.res1 = self.res[sel]
 		self.res2 = self.res[np.invert(sel)]
 
@@ -124,10 +132,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			elif scheme=="grid":
 				bias = self.bias_by_grid_cells(bias_name, catalogue_to_calibrate)
 			elif use_rbf:
-				try:
-					bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate)
-				except:
-					import pdb ; pdb.set_trace()
+				bias = self.do_rbf_interpolation(bias_name, catalogue_to_calibrate)
+				
 
 			if split_half>0:
 				try:
@@ -156,7 +162,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 			print "Finished calibration"
 
-	def compute(self, split_half=0, weights=None, fit="bord", apply_calibration=False, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, weights=None, fit="bord", reweight_per_bin=False, resample_per_bin=False, apply_calibration=False, refdata=None, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
 		if split_half>0:
@@ -179,6 +185,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			sel_fit = np.ones_like(data).astype(bool)
 
 
+
 		data = data[sel_fit]
 		tr = tr[sel_fit]
 		wts=weights[sel_fit]
@@ -188,6 +195,18 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		tr = tr[sel_lim]
 		wts = wts[sel_lim]
 
+		if refdata is not None:
+			import tools.likelihoods as lk
+			if fit.lower()!="bord":
+				print "Using %s only galaxies"%fit
+				val = int(fit.lower()=="bulge")
+				sel_fit = refdata.res["is_bulge"]==val
+			else:
+				sel_fit = np.ones_like(refdata.res["e1"]).astype(bool)
+			refdata.res = refdata.res[sel_fit]
+			edat = np.sqrt(refdata.res["e1"]**2+refdata.res["e2"]**2)
+			eh = np.sqrt(data["e1"]**2+data["e2"]**2)
+
 		if isinstance(binning,str) : 
 			if binning.lower()=="uniform":
 				snr_edges = np.logspace(np.log10(slim[0]),np.log10(slim[1]),sbins+1)
@@ -196,8 +215,15 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				snr_edges = di.find_bin_edges(np.log10(data["snr"]), sbins)
 				rgp_edges = di.find_bin_edges(np.log10(data["mean_rgpp_rp"]), rbins)
 
-		snr_centres = (snr_edges[1:]+snr_edges[:-1])/2.0
-		rgp_centres = (rgp_edges[1:]+rgp_edges[:-1])/2.0
+			override_bin_edges = False
+			nrbin = rbins
+			nsbin = sbins
+		elif isinstance(binning, tuple):
+			snr_edges = binning[1]
+			rgp_edges_low = np.unique(np.array(binning[0]).T[0])
+			rgp_edges = np.hstack(( np.unique(np.array(binning[0]).T[0]), np.atleast_1d(np.unique(np.array(binning[0]).T[1])[-1]) ))
+			nrbin = np.unique(np.array(binning[0]).T[0]).size
+			override_bin_edges = True
 
 		list_bias = []
 		bias_grid=[]
@@ -211,18 +237,54 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 #		print "c22 : ", b["c22"]
 #		print "c : ", b["c"]
 
-		print "Will do dynamic binning in SNR"
+		if not override_bin_edges:
+			print "Will do dynamic binning in SNR"
 
-		for i in xrange(len(rgp_edges)-1):
-			snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
-			snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
-			for j in xrange(len(snr_edges)-1):
+		for i in xrange(nrbin):
+			if not override_bin_edges:	
+				snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
+				snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
+			else:
+				select_edges = (np.array(binning[0]).T[0]==rgp_edges[i])
+				snr_edges_low = np.array(binning[1]).T[0][select_edges] 
+				snr_edges_high = np.array(binning[1]).T[1][select_edges]
+				snr_edges = np.hstack((snr_edges_low, np.atleast_1d(snr_edges_high[-1])))
+				sbins = snr_edges_high.size
+			for j in xrange(sbins):
 				empty=False
-				print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
+				
 
 				# Select in bins of snr and size
-				select = (np.log10(data['snr']) > snr_edges[j]) & (np.log10(data['snr']) < snr_edges[j+1]) & (np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])
+				# This is horrible. I know it, and I'm sorry.
+				if not override_bin_edges:
+					slow,shigh = 10**snr_edges[j], 10**snr_edges[j+1]
+					rlow,rhigh = 10**rgp_edges[i], 10**rgp_edges[i+1]
+					select = (data['snr'] > 10**snr_edges[j]) & (data['snr'] < 10**snr_edges[j+1]) & (data['mean_rgpp_rp'] > 10**rgp_edges[i]) & (data['mean_rgpp_rp'] < 10**rgp_edges[i+1])
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
+				else:
+					slow,shigh = 10**snr_edges_low[j], 10**snr_edges_high[j]
+					rlow,rhigh = 10**binning[0][i][0], 10**binning[0][i][1]
+					select = (data['snr'] > 10**snr_edges_low[j]) & (data['snr'] < 10**snr_edges_high[j]) & (data['mean_rgpp_rp'] > 10**binning[0][i][0]) & (data['mean_rgpp_rp'] < 10**binning[0][i][1])
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges_low[j], 10**snr_edges_high[j], 10**binning[0][i][0], 10**binning[0][i][1] )
 				ngal = np.nonzero(select.astype(int))[0].size
+
+				if resample_per_bin:
+					select_data = (refdata.res["snr"]>slow) & (refdata.res["snr"]<shigh) & (refdata.res["mean_rgpp_rp"]>rlow) & (refdata.res["mean_rgpp_rp"]<rhigh) 
+					subsample = di.get_selection_to_match(edat[select_data],eh[select],nbins=13)
+				else:
+					subsample = np.ones_like(data["e1"][select]).astype(bool)
+
+				if reweight_per_bin:
+					select_data = (refdata.res["snr"]>slow) & (refdata.res["snr"]<shigh) & (refdata.res["mean_rgpp_rp"]>rlow) & (refdata.res["mean_rgpp_rp"]<rhigh) 
+					bin_wts=di.get_weights_to_match(edat[select_data],eh[select],nbins=15)
+				else:
+					bin_wts = wts[select][subsample]
+
+				if refdata is not None:
+					select_data = (refdata.res["snr"]>slow) & (refdata.res["snr"]<shigh) & (refdata.res["mean_rgpp_rp"]>rlow) & (refdata.res["mean_rgpp_rp"]<rhigh) 
+					kl = lk.kullback_leibler(eh[select],edat[select_data], show=False)
+				else:
+					kl=0.0
 
 				# Raise an error if there are too few simulated galaxies in a given bin
 				if ngal < 60:
@@ -232,8 +294,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					print "Warning: no galaxies in bin %d, %d "%(i,j)
 					empty=True
 
-				vrgp_mid = rgp_centres[i]
-				vsnr_mid = snr_centres[j]
+	
 				vrgp_min = rgp_edges[i]
 				vsnr_min = snr_edges[j]
 				vrgp_max = rgp_edges[i+1]
@@ -241,19 +302,18 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 				if ngal==0:
 					print "Warning: no galaxies in bin %d, %d"%(i,j)
-					list_bias.append([j, i, ngal, 0, vrgp_min, vrgp_max, vsnr_min, vsnr_max, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.	, 0., 0.])
+					list_bias.append([j, i, ngal, 0, vrgp_min, vrgp_max, vsnr_min, vsnr_max, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.	, 0., 0.])
 					continue
 
 				
+				b = di.get_bias(tr[select][subsample], data[select][subsample], weights=bin_wts, apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				a = di.get_alpha(data[select][subsample], data[select][subsample], weights=bin_wts, nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				measurement_weight = di.compute_im3shape_weight(data["e1"][select][subsample])
 
-				filename_str = 'snr%2.2f.rgpp%2.2f' % (10**vsnr_mid,10**vrgp_mid)
-				b = di.get_bias(tr[select], data[select], weights=wts[select], apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
-				a = di.get_alpha(data[select], data[select], weights=wts[select], nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, measurement_weight, kl, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
 
-				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
-
-		lab=["j","i","ngal","rgp_lower","rgp_upper","snr_lower","snr_upper","m","err_m","c","err_c","m1","err_m1","m2","err_m2","c1","err_c1","c2",	"err_c2","alpha","err_alpha","alpha11","err_alpha11","alpha22","err_alpha22"]
-		dt = {'names': lab, 'formats': ['i4']*3 + ['f8']*22 }
+		lab=["j","i","ngal","rgp_lower","rgp_upper","snr_lower","snr_upper","weight","kl","m","err_m","c","err_c","m1","err_m1","m2","err_m2","c1","err_c1","c2","err_c2","alpha","err_alpha","alpha11","err_alpha11","alpha22","err_alpha22"]
+		dt = {'names': lab, 'formats': ['i4']*3 + ['f8']*24 }
 		arr_bias = np.core.records.fromarrays(np.array(list_bias).transpose(), dtype=dt)
 
 		if table_name is None:
@@ -265,10 +325,12 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
 		print 'saved %s'%filename_table_bias
 
-	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits", smoothing=3):
+	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits", smoothing=1):
 		bt = fi.FITS(table)[1].read()
 		snr = (bt["snr_lower"]+bt["snr_upper"])/2
 		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
+
+		print "Fitting to %s"%table
 
 		# Set up the RBF interpolation
 		self.fx = np.log10(snr).max()
@@ -292,11 +354,21 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			elif bias=="a":
 				return self.rbf_interp_a(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
 
-	def export(self, filename):
+	def export(self, filename, bias_columns_only=True):
 		print "Will write to %s"%filename,
 		out = fi.FITS(filename,"rw")
-		out.write(self.res)
-		out[-1].write_header("EXTNAME", "i3s_data")
+
+		if bias_columns_only:
+			hdu_name = "i3s_calibration_col"
+			outcat = np.empty(self.res.size, dtype=[("coadd_objects_id", int), ("m", float), ("c1", float), ("c2", float), ("a", float)])
+			for col in outcat.dtype.names:
+				outcat[col] = self.res[col]
+		else:
+			hdu_name = i3s_data
+			outcat = self.res
+
+		out.write(outcat)
+		out[-1].write_key("EXTNAME", hdu_name)
 		out.close()
 		print "done"
 			
@@ -361,8 +433,8 @@ def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0)
 	nbins = rgpp.size
 
 	plt.xscale("log")
-	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "darkviolet"]
-	pts = ["o", "D", "x", "^", ">", "<", "1", "s", "*", "+", "."]
+	colours=["purple", "forestgreen", "steelblue", "pink", "darkred", "midnightblue", "gray", "sienna", "olive", "darkviolet","cyan", "red", "k", "deepskyblue", "yellow", "darkseagreen", "darksalmon"]
+	pts = ["o", "D", "x", "^", ">", "<", "1", "s", "*", "+", ".", "o", "D", "x", "^", ">", "<", "1", "s", "*", "+", "."]
 	for i,r in enumerate(rgpp):
 		sel = (bt["i"]==i)
 		snr = 10** ((np.log10(bt["snr_lower"][sel]) + np.log10(bt["snr_upper"][sel]))/2)
@@ -372,7 +444,10 @@ def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0)
 		elif do_half==2 and i<nbins/2:
 			continue
 		if legend:
-			plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
+			try:
+				plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5, label="$R_{gpp}/R_p = %1.2f-%1.2f$"%(np.unique(bt["rgp_lower"])[i],np.unique(bt["rgp_upper"])[i]))
+			except:
+				import pdb ; pdb.set_trace()
 		else:
 			plt.errorbar(snr, bt["%s"%name][i*snr.size:(i*snr.size)+snr.size], bt["err_%s"%name][i*snr.size:(i*snr.size)+snr.size], color=colours[i], ls=ls, fmt=pts[i], lw=2.5)
 
