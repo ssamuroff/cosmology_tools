@@ -866,6 +866,8 @@ class meds_wrapper(i3meds.I3MEDS):
 			return "model_cutouts"
 		elif type=="noise":
 			return "noise_cutouts"
+		elif type in [hdr.read_header()["EXTNAME"] for hdr in self._fits[1:]]:
+			return type
 		else: raise ValueError("bad cutout type '%s'" % type)
 
 	def get_zpmag_scaling(self, iobj, iexp):
@@ -954,7 +956,8 @@ class meds_wrapper(i3meds.I3MEDS):
 			if remove_masks and (np.unique(mask).size>2):
 				# Get the central pixel in the coadd seg map
 				nx = self._cat["box_size"][iobj]
-				seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
+				#seg_id = mask[:nx*nx].reshape(nx,nx)[nx/2,nx/2]
+				seg_id = self._cat["number"][iobj]
 				# Remove any masks other than the one around the central object
 				np.putmask(mask, mask!=seg_id, 0)
 
@@ -972,7 +975,7 @@ class meds_wrapper(i3meds.I3MEDS):
 			seg[i0:i1] = mask
 
 		print "Writing to MEDS file"
-		self.clone(data=p0, colname="image_cutouts", data2=seg, colname2="seg_cutouts", newdir=outdir)
+		self.clone(data=p0, colname="image_cutouts", data2=seg, colname2="seg_cutouts", newdir=outdir, rename=["seg_cutouts", "hoopoe_seg_cutouts"])
 
 		return 0
 
@@ -1049,8 +1052,16 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		return 0
 
-	def clone(self, data=None, colname="image_cutouts", data2=None, colname2="image_cutouts", newdir=None):
+	def clone(self, data=None, colname="image_cutouts", data2=None, colname2="image_cutouts", newdir=None, rename=[None,None]):
 		out=fitsio.FITS("%s/%s"%(newdir,os.path.basename(self._filename).replace(".fz","")), "rw")
+
+		if rename[0] is not None:
+			print "Will rename column %s as %s"%(rename[0], rename[1])
+			dat = self._fits[rename[0]].read()
+			hdr = self._fits[rename[0]].read_header()
+
+			out.write(dat, header=hdr)
+			out[-1].write_key('EXTNAME', rename[1])
 
 		for j, h in enumerate(self._fits[1:]):
 			hdr=h.read_header()
@@ -1289,7 +1300,7 @@ class meds_wrapper(i3meds.I3MEDS):
 				path = self._image_info["image_path"][file_id].strip()
 				path = check_wcs(path,iexp)
 
-	def i3s(self, iobj, sub_image=[None,None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=-9999, return_vals=False):
+	def i3s(self, iobj, sub_image=[None,None,None], weights=[None,None,None], show=False, save=None, ncols=1, col=1, coadd_objects_id=-9999, return_vals=False):
 		# Setup im3shape inputs
 		opt = self.options
 		if coadd_objects_id!=-9999:
@@ -1301,15 +1312,19 @@ class meds_wrapper(i3meds.I3MEDS):
 
 		galaxy_stack = inputs.all('image')
 
+		if weights[0] is None:
+			weights_stack = inputs.all('weight')
+		else:
+			weights_stack = weights
 
 		# Run the MCMC
 		if sub_image[0] is not None:
 			print "Warning: will substitute in new image (weight, PSFs, masks upchanged)"
 			galaxy_stack = sub_image
-			result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=3000000, bands=bands)
+			result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, weights_stack, inputs.all('transform'), self.options, ID=3000000, bands=bands)
 		else:
 			print "bands:", bands
-			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, inputs.all('weight'), inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
+			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, weights_stack, inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
 
 		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(best_img[:,wt.shape[0]*i:wt.shape[0]*i+wt.shape[0]],wt) for i,wt in enumerate(weights) ]
 		print "Mean Mask Fraction : %f"%(1-np.array(unmasked_fraction).mean())
