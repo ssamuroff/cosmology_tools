@@ -14,7 +14,7 @@ import tools.shapes as s
 description = 'Noise free toy model'
 parser = argparse.ArgumentParser(description=description, add_help=False)
 parser.add_argument('--nrealisations', type=int, action='store', default=2000)
-parser.add_argument('--output', type=str, default="/home/samuroff/fornax/hoopoe_paper/toy_model_data")
+parser.add_argument('--output', type=str, default="/home/samuroff/hoopoe_paper/toy_model_data")
 parser.add_argument('--fatal_errors', action='store_true')
 parser.add_argument('--mpi', action='store_true')
 args = parser.parse_args()
