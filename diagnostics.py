@@ -1286,7 +1286,7 @@ def find_bin_edges(x,nbins,w=None):
     return r
 
 
-def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/home/samuroff/shear_pipeline/im3shape-weights_column.fits", sbins=15, rbins=15, simdat=None):
+def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/home/samuroff/shear_pipeline/im3shape-weights_column.fits", sbins=15, rbins=15, binning="equal_number", simdat=None):
 
     if len(data.dtype.names)>3:
         print "Extracting columns required"
@@ -1302,12 +1302,16 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
         nbins = rgpp.size
 
         print "Will evaluate weights on grid from %s"%table
-    else:
+    elif (binning is "equal_number"):
         bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
         bins = find_bin_edges(data["mean_rgpp_rp"], rbins)
         bt["rgp_lower"] = bins[:-1]
         bt["rgp_upper"] = bins[1:]
-
+    else:
+        print "Using log bins in rgpp"
+        bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
+        bt["rgp_lower"] = np.logspace(np.log10(1.13),np.log10(3),rbins+1)[:-1]
+        bt["rgp_upper"] = np.logspace(np.log10(1.13),np.log10(3),rbins+1)[1:]
     
     wt_vec=[]
     for i, (rgpp_lower, rgpp_upper) in enumerate(zip(np.unique(bt["rgp_lower"]), np.unique(bt["rgp_upper"]))):
@@ -1321,10 +1325,13 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
             select_row = (bt["i"]==i)
             snr_edges0 = bt["snr_lower"][select_row]
             snr_edges1 = bt["snr_upper"][select_row]
-        else:
+        elif (binning is "equal-number"):
             snr_edges = find_bin_edges(row_data["snr"], sbins)
             snr_edges0 = snr_edges[:-1]
             snr_edges1 = snr_edges[1:]
+        else:
+            snr_edges0 = np.logspace(np.log10(12),np.log10(200),sbins+1)[:-1]
+            snr_edges1 = np.logspace(np.log10(12),np.log10(200),sbins+1)[1:]
 
         for j, (snr_lower, snr_upper) in enumerate(zip(snr_edges0, snr_edges1)):
 
@@ -1396,7 +1403,9 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".
     fx = np.log10(snr).max()
     fy = np.log10(rgpp).max()
 
-    interpolator = Rbf(np.log10(snr)/fx, np.log10(rgpp)/fy, weights_grid["weight"], smooth=smoothing, function="multiquadric")
+    interpolator = Rbf(np.log10(snr)/fx, np.log10(rgpp)/fy, weights_grid["inverse_weight"], smooth=smoothing, function="multiquadric")
+
+    import pdb ; pdb.set_trace()
 
     print "Performing interpolation"
     ngal = target_data["snr"].size
@@ -1416,7 +1425,7 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".
         interpolated_sigma = np.concatenate(interpolated_sigma)
 
     print "Setting up output arrays"
-    out = np.empty(target_data.size, dtype=[("coadd_objects_id", int), ("weight", int)])
+    out = np.empty(target_data.size, dtype=[("coadd_objects_id", int), ("weight", float)])
     out["coadd_objects_id"] = target_data["coadd_objects_id"] 
     out["weight"] = 1./(interpolated_sigma * interpolated_sigma)
 

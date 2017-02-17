@@ -634,6 +634,7 @@ class nofz:
 		import pylab as plt
 		labels=["True COSMOS Redshift", None,None,None]
 		labels2=["DES BPZ", None,None,None]
+		colors = ["purple", "steelblue", "forestgreen", "darkred"]
 
 		for i, n in enumerate(self.bins):
 			plt.plot(self.z, n, lw=2.5, color=colors[i], alpha=0.5, label=labels2[i])

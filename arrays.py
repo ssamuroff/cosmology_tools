@@ -3,9 +3,14 @@ import astropy.table as tb
 import astropy.io.fits as pf
 
 
-def add_col(rec, name, arr=[], dtype=None):
+def add_col(rec, name, arr=[], dtype=None, verbose=False):
 	"""Generic function to add a new column to a structured numpy array.
 	Borrows heavily from Tomek's code."""
+
+	if name in rec.dtype.names:
+		if verbose:
+			print "Table already has a column called %s"%name
+		return rec
 
 	if len(arr)==0:
 		arr=np.zeros(len(rec))
