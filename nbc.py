@@ -7,6 +7,7 @@ import tools.arrays as arr
 import tools.plots as plots
 import tools.shapes as sh
 import tktools
+import gc
 from scipy.interpolate import Rbf
 
 import scipy.optimize as opt
@@ -120,6 +121,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		# Apply the best-fit calibration coefficients
 
 		for bias_name in names:
+			gc.collect()
 			print "creating column %s"%bias_name
 			if scheme=="polynomial":
 				com2 = "a0 "+", a%d "*self.optimised_coefficients_m[1:].size +"=tuple(self.optimised_coefficients_%s)"%bias_name
@@ -136,17 +138,23 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				
 
 			if split_half>0:
-				try:
-					exec "self.res%d = arr.add_col(self.res%d, '%s', bias)"%(split_half, split_half, bias_name)
-				except:
-					exec "self.res%d['%s'] = bias"%(split_half, bias_name)
-				if bias_name=="a":
-					try:
-						exec "self.res%d = arr.add_col(self.res%d, 'c1', bias*self.res%d['mean_hsm_psf_e1_sky'])"%(split_half, split_half, split_half)
-						exec "self.res%d = arr.add_col(self.res%d, 'c2', bias*self.res%d['mean_hsm_psf_e2_sky'])"%(split_half, split_half, split_half)
-					except:
-						exec "self.res%d['c1'] = bias * self.res%d['mean_hsm_psf_e1_sky']"%(split_half, split_half)
-						exec "self.res%d['c2'] = bias * self.res%d['mean_hsm_psf_e2_sky']"%(split_half, split_half)
+				if split_half==1:
+					self.res1 = arr.add_col(self.res1, bias_name, np.zeros_like(bias))
+					self.res1[bias_name] = bias
+					if bias_name=="a":
+						self.res1 = arr.add_col(self.res1, 'c1', bias*self.res1['mean_hsm_psf_e1_sky'])
+						self.res1 = arr.add_col(self.res1, 'c2', bias*self.res1['mean_hsm_psf_e2_sky'])
+						self.res1['c1'] = bias * self.res1['mean_hsm_psf_e1_sky']
+						self.res1['c2'] = bias * self.res1['mean_hsm_psf_e2_sky']
+				if split_half==2:
+					self.res2 = arr.add_col(self.res2, bias_name, np.zeros_like(bias))
+					self.res2[bias_name] = bias
+					if bias_name=="a":
+						self.res2 = arr.add_col(self.res2, 'c1', bias*self.res2['mean_hsm_psf_e1_sky'])
+						self.res2 = arr.add_col(self.res2, 'c2', bias*self.res2['mean_hsm_psf_e2_sky'])
+						self.res2['c1'] = bias * self.res2['mean_hsm_psf_e1_sky']
+						self.res2['c2'] = bias * self.res2['mean_hsm_psf_e2_sky']
+				
 			else:
 				if bias_name not in self.res.dtype.names:
 					self.res = arr.add_col(self.res, bias_name, bias)
@@ -162,8 +170,10 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 			print "Finished calibration"
 
-	def compute(self, split_half=0, weights=None, fit="bord", reweight_per_bin=False, resample_per_bin=False, apply_calibration=False, refdata=None, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, redshift_bin=None, weights=None, fit="bord", reweight_per_bin=False, resample_per_bin=False, apply_calibration=False, refdata=None, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
+
+
 
 		if split_half>0:
 			exec "data = self.res%d"%split_half
@@ -176,6 +186,14 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			if hasattr(self, "truth"):
 				tr = self.truth
 
+		if redshift_bin is not None:
+			print "Applying additional cuts"
+			if weights is not None:
+				weights = weights[data["des_bin"]==redshift_bin]
+			tr = tr[data["des_bin"]==redshift_bin]
+			data = data[data["des_bin"]==redshift_bin]
+
+			print "bin contains %d galaxies"%data.size
 
 		if fit.lower()!="bord":
 			print "Using %s only galaxies"%fit
@@ -327,33 +345,40 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits", smoothing=1):
 		bt = fi.FITS(table)[1].read()
-		snr = (bt["snr_lower"]+bt["snr_upper"])/2
-		rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
+		self.bt = bt
+		self.snr = (bt["snr_lower"]+bt["snr_upper"])/2
+		self.rgpp = (bt["rgp_lower"]+bt["rgp_upper"])/2
 
 		print "Fitting to %s"%table
 
 		# Set up the RBF interpolation
-		self.fx = np.log10(snr).max()
-		self.fy = np.log10(rgpp).max()
-		self.rbf_interp_m = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["m"], smooth=smoothing, function="multiquadric")
-		self.rbf_interp_a = Rbf(np.log10(snr)/self.fx, np.log10(rgpp)/self.fy,bt["alpha"], smooth=smoothing, function="multiquadric")
+		self.fx = np.log10(self.snr).max()
+		self.fy = np.log10(self.rgpp).max()
+		self.rbf_interp_m = Rbf(np.log10(self.snr)/self.fx, np.log10(self.rgpp)/self.fy,bt["m"], smooth=smoothing, function="multiquadric")
+		self.rbf_interp_a = Rbf(np.log10(self.snr)/self.fx, np.log10(self.rgpp)/self.fy,bt["alpha"], smooth=smoothing, function="multiquadric")
 
 	def do_rbf_interpolation(self, bias, cat):
 
 		# If the arrays here  are sufficiently large we may need to apply the interpolation to
 		# the catalogue in parts
-		if cat.size>25e6:
-			nslice = cat.size/2
-			if bias=="m":
-				return np.hstack(( self.rbf_interp_m(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_m(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
-			elif bias=="a":
-				return np.hstack(( self.rbf_interp_a(np.log10(cat["snr"][:nslice])/self.fx, np.log10(cat["mean_rgpp_rp"][:nslice])/self.fy), self.rbf_interp_a(np.log10(cat["snr"][nslice:])/self.fx, np.log10(cat["mean_rgpp_rp"][nslice:])/self.fy) ))
-		else:
-			if bias=="m":
-				return self.rbf_interp_m(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
-			elif bias=="a":
-				return self.rbf_interp_a(np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
+		interpolators = {"m":self.rbf_interp_m, "a":self.rbf_interp_a}
+		if cat.size>10e6:
+			print "Splitting array"
+			ngal = cat["snr"].size
+			nchunk = ngal/5
+			interpolated_bias=[]
 
+			for i in xrange(5):
+				print i
+				interpolated_bias.append( interpolators[bias]( np.log10(cat["snr"][i*nchunk:(i+1)*nchunk])/self.fx, np.log10(cat["mean_rgpp_rp"][i*nchunk:(i+1)*nchunk])/self.fy ) )
+			if ngal!=5*nchunk:
+				interpolated_bias.append( interpolators[bias]( np.log10(cat["snr"][(i+1)*nchunk:])/self.fx, np.log10(cat["mean_rgpp_rp"][(i+1)*nchunk:])/self.fy ) )
+
+			return np.concatenate(interpolated_bias)
+
+		else:
+			return interpolators[bias](np.log10(cat["snr"])/self.fx, np.log10(cat["mean_rgpp_rp"])/self.fy)
+		
 	def export(self, filename, bias_columns_only=True):
 		print "Will write to %s"%filename,
 		out = fi.FITS(filename,"rw")
@@ -395,37 +420,80 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		com=com%tuple(np.linspace(0,17,18))
 		exec "bias=%s"%com
 
+	def merge_bias_cols(self, nbc_disc, nbc_bulge, split_half=2, bias="m", mask=None):
 
-	def get_combined_calibration(self, nbc_disc, nbc_bulge, split_half=2, names=["m", "c1", "c2"]):
+		if split_half==0:
+			res = getattr(self, "res")
+			resb = getattr(nbc_bulge, "res")
+			resd = getattr(nbc_disc, "res")
+		else:
+			res = getattr(self, "res%d"%split_half)
+			resb = getattr(nbc_bulge, "res%d"%split_half)
+			resd = getattr(nbc_disc, "res%d"%split_half)
+
+		if mask is None:
+			mask = np.ones_like(res['e1']).astype(bool)
+
+		print "Checking columns"
+
+		if not ("m" in res.dtype.names):
+			res = arr.add_col(res, "m", np.empty(res['e1'].size), verbose=False, dtype=np.float64)
+			res = arr.add_col(res, "c1", np.empty(res['e1'].size), verbose=False, dtype=np.float64)
+			res = arr.add_col(res, "c2", np.empty(res['e1'].size), verbose=False, dtype=np.float64)
+
+		bulge0 = res["is_bulge"].astype(bool)
+		bulge1 = resb["is_bulge"].astype(bool)
+		print "column : %s, bulge : %d/%d, disc : %d/%d"%(bias, res[mask & bulge0].size, res[mask].size, res[mask & np.invert(bulge0)].size, res[mask].size)
+		
+		res[bias][mask & bulge0] = resb[bias][bulge1]
+		
+		res[bias][mask & np.invert(bulge0)] = resd[bias][np.invert(bulge1)]
+
+		return res
+
+	def combine_bd(self, nbc_disc, nbc_bulge, split_half=2, names=["m", "c1", "c2"], mask=None):
+		print "Will combine bulge and disc calibration fits."
+
+		suffix = "" + "1"*(split_half==1) + "2"*(split_half==2)
+
+		for bias_name in names:
+			setattr(self, "res%s"%suffix, self.merge_bias_cols(nbc_disc,  nbc_bulge, split_half=split_half, bias=bias_name, mask=mask) )
+			gc.collect()
+
+	def get_combined_calibration(self, nbc_disc, nbc_bulge, split_half=2, names=["m", "c1", "c2"], mask=None):
 		print "Will combine bulge and disc calibration fits."
 		if split_half==0:
+			if mask is None: mask=np.ones_like(self.res['e1']).astype(bool)
 			for bias in names:
 				if "m" not in self.res.dtype.names:
 					self.res = arr.add_col(self.res, "m", np.zeros_like(self.res['e1']))
 					self.res = arr.add_col(self.res, "c1", np.zeros_like(self.res['e1']))
 					self.res = arr.add_col(self.res, "c2", np.zeros_like(self.res['e1']))
-				bulge = self.res["is_bulge"].astype(bool)
-				print "column : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[bulge].size, self.res.size, self.res[np.invert(bulge)].size, self.res.size)
+				bulge = self.res[mask]["is_bulge"].astype(bool)
+				print "column : %s, bulge : %d/%d, disc : %d/%d"%(bias, self.res[mask][bulge].size, self.res[mask].size, self.res[mask][np.invert(bulge)].size, self.res[mask].size)
 				try:
-					self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
+					self.res[mask][bias][bulge] = nbc_bulge.res[bias][bulge]
 				except:
 					import pdb ; pdb.set_trace()
-				self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
+				self.res[mask][bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]
 
 		else:
 			
 			com ="""
 for i, bias in enumerate(names):
-	bulge = self.res['is_bulge'].astype(bool)
-	if i==0: print 'bulge :', self.res[bulge].size, 'disc : ', self.res[np.invert(bulge)].size, 'total : ', self.res.size
+	if mask is None: mask=np.ones_like(self.res['e1']).astype(bool)
+	bulge = self.res[mask]['is_bulge'].astype(bool)
+	if i==0: print 'bulge :', self.res[mask][bulge].size, 'disc : ', self.res[mask][np.invert(bulge)].size, 'total : ', self.res[mask].size
 	self.res = arr.add_col(self.res, bias, np.zeros_like(self.res['e1']))
 
 	print 'column : ', bias
 				
-	self.res[bias][bulge] = nbc_bulge.res[bias][bulge]
-	self.res[bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]""".replace("res", "res%d"%split_half)
+	self.res[mask][bias][bulge] = nbc_bulge.res[bias][bulge]
+	self.res[mask][bias][np.invert(bulge)] = nbc_disc.res[bias][np.invert(bulge)]""".replace("res", "res%d"%split_half)
 			exec(com)
 		print "done"
+
+
 
 def show_table(table_name,ls="none", fmt="o", legend=False, name="m", do_half=0):
 	bt = fi.FITS(table_name)[1].read()

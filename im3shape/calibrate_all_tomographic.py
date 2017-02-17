@@ -6,17 +6,17 @@ import tools.plots as pl
 import tools.arrays as arr
 import fitsio as fi
 import pylab as plt
-import os, yaml, argparse, glob, gc
+import os, yaml, argparse, glob, gc, copy
 
 plt.switch_backend("agg")
 
 
-def main(args):
+def setup(calculate, catalogue, config):
 	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "is_bulge", "tilename"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	# Load the y1 data
-	if (args.calculate and config["output"]["histograms"]) or args.catalogue or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]:
+	if (calculate and config["output"]["histograms"]) or catalogue or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]:
 		y1v2 = s.shapecat(res=config["i3s_dir"])
 		y1v2.load(truth=False, prune=True, cols=[im3shape_columns,truth_columns])
 		y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
@@ -27,7 +27,7 @@ def main(args):
 	
 
 	# And the simulation results
-	if args.calculate:
+	if calculate:
 		hoopoe = s.shapecat(res=config["hoopoe_dir"] ,truth=config["hoopoe_dir"])
 		hoopoe.res=fi.FITS(hoopoe.res_path)["i3s"].read()
 		hoopoe.truth=fi.FITS(hoopoe.truth_path)["truth"].read()
@@ -59,8 +59,8 @@ def main(args):
 			hoopoe.truth = hoopoe.truth[exclude]  
 			weights = weights[exclude]  
 			hoopoe.res = hoopoe.res[exclude]
-
-		
+		else:
+			print "Using tophat redshift bins"
 
 		if (config["resample"]):
 			print "Will apply resampling to match data"
@@ -71,28 +71,29 @@ def main(args):
 			hoopoe.truth = hoopoe.truth[subsample]
 			weights = weights[subsample]
 
-		
-
-		else:
-			print "Using tophat redshift bins"
-
 		print "Final selection : %d galaxies"%hoopoe.res["coadd_objects_id"].size
 		print "Final selection : %d unique COSMOS IDs"%np.unique(hoopoe.truth["cosmos_ident"]).size
 
-		rbins=16
-		sbins=16
+		return hoopoe, weights, y1v2
 
 
-		diagnostics(y1v2, hoopoe, weights=weights, vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
-		diagnostics(y1v2, hoopoe, weights=weights, histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
-		diagnostics(y1v2, hoopoe, weights=weights, histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+def main(args):
+	hoopoe, weights, y1v2 = setup(args.calculate, args.catalogue, config)
+	
+	# And the simulation results
+	if args.calculate:
+		rbins=12
+		sbins=12
+
+
+		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
 
 		if config["cosmos_halves"]:
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins)
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins)
-
-
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins)
 
 	if args.catalogue:
 		calibrate(y1v2)
@@ -168,7 +169,7 @@ def calibrate(data, method="rbf", smoothing=3, sbins=16, rbins=10):
 	nbc.export(filename="%s/%s"%(config["output_dir"],config["output_catalogue"]))
 
 
-def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=None, alpha=True, table=True, half_tables=True, vssnr=True, vsredshift=True, rbf=True, simple_grid=False, smoothing=3, config=None, names=["m", "a"], sbins=16, rbins=11):
+def diagnostics(y1v2, hoopoe, tomographic_calibration=False, histograms=True, split_method="random", weights=None, alpha=True, table=True, half_tables=True, vssnr=True, vsredshift=True, rbf=True, simple_grid=False, smoothing=3, config=None, names=["m", "a"], sbins=16, rbins=11):
 
 	if rbf:
 		sub_dir="rbf"
@@ -226,53 +227,23 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			edges_bulge = "equal_number"
 			edges_disc = "equal_number"
 
+		if tomographic_calibration:
+			zbin_numbers = np.unique(nbc.res["des_bin"])
+
 		if half_tables:
-			nbc_disc.compute(split_half=1, fit="disc", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method, sbins,rbins))
-			nbc_bulge.compute(split_half=1, fit="bulge", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method, sbins,rbins))
+			print "Calculating half tables in %d redshift bins"%zbin_numbers.size
+			for k in zbin_numbers:
+				print "bin %d"%k
+				nbc_disc.compute(split_half=1, fit="disc", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], split_method, sbins,rbins, k))
+				nbc_bulge.compute(split_half=1, fit="bulge", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], split_method, sbins,rbins, k))
 
-		if table:
-			nbc_disc.compute(split_half=0, fit="disc", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], sbins, rbins))
-			nbc_bulge.compute(split_half=0, fit="bulge", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], sbins,rbins))
-		
+			if table:
+				print "Calculating full tables in %d redshift bins"%zbin_numbers.size
+				for k in zbin_numbers:
+					print "bin %d"%k
+					nbc_disc.compute(split_half=0, fit="disc", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins, rbins, k))
+					nbc_bulge.compute(split_half=0, fit="bulge", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins,rbins, k))
 
-
-	# Now plot out the points and the resulting smoothing fit
-	if vssnr:
-		if rbf:
-			nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), smoothing=smoothing)
-			nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), smoothing=smoothing)
-		else:
-			nbc_disc.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_disc.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="m", do_half=1, output="%s/m-vs-snr-disc-v1-1-s%2.2f-sbins%d-rbins%d.png"%(config["output_dir"]+"/release/"+sub_dir, smoothing, sbins, rbins), use_rbf=rbf)
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="a", do_half=1, output="%s/alpha-vs-snr-disc-v1-1.png"%(config["output_dir"]+"/release/"+ sub_dir), use_rbf=rbf)
-		plt.close()
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="m", do_half=2, output="%s/m-vs-snr-disc-v1-2-s%2.2f-sbins%d-rbins%d.png"%(config["output_dir"]+"/release/"+ sub_dir, smoothing, sbins, rbins), use_rbf=rbf)
-		nbc_disc.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="a", do_half=2, output="%s/alpha-vs-snr-disc-v1-2.png"%(config["output_dir"]+"/release/"+ sub_dir), use_rbf=rbf)
-		plt.close()
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="m", do_half=1, output="%s/m-vs-snr-bulge-v1-2-s%2.2f-sbins%d-rbins%d.png"%(config["output_dir"]+"/release/"+ sub_dir, smoothing, sbins, rbins), use_rbf=rbf)
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="a", do_half=1, output="%s/alpha-vs-snr-bulge-v1-1.png"%(config["output_dir"]+"/release/"+ sub_dir), use_rbf=rbf)
-		plt.close()
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="m", do_half=2, output="%s/m-vs-snr-bulge-v1-1-s%2.2f-sbins%d-rbins%d.png"%(config["output_dir"]+"/release/"+ sub_dir, smoothing, sbins, rbins), use_rbf=rbf)
-		nbc_bulge.bias_fit_vs_pts(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), bias_name="a", do_half=2, output="%s/alpha-vs-snr-bulge-v1-2.png"%(config["output_dir"]+"/release/"+ sub_dir), use_rbf=rbf)
-		plt.close()
-
-	if half_tables and rbf:
-		nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins), smoothing=smoothing)
-		nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins), smoothing=smoothing)
-	elif half_tables and simple_grid:
-		nbc_disc.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))[1].read()
-		nbc_bulge.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))[1].read()
-	elif half_tables and (not rbf) and (not simple_grid):
-		nbc_disc.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))
-		nbc_disc.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))
-		nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))
-		nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method,sbins,rbins))
-
-	# Apply to the other half
 	if rbf:
 		scheme="rbf"
 	elif simple_grid:
@@ -280,14 +251,11 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 	else:
 		scheme="polynomial"
 
+	
 	if half_tables:
-		nbc_disc.apply(split_half=2, scheme=scheme, names=names)
-		nbc_bulge.apply(split_half=2, scheme=scheme, names=names)
-
-		nbc.combine_bd(nbc_disc,nbc_bulge, split_half=2, names=["m"]*("m" in names) + ["c1", "c2"]*("a" in names) )
-
+		nbc = calibrate_in_bins(nbc, halfcats=True, split_method=split_method, scheme=scheme, config=config, sbins=sbins, rbins=rbins, smoothing=smoothing, names=names)
+			
 	# Finally save some diagnostic plots in tomographic bins
-
 	if vsredshift: 
 		zbins=[ 0.2, 0.43, 0.63, 0.9, 1.3]
 		tophat = config["tophat_binning"]
@@ -299,46 +267,21 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 				nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
 				plt.ylabel("Multiplicative Bias $m$")
 				plt.legend(loc="center right")
-				plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
+				plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d-tomographic_calibration.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
 				plt.close()
 			if "a" in names:
 				nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat)
 				nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat)
 				plt.ylabel(r"PSF Leakage $\alpha$")
 				plt.legend(loc="upper left")
-				plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
+				plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d-tomographic_calibration.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
 				plt.close()
 
 		# Finally redo the fits with the full catalogue
+		gc.collect()
 		nbc = cal.nbc()
-		nbc_disc = cal.nbc()
-		nbc_bulge = cal.nbc()
-		wt1, wt2 = nbc.get_split_data(hoopoe, weights=weights)
-
-		nbc_disc.load_from_cat(nbc, name="all")
-		nbc_bulge.load_from_cat(nbc, name="all")
-
-
-		if rbf:
-			nbc_disc.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), smoothing=smoothing)
-			nbc_bulge.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins), smoothing=smoothing)
-		elif simple_grid:
-			nbc_disc.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))[1].read()
-			nbc_bulge.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))[1].read()
-		else:
-			nbc_disc.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_disc.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_bulge.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-			nbc_bulge.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"],sbins,rbins))
-
-
-		nbc_disc.apply(split_half=0, scheme=scheme, names=names)
-		nbc_bulge.apply(split_half=0, scheme=scheme, names=names)
-		nbc.combine_bd(nbc_disc,nbc_bulge, split_half=0, names=["m"]*("m" in names) + ["c1", "c2"]*("a" in names) )
-
-		import pdb ; pdb.set_trace()
-
-
+		wt1, wt2 = nbc.get_split_data(hoopoe, weights=weights, method=split_method)
+		nbc = calibrate_in_bins(nbc, halfcats=False, split_method=None, scheme=scheme, config=config, sbins=sbins, rbins=rbins, smoothing=smoothing, names=names)
 
 		plt.close()
 		if "m" in names:
@@ -346,7 +289,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
 			plt.ylabel("Multiplicative Bias $m$")
 			plt.legend(loc="center right")
-			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
+			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d-tomographic_calibration.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
 			plt.close()
 
 		if "a" in names:
@@ -354,7 +297,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=3, apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat)
 			plt.ylabel(r"PSF Leakage $\alpha$")
 			plt.legend(loc="upper left")
-			plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
+			plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d-tomographic_calibration.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
 			plt.close()
 
 
@@ -390,6 +333,62 @@ def set_defaults(config):
 		if name not in config.keys(): config[name] = default
 
 	return config
+
+
+def calibrate_in_bins(nbc, halfcats=False, split_method="", scheme="rbf", config=None, sbins=12, rbins=9, smoothing=3, names=["m", "a"]):
+
+	discs = cal.nbc()
+	bulges = cal.nbc()
+
+	if halfcats: 
+		split_half = 2
+		prefix = "%s-halfcat"%split_method
+	else:
+		split_half = 0
+		prefix = "fullcat"
+
+	zbin_numbers = np.unique(nbc.res["des_bin"])
+	print "Calibrating in %d redshift bins"%zbin_numbers.size
+	for k in zbin_numbers:
+		print "-- calibrating galaxies in bin %d"%k
+		
+
+		if halfcats:
+			select_bin1 = nbc.res1["des_bin"]==k
+			select_bin = nbc.res2["des_bin"]==k
+			discs.res1 = copy.deepcopy(nbc.res1[select_bin1])
+			discs.truth1 = copy.deepcopy(nbc.truth1[select_bin1])
+			bulges.res1 = copy.deepcopy(nbc.res1[select_bin1])
+			bulges.truth1 = copy.deepcopy(nbc.truth1[select_bin1])
+			discs.res2 = copy.deepcopy(nbc.res2[select_bin])
+			discs.truth2 = copy.deepcopy(nbc.truth2[select_bin])
+			bulges.res2 = copy.deepcopy(nbc.res2[select_bin])
+			bulges.truth2 = copy.deepcopy(nbc.truth2[select_bin])
+
+		else:
+			select_bin = nbc.res["des_bin"]==k
+			discs.res = copy.deepcopy(nbc.res[select_bin])
+			discs.truth = copy.deepcopy(nbc.truth[select_bin])
+			bulges.res = copy.deepcopy(nbc.res[select_bin])
+			bulges.truth = copy.deepcopy(nbc.truth[select_bin])
+
+		if (scheme=="rbf"):
+			discs.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-%s-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k), smoothing=smoothing)
+			bulges.fit_rbf(table="%s/nbc_data/bias_table_hoopoe-v1-%s-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k), smoothing=smoothing)
+		elif (scheme=="grid"):
+			discs.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-%s-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))[1].read()
+			bulges.bias_grid = fi.FITS("%s/nbc_data/bias_table_hoopoe-v1-%s-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))[1].read()
+		elif (scheme=="polynomial"):
+			discs.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-%s-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))
+			discs.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-%s-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))
+			bulges.fit("m", table="%s/nbc_data/bias_table_hoopoe-v1-%s-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))
+			bulges.fit("a", table="%s/nbc_data/bias_table_hoopoe-v1-%s-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], prefix,sbins,rbins, k))
+
+		discs.apply(split_half=split_half, scheme=scheme, names=names)
+		bulges.apply(split_half=split_half, scheme=scheme, names=names)
+		nbc.combine_bd(discs,bulges, split_half=split_half, mask=select_bin, names=["m"]*("m" in names) + ["c1", "c2"]*("a" in names) )
+
+	return nbc
 
 
 if __name__ == "__main__":
