@@ -4,6 +4,30 @@ import fitsio
 import glob, argparse, os
 import tools.shapes as s
 
+def run(f, args):
+    new_meds = f
+        #"%s/%s"%(args.output,os.path.basename(f))
+
+    truth_file = os.path.basename(f).replace("-meds-","-truth-")
+
+    cat = s.shapecat(res=None, truth="%s/%s"%(args.truth, truth_file))
+    if args.mode=="model":
+        load_truth = True
+        cat.load(res=False, truth=True)
+
+    meds = s.meds_wrapper(new_meds, update=False)
+
+    if (args.mode=="model"):
+        meds.remove_model_bias(cat, silent=True, outdir=args.output, noise=False, neighbours=False)
+    elif (args.mode=="neighbour"):
+        meds.remove_neighbours(silent=False, outdir=args.output, noise=True)
+    elif (args.mode=="noise"):
+        meds.remove_noise(silent=True, outdir=args.output)
+    elif (args.mode=="neighbour_noise"):
+        meds.remove_neighbours(silent=False, outdir=args.output, noise=False)
+
+
+
 
 def main():
     global args
@@ -42,31 +66,12 @@ def main():
             continue
         if i%size!=rank:
             continue
-    	print i, f
-
-    	new_meds = f
-        #"%s/%s"%(args.output,os.path.basename(f))
-
-    	truth_file = os.path.basename(f).replace("-meds-","-truth-")
-
-    	cat = s.shapecat(res=None, truth="%s/%s"%(args.truth, truth_file))
-    	if args.mode=="model":
-            load_truth = True
-            cat.load(res=False, truth=True)
-
-    	meds = s.meds_wrapper(new_meds, update=False)
-
-    	if (args.mode=="model"):
-            try:
-                meds.remove_model_bias(cat, silent=True, outdir=args.output, noise=False, neighbours=False)
-            except:
-                continue
-    	elif (args.mode=="neighbour"):
-    		meds.remove_neighbours(silent=False, outdir=args.output, noise=True)
-    	elif (args.mode=="noise"):
-            meds.remove_noise(silent=True, outdir=args.output)
-        elif (args.mode=="neighbour_noise"):
-            meds.remove_neighbours(silent=False, outdir=args.output, noise=False)
+        print i, f
+        try: run(f, args)
+        except Exception as err:
+            print "Skipping. Error message was:"
+            print err
+            continue
 
 
 print "Done"
