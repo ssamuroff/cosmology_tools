@@ -1324,10 +1324,17 @@ class im3shape_results_plots:
 
 		ntot = data.size
 
+		tiles = np.unique(data["tilename"])
+		ntiles = tiles.size
+
 		for i, frac in enumerate(x):
 
 			ngal = frac*ntot
-			indices = np.random.rand(ntot)<frac
+			nt = int(frac*ntiles)
+			tiles_to_use = np.random.choice(tiles, nt, replace=False)
+			indices = np.in1d(data["tilename"], tiles_to_use)
+			#indices = np.random.rand(ntot)<frac
+
 			# Case where we are calculating biases
 			if bias not in data.dtype.names:
 				# Do the linear fits
@@ -1437,7 +1444,8 @@ class im3shape_results_plots:
 		if nobj is None:
 			nobj=self.res.size
 			
-		x0,y0 = self.get_positions(positions)
+		if isinstance(positions, str): x0,y0 = self.get_positions(positions)
+		else: x0,y0=positions
 		x,y = x0,y0
 
 		if nobj is not None:
@@ -1600,7 +1608,7 @@ class im3shape_results_plots:
 		plt.savefig(output)
 		plt.close()
 
-	def redshift_diagnostic(self, bias="m", split_half=2, weights=None, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="std", nbins=5, bins=None, legend=True, tophat=False):
+	def redshift_diagnostic(self, bias="m", split_half=2, weights=None, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="std", nbins=5, bins=None, legend=True, tophat=False, separate_components=True):
 		
 
 		if "m" in bias:
@@ -1626,6 +1634,9 @@ class im3shape_results_plots:
 		vec2 = []
 		err_vec2 = []
 		z = []
+
+		vec=[]
+		err_vec=[]
 
 		for i, edges in enumerate(zip(lower,upper)):
 			if tophat:
@@ -1658,15 +1669,21 @@ class im3shape_results_plots:
 			vec2.append(b["%s22"%bias][0])
 			err_vec2.append(error2)
 
-		plt.errorbar(np.array(z)+0.015,np.array(vec1),err_vec1, lw=2.5, ls=ls, color=colour, label="$%s_1$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
-		plt.errorbar(np.array(z)-0.015,np.array(vec2),err_vec2, lw=2.5, ls=ls, color=colour, label="$%s_2$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[1] )
+			vec.append(b["%s"%bias][0])
+			err_vec.append(b["%s"%bias][1])
+
+		if separate_components:
+			plt.errorbar(np.array(z)+0.015,np.array(vec1),err_vec1, lw=2.5, ls=ls, color=colour, label="$%s_1$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
+			plt.errorbar(np.array(z)-0.015,np.array(vec2),err_vec2, lw=2.5, ls=ls, color=colour, label="$%s_2$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[1] )
+		else:
+			plt.errorbar(np.array(z),np.array(vec),err_vec, lw=2.5, ls=ls, color=colour, label="$%s$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
 		if bias=="m":
-			plt.axhspan(-0.02,0.02,color="forestgreen", alpha=0.3)
+			plt.axhspan(-0.02,0.02,color="forestgreen", alpha=0.2)
 		plt.axhline(0, color="k", lw=2.5)
 		#plt.ylim(-0.7,0.1)
 		plt.xlabel("Redshift $z$")
 		plt.xlim(0,1.35)
-		return z,vec1,err_vec1, vec2,err_vec2
+		return z,vec1,err_vec1, vec2,err_vec2, vec,err_vec
 
 
 def axis_bounds(xlim,ylim,xdata):
@@ -2025,6 +2042,16 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 		plt.close()
 		
 
+def sky_coord(ra, dec):
+
+	from astropy.coordinates import SkyCoord
+	from astropy import units as u
+	c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+
+	ra_rad = c.ra.wrap_at(180 * u.deg).radian
+	dec_rad = c.dec.radian
+
+	return ra_rad*180/np.pi, dec_rad*180/np.pi
 
 
 def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=None, clim=None):
