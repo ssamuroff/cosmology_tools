@@ -236,7 +236,7 @@ class shapecat(i3s_plots):
 					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 			else:
 				if ext.lower()==".fits":
-					self.res = fio.FITS(files[0])[1].read(cols=cols[0])
+					self.res = fio.FITS(files[0])[1].read(columns=cols[0])
 				elif ext.lower()==".txt":
 					self.res = np.genfromtxt(files[0], names=True)
 				self.files=files
@@ -835,9 +835,9 @@ class dummy_im3shape_options():
 
 
 class meds_wrapper(i3meds.I3MEDS):
-	def __init__(self, filename, options=None,update=False):
+	def __init__(self, filename, options=None,update=False, model="disc"):
 		if options is None:
-			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
+			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_%s.ini"%model)
 		super(meds_wrapper, self).__init__(filename, options)
 		setattr(self, "filename", self._filename)
 
@@ -1341,12 +1341,13 @@ class meds_wrapper(i3meds.I3MEDS):
 			np.savetxt(save+"/image.txt", image )
 			np.savetxt(save+"/weights.txt", np.hstack(tuple(wt)) )
 
+		image = np.hstack(tuple(galaxy_stack)) 
+		wt = inputs.all('weight')
+
 	
 		if show:
 			import pylab as plt
 			cmap = plt.get_cmap("jet")
-			image = np.hstack(tuple(galaxy_stack)) 
-			wt = inputs.all('weight')
 
 			nrow = 2
 
@@ -1426,4 +1427,34 @@ def split_by(array, column_name, pivot, return_mask=False, logger=None):
 
 	else:
 		return f, upper, lower
+
+def translate_infocut(info_val):
+	bits_set = [i for i,j in enumerate(' '.join(word[::-1] for word in bin(info_val)[2:].split()) ) if int(j)==1]
+
+	for bit_set in bits_set: 
+		print bit_set, "%s : %s"%INFO_FLAGS[bit_set]
+
+INFO_FLAGS={ 
+0   : ("INFO_GOLD_MASK",  "This area is masked out in the gold catalog" ),
+1   : ("INFO_BAD_MASK",  "This object is flagged in the gold catalog" ),
+2   : ("INFO_MODEST",  "This modest classifier suggests this is not a galaxy" ),
+3   : ("INFO_MASK",  "mask fraction > 0.75" ),
+4   : ("INFO_EVALS",  "levmar_like_evals > 10000" ),
+5   : ("INFO_SEXR_NEIGHBOURS",  "r-band sextractor flagged with 0x1, indicating bright neigbours" ),
+6   : ("INFO_SEXR_BLEND",  "r-band sextractor flagged with 0x2, indicating blending" ),
+7   : ("INFO_MASKFLUX",  "More than 25% of flux masked" ),
+8   : ("INFO_SMALL_SNR",  "S/N < 10" ),
+9   : ("INFO_HUGE_SNR",  "snr > 10000" ),
+10   : ("INFO_SMALL_RGPP_RP",  "rgpp_rp < 1.1" ),
+11   : ("INFO_LARGE_RGPP_RP",  "rgpp_rp > 3.5 (very large galaxy)" ),
+12   : ("INFO_LARGE_RADIUS",  "radius > 5 arcsec" ),
+13   : ("INFO_SMALL_RADIUS",  "radius < 0.1 arcsec" ),
+14   : ("INFO_LARGE_CENTROID_SHIFT",  "centroid more than 1 arcsec from nominal" ),
+15   : ("INFO_SMALL_CHI2",  "Chi2 per effective pixel < 0.5" ),
+16   : ("INFO_LARGE_CHI2",  "Chi2 per effective pixel > 1.5" ),
+17   : ("INFO_MINRES",  "Normed residuals < -0.2 somewhere" ),
+18   : ("INFO_MAXRES",  "Normed residuals > 0.2 somewhere" ),
+19   : ("INFO_LARGE_PSF",  "Very large PSF" ),
+20   : ("INFO_NEG_PSF",  "Negative PSF FWHM" ),
+21   : ("INFO_ERROR",  "One or more error flags is set" ) }
 
