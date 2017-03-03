@@ -395,6 +395,7 @@ def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_ob
     else:
         if verbose:
             print "Matching..."
+
         tr = tr[np.in1d(tr[name1], res[name2])]
         res = res[np.in1d(res[name2], tr[name1])]
 
@@ -410,6 +411,17 @@ def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_ob
             return res, tr, table3
 
     return res,tr 
+
+def fast_match_results(table1, table2, name1="coadd_objects_id", name2="coadd_objects_id"):
+    print "Sorting"
+    indices2 = np.argsort(table2[name2])
+    indices1 = np.argsort(table1[name1])
+
+    print "Matching"
+    indices = np.searchsorted(table1[name1],table2[name2])
+
+    return table1[indices1], table2[indices2][indices]
+
 
 def truth_histograms(tr, mask, mode='show'):
     dat = tr[mask]
@@ -1446,18 +1458,21 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".
 
 
 
-def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], visual=False, binning="equal_number", silent=False, mask=None):
+def get_bias(xdata, catalogue, external_calibration_col=None, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], visual=False, binning="equal_number", silent=False, mask=None):
 
     g1 = xdata['true_g1']
     g2 = xdata['true_g2']
 
     
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1])
-    if apply_calibration:
+    if apply_calibration and (external_calibration_col is None):
         try:
             mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
         except:
             mask_nans = np.isfinite(catalogue["m"])
+        sel = sel & mask_nans
+    elif (external_calibration_col is not None):
+        mask_nans = np.isfinite(external_calibration_col["m"]) & np.isfinite(external_calibration_col["c1"]) & np.isfinite(external_calibration_col["c2"]) 
         sel = sel & mask_nans
     if mask is not None:
         sel = sel & mask
@@ -1480,8 +1495,13 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
 
     if apply_calibration:
         print "Applying calibration columns"
-        m = catalogue["m"][sel]
-        if "c1" in catalogue.dtype.names:
+        if external_calibration_col is not None:
+            print "Using external calibration column"
+            c1 = external_calibration_col["c1"][sel]
+            c2 = external_calibration_col["c2"][sel]
+            m = external_calibration_col["m"][sel]
+        elif "c1" in catalogue.dtype.names:
+            m = catalogue["m"][sel]
             c1 = catalogue["c1"][sel]
             c2 = catalogue["c2"][sel]
         else:
@@ -1530,26 +1550,26 @@ def get_bias(xdata, catalogue, apply_calibration=False, nbins=5, weights=None, x
 
     # m11, c11
     try:
-        p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.05,1e-4])
+        p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.05,1e-7])
     except: import pdb ; pdb.set_trace()
     if not np.isfinite(cov11).all():
         p11,cov11 = stabilised_fit(x, d1, w11)
     m11,c11 = p11  
 
     # m22, c22
-    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=np.array(variance_y22), p0=[0.05,1e-4])
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=np.array(variance_y22), p0=[0.05,1e-7])
     if not np.isfinite(cov22).all():
         p22,cov22 = stabilised_fit(x,d2,w22)
     m22,c22 = p22
 
     # m12, c12
-    p12, cov12 = optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.05,1e-4])
+    p12, cov12 = optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.05,1e-7])
     if not np.isfinite(cov12).all():
         p12,cov12 = stabilised_fit(x,y12,1.0/np.array(variance_y12)/np.array(variance_y12))
     m12,c12 = p12
 
     # m21, c21
-    p21, cov21 = optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.05,1e-4])
+    p21, cov21 = optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.05,1e-7])
     if not np.isfinite(cov21).all():
         p21,cov21 = stabilised_fit(x,y21,1.0/np.array(variance_y21)/np.array(variance_y21))
     m21,c21 = p21
@@ -1925,12 +1945,12 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
     sel = (g1>xlim[0]) & (g1<xlim[1]) & (g2>xlim[0]) & (g2<xlim[1]) & np.isfinite(g1) & np.isfinite(g2)
-    if apply_calibration:
+    if apply_calibration and (external_calibration_col is None):
         mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
         sel = sel & mask_nans
     g1 = g1[sel]
@@ -1948,10 +1968,16 @@ def get_alpha(xdata, catalogue, nbins=5, apply_calibration=False, ellipticity_na
         w = np.ones_like(e1)
 
     if apply_calibration:
-        m = catalogue["m"][sel]
-        c1 = catalogue["c1"][sel]
-        c2 = catalogue["c2"][sel]
-        print "Applying calibration columns"
+        if external_calibration_col is None:
+            m = catalogue["m"][sel]
+            c1 = catalogue["c1"][sel]
+            c2 = catalogue["c2"][sel]
+            print "Applying calibration columns"
+        else:
+            m = external_calibration_col["m"][sel]
+            c1 = external_calibration_col["c1"][sel]
+            c2 = external_calibration_col["c2"][sel]
+            print "Applying external calibration columns"
     else:
         m = np.zeros_like(e1)
         c1 = np.zeros_like(e1)
