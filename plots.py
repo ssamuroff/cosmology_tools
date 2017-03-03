@@ -1092,7 +1092,7 @@ class im3shape_results_plots:
 		else:
 			return 0
 
-	def bias_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", only="all", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, xdata=None, mask=None):
+	def bias_vs_obs(self, name, bias, nbins, apply_calibration=False, external_calibration_col=None, binning="equal_number", ellipticity_name="e", error_type="bootstrap", only="all", xlabel=None, label=None, ls="-", xlim=None, ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, xdata=None, mask=None, show=True):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1102,7 +1102,8 @@ class im3shape_results_plots:
 		ymax=None
 
 		# Do the labelling
-		lab2,col2 = labels[bias]
+		if show and isinstance(bias, str):
+			lab2,col2 = labels[bias]
 		try:
 			lab1,col1=labels[name]
 		except:
@@ -1112,8 +1113,9 @@ class im3shape_results_plots:
 		if xlabel is not None:
 			lab1 = xlabel
 
-		plt.xlabel(lab1)
-		plt.ylabel(lab2)
+		if show:
+			plt.xlabel(lab1)
+			plt.ylabel(lab2)
 
 		# Deal with the axis bounds
 		axis_lower, axis_upper = axis_bounds(xlim,ylim,self.res[name])
@@ -1148,8 +1150,13 @@ class im3shape_results_plots:
 		else:
 			bin_edges=np.array(binning)
 		x=(bin_edges[1:]+bin_edges[:-1])/2.
-		y=[]
-		err=[]
+		y={}
+		err={}
+		if isinstance(bias, str):
+			bias = [bias]
+		for b in bias:
+			y[b]=[]
+			err[b]=[]
 		n=[]
 
 		for i,bounds in enumerate(zip(bin_edges[:-1],bin_edges[1:])):
@@ -1157,45 +1164,49 @@ class im3shape_results_plots:
 			lower = bounds[0]
 			print "bin %d [%f,%f]"%((i+1),lower,upper)
 			bin = (data[col1]>lower) & (data[col1]<upper)
-			# Case where we are calculating biases
-			if bias not in data.dtype.names:
-				# Do the linear fits
-				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = di.get_bias(tr[bin], data[bin], nbins=15, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
-				# Repeat them if the errorbars need to come from bootstrapping
-				if error_type=="bootstrap":
-					try:
-						error = di.bootstrap_error(6, (tr[bin], data[bin]), di.get_bias, additional_args=["names", "silent", "ellipticity_name"], additional_argvals=[bias, True, ellipticity_name])
-					except:
-						error = -1
-				else:
-					error = b[bias][1]
 
-			# Case where we have precomputed biases
+			if external_calibration_col is not None:
+				cal_col = external_calibration_col[bin]
 			else:
-				b = {bias:( np.mean(data[bias]), np.std(data[bias])/ (data[bias].size**0.5) ) }
-					
-			y.append(b[bias][0])
-			err.append(error)
+				cal_col = None
+
+			# Do the linear fits
+			# Should return a dictionary, each element of which is a value then an uncertainty
+			b = di.get_bias(tr[bin], data[bin], nbins=15, ellipticity_name=ellipticity_name, external_calibration_col=cal_col, apply_calibration=apply_calibration, binning="equal_number", names=["m","c","m11","m22","c11","c22"])
+			# Repeat them if the errorbars need to come from bootstrapping
+			if error_type=="bootstrap":
+				try:
+					error = di.bootstrap_error(6, (tr[bin], data[bin]), di.get_bias, additional_args=["names", "apply_calibration", "silent", "ellipticity_name"], additional_argvals=[bias, apply_calibration, True, ellipticity_name])
+				except:
+					error = -1
+			else:
+				error=[]
+				for bname in bias:
+					error.append(b[bname][1])
+				
+			for bname in bias:
+				y[bname].append(b[bname][0])
+				err[bname].append(b[bname][1])
 			n.append(data[bin].size)
 
-		print x
-		print y
-		print err
+		if show:
+			if len(bias)==1:
+				plt.errorbar(x,y[bias[0]],yerr=err[bias[0]],lw=2.5,color=colour,fmt=fmt)
+				plt.plot(x,y[bias[0]],lw=2.5,color=colour,ls=ls,label=label)
+				if logscale:
+					plt.xscale("log")
+				if refline is not None:
+					plt.axhline(refline,color="k")
 
-		plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
-		plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
-		if logscale:
-			plt.xscale("log")
-		if refline is not None:
-			plt.axhline(refline,color="k")
+		for bname in bias:
+			y[bname] = np.array(y[bname])
 
 		if return_vals:
-			return np.array(x),np.array(y),np.array(err),np.array(n)
+			return np.array(x),y,err,np.array(n)
 		else:
 			return 0
 
-	def alpha_vs_obs(self, name, bias, nbins, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, elim=(-0.03,0.02), ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, xdata=None):
+	def alpha_vs_obs(self, name, bias, nbins, external_calibration_col=None, apply_calibration=False, binning="equal_number", ellipticity_name="e", error_type="bootstrap", xlabel=None, label=None, ls="-", xlim=None, elim=(-0.03,0.02), ylim=None, fmt="o", colour="purple", return_vals=False, logscale=False, refline=0, xdata=None):
 		import pylab as plt
 		col1=None
 		lab1=None
@@ -1231,8 +1242,10 @@ class im3shape_results_plots:
 		else:
 			bin_edges=np.array(binning)
 		x=(bin_edges[1:]+bin_edges[:-1])/2.
-		y=[]
-		err=[]
+		y1=[]
+		y2=[]
+		err1=[]
+		err2=[]
 		n=[]
 
 		for i,bounds in enumerate(zip(bin_edges[:-1],bin_edges[1:])):
@@ -1244,33 +1257,39 @@ class im3shape_results_plots:
 			if bias not in data.dtype.names:
 				# Do the linear fits
 				# Should return a dictionary, each element of which is a value then an uncertainty
-				b = di.get_alpha(data[bin],data[bin], nbins=15, ellipticity_name=ellipticity_name, binning="equal_number", xlim=elim, names=["alpha","c","alpha11","alpha22","c11","c22"], use_weights=False)
+				if external_calibration_col is not None:
+					cal_col = external_calibration_col[bin]
+				else:
+					cal_col = None
+				b = di.get_alpha(data[bin],data[bin], nbins=15, external_calibration_col=cal_col, apply_calibration=apply_calibration, ellipticity_name=ellipticity_name, binning="equal_number", xlim=elim, names=["alpha","c","alpha11","alpha22","c11","c22"], use_weights=False)
 				# Repeat them if the errorbars need to come from bootstrapping
 				if error_type=="bootstrap":
 					error = di.bootstrap_error(6, data[bin], di.get_alpha, additional_args=["names", "silent", "ellipticity_name", "xlim"], additional_argvals=[bias, True, ellipticity_name, elim])
 				else:
-					error = b[bias][1]
+					error = [b["%s11"%bias][1], b["%s22"%bias][1]]
 
 			# Case where we have precomputed biases
 			else:
 				b = {bias:( np.mean(data[bias]), np.std(data[bias])/ (data[bias].size**0.5) ) }
 					
-			y.append(b[bias][0])
-			err.append(error)
+			y1.append(b["%s11"%bias][0])
+			y2.append(b["%s22"%bias][0])
+			err1.append(error[0])
+			err2.append(error[0])
 
 		print x
-		print y
-		print err
+		print y1
+		print err1
 
-		plt.errorbar(x,y,yerr=err,lw=2.5,color=colour,fmt=fmt)
-		plt.plot(x,y,lw=2.5,color=colour,ls=ls,label=label)
+		plt.errorbar(x,y1,yerr=err1,lw=2.5,color=colour,fmt=fmt)
+		plt.plot(x,y1,lw=2.5,color=colour,ls=ls,label=label)
 		if logscale:
 			plt.xscale("log")
 		if refline is not None:
 			plt.axhline(refline,color="k")
 
 		if return_vals:
-			return np.array(x),np.array(y),np.array(err),np.array(n)
+			return np.array(x),np.array(y1),np.array(err1),np.array(y2),np.array(err2),np.array(n)
 		else:
 			return 0
 
@@ -1292,6 +1311,22 @@ class im3shape_results_plots:
 
 		return bf_col
 
+	def map_depth(self, thin=1):
+		tiles = np.unique(self.res["tilename"][::thin])
+		col=np.zeros_like(self.res["e1"][::thin])
+		ngal = self.res.size*1.0
+
+		print "Mapping %d galaxies across %d tiles"%(ngal, tiles.size)
+
+		for i, tile in enumerate(tiles):
+			print i, tile, 
+			sel = (self.res["tilename"][::thin]==tile)
+			mean_nexp = self.res["n_exposure"][::thin][sel].mean()
+			print mean_nexp
+
+			col[sel] += mean_nexp
+
+		return col
 
 
 
@@ -1608,7 +1643,7 @@ class im3shape_results_plots:
 		plt.savefig(output)
 		plt.close()
 
-	def redshift_diagnostic(self, bias="m", split_half=2, weights=None, colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="std", nbins=5, bins=None, legend=True, tophat=False, separate_components=True):
+	def redshift_diagnostic(self, bias="m", split_half=2, weights=None, axspan=True, offset=0, shade_colour="blue", shade_width=0.02 ,colour="purple", fmt=["o","D"], ls="none", label=None, ellipticity_name="e", apply_calibration=False, error_type="std", nbins=5, bins=None, legend=True, tophat=False, separate_components=True):
 		
 
 		if "m" in bias:
@@ -1676,10 +1711,11 @@ class im3shape_results_plots:
 			plt.errorbar(np.array(z)+0.015,np.array(vec1),err_vec1, lw=2.5, ls=ls, color=colour, label="$%s_1$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
 			plt.errorbar(np.array(z)-0.015,np.array(vec2),err_vec2, lw=2.5, ls=ls, color=colour, label="$%s_2$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[1] )
 		else:
-			plt.errorbar(np.array(z),np.array(vec),err_vec, lw=2.5, ls=ls, color=colour, label="$%s$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
+			plt.errorbar(np.array(z)+offset,np.array(vec),err_vec, lw=2.5, ls=ls, color=colour, label="$%s$ %s"%(r'\alpha'*(bias=="alpha")+"m"*(bias!="alpha"),label), fmt=fmt[0] )
 		if bias=="m":
-			plt.axhspan(-0.02,0.02,color="forestgreen", alpha=0.2)
-		plt.axhline(0, color="k", lw=2.5)
+			if axspan:
+				plt.axhspan(-1*shade_width/2,shade_width/2,color=shade_colour, alpha=0.1)
+		plt.axhline(0, color="k", lw=1)
 		#plt.ylim(-0.7,0.1)
 		plt.xlabel("Redshift $z$")
 		plt.xlim(0,1.35)
@@ -1746,9 +1782,9 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 
 	if "snr" in names:
 		print "-- SNR"
-		plt.hist(np.log10(data["snr"]), histtype="step", bins=np.linspace(1,2, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		plt.hist(np.log10(data["snr"]), histtype="step", bins=np.linspace(1,2, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(np.log10(data2["snr"]), alpha=0.2, bins=np.linspace(1,2,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(np.log10(data2["snr"]), histtype="step", bins=np.linspace(1,2,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			plt.legend(loc="upper right")
 			if kl:
 				sel1 = (np.log10(data["snr"])>1) & (np.log10(data["snr"])<2)
@@ -1758,30 +1794,34 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 
 		plt.xlabel("Signal-to-Noise $\log (SNR_w)$")
 		plt.xlim(1,2.1)
+		plt.yticks(visible=False)
+		plt.subplots_adjust(hspace=0, wspace=0, bottom=0.1)
 		plt.savefig("%s/snr-hist-v2sim-vs-y1v2data.png"%outdir)
 		plt.close()
 
 	if "rgpp" in names:
 		print "-- Rgpp"
-		plt.hist(data["mean_rgpp_rp"], histtype="step", bins=np.linspace(1,2.2, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		plt.hist(data["mean_rgpp_rp"], histtype="step", bins=np.linspace(1,2.2, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["mean_rgpp_rp"], alpha=0.2, bins=np.linspace(1.0,2.2,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["mean_rgpp_rp"], histtype="step", bins=np.linspace(1.0,2.2,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1 ")
 			plt.legend(loc="upper right")
 			if kl:
 				sel1 = (data["mean_rgpp_rp"]>1) & (data["mean_rgpp_rp"]<3.0)
 				sel2 = (data2["mean_rgpp_rp"]>1) & (data2["mean_rgpp_rp"]<3.0)
 				rel_ent = lk.kullback_leibler(data["mean_rgpp_rp"][sel1], data2["mean_rgpp_rp"][sel2], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
-		plt.xlabel("Size $R_{gpp} / R_p $")
+		plt.xlabel("Size $R_{gp} / R_p $")
+		plt.yticks(visible=False)
+		plt.subplots_adjust(hspace=0, wspace=0, bottom=0.1)
 		plt.xlim(1,2.2)
 		plt.savefig("%s/rgpp_rp-hist-v2sim-vs-y1v2data.png"%outdir)
 		plt.close()
 
 	if "flux" in names:
 		print "-- Mean Flux"
-		plt.hist(data["mean_flux"], histtype="step", bins=np.linspace(0.,4000, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		plt.hist(data["mean_flux"], histtype="step", bins=np.linspace(0.,4000, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["mean_flux"], alpha=0.2, bins=np.linspace(0.,4000,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["mean_flux"], histtype="step", bins=np.linspace(0.,4000,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			plt.legend(loc="upper right")
 			if kl:
 				sel1 = (data["mean_flux"]>0) & (data["mean_flux"]<4000)
@@ -1797,13 +1837,13 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		print "-- Bulge/Disc Flux"
 		sel_d=np.invert(data["is_bulge"].astype(bool))
 		sel_b=data["is_bulge"].astype(bool)
-		plt.hist(data["disc_flux"][sel_d], histtype="step", bins=np.linspace(0.,10, 50), weights=weights[sel_d], normed=1, lw=2.5, color="steelblue", label="Y1 $hoopoe$ disc")
-		plt.hist(data["bulge_flux"][sel_b], histtype="step", bins=np.linspace(0.,10, 50), weights=weights[sel_b], normed=1, lw=2.5, color="darkred", label="Y1 $hoopoe$ bulge")
+		plt.hist(data["disc_flux"][sel_d], histtype="step", bins=np.linspace(0.,10, 50), weights=weights[sel_d], normed=1, lw=2.5, color="steelblue", label="$hoopoe$ disc")
+		plt.hist(data["bulge_flux"][sel_b], histtype="step", bins=np.linspace(0.,10, 50), weights=weights[sel_b], normed=1, lw=2.5, color="darkred", label="$hoopoe$ bulge")
 		if data2 is not None:
 			sel_d=np.invert(data2["is_bulge"].astype(bool))
 			sel_b=data2["is_bulge"].astype(bool)
-			plt.hist(data2["disc_flux"][sel_d], alpha=0.2, bins=np.linspace(0.,10,50), normed=1, lw=2.5, color="steelblue", label="Y1 Data (measured)")
-			plt.hist(data2["bulge_flux"][sel_b], alpha=0.2, bins=np.linspace(0.,10,50), normed=1, lw=2.5, color="darkred", label="Y1 Data (measured)")
+			plt.hist(data2["disc_flux"][sel_d], alpha=0.2, bins=np.linspace(0.,10,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1 disc")
+			plt.hist(data2["bulge_flux"][sel_b], alpha=0.2, bins=np.linspace(0.,10,50), normed=1, lw=2.5, color="darkred", label="DES Y1A1 bulge")
 			plt.legend(loc="upper right")
 			if kl:
 				sel1d = (data["disc_flux"][np.invert(data["is_bulge"].astype(bool))]<10)
@@ -1824,9 +1864,9 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		ax = fig.add_subplot(131)
 		ax.set_xticks([-0.5,0,0.5,1.0])
 		plt.setp(ax.get_yticklabels(), visible=False)
-		ax.hist(data["e1"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		ax.hist(data["e1"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			ax.hist(data2["e1"], alpha=0.2, bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ax.hist(data2["e1"], histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1 ")
 			if kl:
 				rel_ent = lk.kullback_leibler(data["e1"],data2["e1"], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
@@ -1835,9 +1875,9 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		ax2 = fig.add_subplot(132)
 		plt.setp(ax2.get_yticklabels(), visible=False)
 		ax2.set_xticks([-0.5,0,0.5,1.0])
-		ax2.hist(data["e2"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		ax2.hist(data["e2"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			ax2.hist(data2["e2"], alpha=0.2, bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ax2.hist(data2["e2"], histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1 ")
 			if kl:
 				rel_ent = lk.kullback_leibler(data["e2"],data2["e2"], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
@@ -1847,10 +1887,10 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		plt.setp(ax3.get_yticklabels(), visible=False)
 		ax3.set_xticks([0.25,0.5,0.75,1.0])
 		es = np.sqrt(data["e1"]*data["e1"] + data["e2"]*data["e2"])
-		ax3.hist(es/(es.max()), histtype="step", bins=np.linspace(0.,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		ax3.hist(es/(es.max()), histtype="step", bins=np.linspace(0.,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
 			ed = np.sqrt(data2["e1"]*data2["e1"] + data2["e2"]*data2["e2"])
-			ax3.hist(ed/ed.max(), alpha=0.2, bins=np.linspace(0.,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ax3.hist(ed/ed.max(),  histtype="step", bins=np.linspace(0.,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			matplotlib.rcParams['legend.fontsize']=10
 			ax3.legend(loc="upper right")
 			if kl:
@@ -1869,9 +1909,9 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		ax = fig.add_subplot(131)
 		plt.setp(ax.get_yticklabels(), visible=False)
 		ax.set_xticks([-0.025,0,0.025,0.05])
-		ax.hist(data["mean_hsm_psf_e1_sky"], histtype="step", bins=np.linspace(-0.03,0.05, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		ax.hist(data["mean_hsm_psf_e1_sky"], histtype="step", bins=np.linspace(-0.03,0.05, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			ax.hist(data2["mean_hsm_psf_e1_sky"], alpha=0.2, bins=np.linspace(-0.03,0.05,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ax.hist(data2["mean_hsm_psf_e1_sky"],  histtype="step", bins=np.linspace(-0.03,0.05,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1 Data")
 			if kl:
 				sel1 = (data["mean_hsm_psf_e1_sky"]>-0.03) & (data["mean_hsm_psf_e1_sky"]<0.05) & (data["mean_hsm_psf_e2_sky"]>-0.03) & (data["mean_hsm_psf_e2_sky"]<0.05) 
 				sel2 = (data2["mean_hsm_psf_e1_sky"]>-0.03) & (data2["mean_hsm_psf_e1_sky"]<0.05) & (data2["mean_hsm_psf_e2_sky"]>-0.03) & (data2["mean_hsm_psf_e2_sky"]<0.05) 
@@ -1884,7 +1924,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		ax2.set_xticks([-0.025,0,0.025,0.05])
 		ax2.hist(data["mean_hsm_psf_e2_sky"], histtype="step", bins=np.linspace(-0.03,0.05, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
 		if data2 is not None:
-			ax2.hist(data2["mean_hsm_psf_e2_sky"], alpha=0.2, bins=np.linspace(-0.03,0.05,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ax2.hist(data2["mean_hsm_psf_e2_sky"],  histtype="step", bins=np.linspace(-0.03,0.05,50), normed=1, lw=2.5, color="steelblue", label="Y1 Data (measured)")
 			if kl:
 				rel_ent = lk.kullback_leibler(data["mean_hsm_psf_e2_sky"][sel1], data2["mean_hsm_psf_e2_sky"][sel2], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
@@ -1894,15 +1934,15 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		plt.setp(ax2.get_yticklabels(), visible=False)
 		plt.setp(ax3.get_yticklabels(), visible=False)
 		ax3.set_xticks([0.02,0.04,0.06,0.08, 0.1])
-		es= np.sqrt(data["mean_hsm_psf_e1_sky"][sel1]*data["mean_hsm_psf_e1_sky"][sel1] + data["mean_hsm_psf_e2_sky"][sel1]*data["mean_hsm_psf_e2_sky"][sel1])
+		es= np.sqrt(data["mean_hsm_psf_e1_sky"]*data["mean_hsm_psf_e1_sky"] + data["mean_hsm_psf_e2_sky"]*data["mean_hsm_psf_e2_sky"])
 		ax3.hist(es, histtype="step", bins=np.linspace(0.,0.1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
 		if data2 is not None:
-			ed = np.sqrt(data2["mean_hsm_psf_e1_sky"][sel2]*data2["mean_hsm_psf_e1_sky"][sel2] + data2["mean_hsm_psf_e2_sky"][sel2]*data2["mean_hsm_psf_e2_sky"][sel2])
-			ax3.hist(ed, alpha=0.2, bins=np.linspace(0.,0.1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			ed = np.sqrt(data2["mean_hsm_psf_e1_sky"]*data2["mean_hsm_psf_e1_sky"] + data2["mean_hsm_psf_e2_sky"]*data2["mean_hsm_psf_e2_sky"])
+			ax3.hist(ed,  histtype="step", bins=np.linspace(0.,0.1,50), normed=1, lw=2.5, color="steelblue", label="Y1 Data (measured)")
 			matplotlib.rcParams['legend.fontsize']=10
 			ax3.legend(loc="upper right")
 			if kl:
-				rel_ent = lk.kullback_leibler(es, ed, show=False)
+				rel_ent = lk.kullback_leibler(es[es<0.1], ed[ed<0.1], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
 		ax3.set_xlabel("PSF Ellipticity $|e^{PSF}|$")
 
@@ -1912,33 +1952,85 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		plt.savefig("%s/psf_ellipticity-hist-v2sim-vs-y1v2data.png"%outdir)
 		plt.close()
 
+	if "psfe2" in names:
+		print "-- PSF Ellipticity"
+		sel1 = (data["mean_hsm_psf_e1_sky"]>-0.03) & (data["mean_hsm_psf_e1_sky"]<0.05) & (data["mean_hsm_psf_e2_sky"]>-0.03) & (data["mean_hsm_psf_e2_sky"]<0.05) 
+		sel2 = (data2["mean_hsm_psf_e1_sky"]>-0.03) & (data2["mean_hsm_psf_e1_sky"]<0.05) & (data2["mean_hsm_psf_e2_sky"]>-0.03) & (data2["mean_hsm_psf_e2_sky"]<0.05) 
+		es= np.sqrt(data["mean_hsm_psf_e1_sky"][sel1]*data["mean_hsm_psf_e1_sky"][sel1] + data["mean_hsm_psf_e2_sky"][sel1]*data["mean_hsm_psf_e2_sky"][sel1])
+		plt.hist(es, histtype="step", bins=np.linspace(0.,0.06, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
+		if data2 is not None:
+			ed = np.sqrt(data2["mean_hsm_psf_e1_sky"][sel2]*data2["mean_hsm_psf_e1_sky"][sel2] + data2["mean_hsm_psf_e2_sky"][sel2]*data2["mean_hsm_psf_e2_sky"][sel2])
+			plt.hist(ed,  histtype="step", bins=np.linspace(0.,0.06,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
+			matplotlib.rcParams['legend.fontsize']=18
+			matplotlib.rcParams['font.size']=18
+			matplotlib.rcParams['figure.figsize'] = 10, 10
+			plt.legend(loc="upper right")
+			if kl:
+				rel_ent = lk.kullback_leibler(es[es<0.1], ed[ed<0.1], show=False)
+				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
+		plt.xlabel("PSF Ellipticity $|e^{PSF}|$")
+		plt.xticks([0.0, 0.02,0.04,0.06])
+		plt.yticks(visible=False)
+
+		plt.xlim(0,0.06)
+
+		plt.subplots_adjust(bottom=0.15)
+		plt.savefig("%s/psf_ellipticity-mag-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
 	if "psf_size" in names:
 		print "-- PSF FWHM"
-		plt.hist(data["mean_hsm_psf_sigma"], histtype="step", bins=np.linspace(1,2.6, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		plt.close()
+		plt.hist(data["mean_hsm_psf_sigma"], histtype="step", bins=np.linspace(1,2.6, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["mean_hsm_psf_sigma"], alpha=0.2, bins=np.linspace(1,2.6,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
-			matplotlib.rcParams['legend.fontsize']=14
+			plt.hist(data2["mean_hsm_psf_sigma"],  histtype="step", bins=np.linspace(1,2.6,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
+			matplotlib.rcParams['legend.fontsize']=18
+			matplotlib.rcParams['font.size']=18
+			matplotlib.rcParams['figure.figsize'] = 8, 8
 			plt.legend(loc="upper right")
 			if kl:
 				rel_ent = lk.kullback_leibler(data["mean_hsm_psf_sigma"][(data["mean_hsm_psf_sigma"]<2.6) & (data["mean_hsm_psf_sigma"]>1)], data2["mean_hsm_psf_sigma"][(data2["mean_hsm_psf_sigma"]<2.6) & (data2["mean_hsm_psf_sigma"]>1)], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
 		plt.xlabel("PSF Size $R^{PSF}_{FWHM}$ / pixels")
 		plt.xlim()
-
+		plt.yticks(visible=False)
+		plt.subplots_adjust(bottom=0.15)
+	
 		plt.savefig("%s/psf_size-hist-v2sim-vs-y1v2data.png"%outdir)
+		plt.close()
+
+	if "mask_frac" in names:
+		print "-- Mask Fraction"
+		plt.close()
+		plt.hist(data["mean_mask_fraction"], histtype="step", bins=np.linspace(0,0.5, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
+		if data2 is not None:
+			plt.hist(data2["mean_mask_fraction"],  histtype="step", bins=np.linspace(0,0.5,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
+			matplotlib.rcParams['legend.fontsize']=18
+			matplotlib.rcParams['font.size']=18
+			matplotlib.rcParams['figure.figsize'] = 8, 8
+			plt.legend(loc="upper right")
+			if kl:
+				rel_ent = lk.kullback_leibler(data["mean_mask_fraction"], data2["mean_mask_fraction"], show=False)
+				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
+		plt.xlabel("Mean Mask Fraction ")
+		plt.xlim()
+		plt.yticks(visible=False)
+		plt.subplots_adjust(bottom=0.15)
+
+		plt.savefig("%s/mask_frac-hist-v2sim-vs-y1v2data.png"%outdir)
 		plt.close()
 
 	if "size" in names:
 		print "-- Radius"
-		plt.hist(data["radius"], histtype="step", bins=np.linspace(0.,1.5, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (measured)")
+		plt.hist(data["radius"], histtype="step", bins=np.linspace(0.,1.5, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["radius"], alpha=0.2, bins=np.linspace(0.,1.5,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["radius"],  histtype="step", bins=np.linspace(0.,1.5,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			matplotlib.rcParams['legend.fontsize']=14
 			plt.legend(loc="upper right")
 			if kl:
-				rel_ent = lk.kullback_leibler(data["radius"], data2["radius"], show=False)
+				rel_ent = lk.kullback_leibler(data["radius"][data["radius"]<50], data2["radius"][data2["radius"]<50], show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
-		plt.xlabel("Radius $r$ / pixels")
+		plt.xlabel("Radius $r$")
 		plt.xlim()
 
 		plt.savefig("%s/radius-hist-v2sim-vs-y1v2data.png"%outdir)
@@ -1954,9 +2046,9 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 
 	if "flux" in names:
 		print "-- flux"
-		plt.hist(data["flux"], histtype="step", bins=np.linspace(0.0,4000, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(data["flux"], histtype="step", bins=np.linspace(0.0,4000, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["mean_flux"], alpha=0.2, bins=np.linspace(0.0,4000,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["mean_flux"],  histtype="step", bins=np.linspace(0.0,4000,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			plt.legend(loc="upper right")
 		plt.xlabel("Galaxy Flux")
 		plt.savefig("%s/flux-hist-v2sim_truth-vs-y1v2data.png"%outdir)
@@ -1964,9 +2056,9 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 
 	if "mag" in names:
 		print "-- magnitude"
-		plt.hist(data["mag"], histtype="step", bins=np.linspace(16,28, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(data["mag"], histtype="step", bins=np.linspace(16,28, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["mag_auto_r"], alpha=0.2, bins=np.linspace(16,28,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["mag_auto_r"],  histtype="step", bins=np.linspace(16,28,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			plt.legend(loc="upper left")
 		plt.xlim(18,25)
 		plt.xlabel("$r$-band Magnitude")
@@ -1982,18 +2074,18 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 		plt.setp(ax.get_yticklabels(), visible=False)
 		ax.set_xticks([-0.5,0,0.5,1])
 		#ax.set_aspect(1)
-		plt.hist(data["intrinsic_e1"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(data["intrinsic_e1"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["e1"], alpha=0.2, bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["e1"],  histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 		plt.xlabel("Ellipticity $e_1$")
 
 		ax=plt.subplot(132)
 		plt.setp(ax.get_yticklabels(), visible=False)
 		ax.set_xticks([-0.5,0,0.5,1])
 		#ax2.set_aspect(1)
-		plt.hist(data["intrinsic_e2"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(data["intrinsic_e2"], histtype="step", bins=np.linspace(-1,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["e2"], alpha=0.2, bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["e2"],  histtype="step", bins=np.linspace(-1,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 		plt.xlabel("Ellipticity $e_2$")
 
 		ax=plt.subplot(133)
@@ -2001,10 +2093,10 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 		ax.set_xticks([0.2,0.4,0.6,0.8,1])
 		#ax3.set_aspect(1)intrinsic_
 		e = np.sqrt(data["intrinsic_e1"]*data["intrinsic_e1"] + data["intrinsic_e2"]*data["intrinsic_e2"])
-		plt.hist(e/(e.max()), histtype="step", bins=np.linspace(0.,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(e/(e.max()), histtype="step", bins=np.linspace(0.,1, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
 			e = np.sqrt(data2["e1"]*data2["e1"] + data2["e2"]*data2["e2"])
-			plt.hist(e/e.max(), alpha=0.2, bins=np.linspace(0.,1,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(e/e.max(),  histtype="step", bins=np.linspace(0.,1,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			matplotlib.rcParams['legend.fontsize']=10
 			plt.legend(loc="upper right")
 		plt.xlabel("Ellipticity $|e|$")
@@ -2017,9 +2109,9 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 
 	if "size" in names:
 		print "-- Radius"
-		plt.hist(data["hlr"], histtype="step", bins=np.linspace(0.,1.5, 50), weights=weights, normed=1, lw=2.5, color="purple", label="Y1 $hoopoe$ (input)")
+		plt.hist(data["hlr"], histtype="step", bins=np.linspace(0.,1.5, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["radius"], alpha=0.2, bins=np.linspace(0.,1.5,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["radius"], histtype="step", bins=np.linspace(0.,1.5,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			matplotlib.rcParams['legend.fontsize']=14
 			plt.legend(loc="upper right")
 		plt.xlabel("Radius $R_{gpp}$")
@@ -2030,9 +2122,9 @@ def histograms_vs_input(names, data, outdir="/home/samuroff/shear_pipeline/end-t
 
 	if "redshift" in names:
 		print "-- redshift"
-		plt.hist(data["cosmos_photoz"], histtype="step", bins=np.linspace(0.,1.6, 50), weights=weights, normed=1, lw=2.5, color="purple", label="v2 Sim (input)")
+		plt.hist(data["cosmos_photoz"], histtype="step", bins=np.linspace(0.,1.6, 50), weights=weights, normed=1, lw=2.5, color="purple", label="$hoopoe$")
 		if data2 is not None:
-			plt.hist(data2["desdm_zp"], alpha=0.2, bins=np.linspace(0.,1.6,50), normed=1, lw=2.5, color="forestgreen", label="Y1 Data (measured)")
+			plt.hist(data2["desdm_zp"],  histtype="step", bins=np.linspace(0.,1.6,50), normed=1, lw=2.5, color="steelblue", label="DES Y1A1")
 			matplotlib.rcParams['legend.fontsize']=14
 			plt.legend(loc="upper right")
 		plt.xlabel("Redshift")
@@ -2075,7 +2167,67 @@ def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=No
 
 
 
-def i3plot(res, image, transform, savedir="/home/samuroff/shear_pipeline/plot_dump/toy_model", name="toy_model_bfellipse.png"):
+
+
+
+def kde_hist(datasets, labels=[], linestyles=["-"]*10, npts=10000, factor=4, xlim=None, ylim=None, fill=[True]*10, lines=[True]*10, opaque=[False]*10, alphas=[0.4]*10):
+	import sys
+	sys.path.append('/home/samuroff/cosmosis/')
+	from cosmosis.postprocessing import plots
+	from cosmosis.postprocessing import lazy_pylab as pylab
+	from cosmosis.postprocessing import statistics
+	from cosmosis.plotting.kde import KDE
+	from cosmosis.postprocessing.elements import PostProcessorElement
+	from cosmosis.postprocessing.elements import MCMCPostProcessorElement, MultinestPostProcessorElement, WeightedMCMCPostProcessorElement
+	from cosmosis.postprocessing.elements import Loadable
+	from cosmosis.postprocessing.outputs import PostprocessPlot
+	from cosmosis.postprocessing.utils import std_weight, mean_weight
+
+	colours = ["purple", "forestgreen", "steelblue", "pink"]
+
+	class plot2D(plots.MetropolisHastingsPlots2D):
+		contours=[]
+		proxies=[]
+		def __init__(self):
+			print "done"
+
+	def smooth_likelihood(x, y, factor=4):
+		n = 100                           
+		kde = KDE([x,y], factor=factor)     
+		x_range = (x.min(), x.max())
+		y_range = (y.min(), y.max())
+		(x_axis, y_axis), like = kde.grid_evaluate(n, [x_range, y_range])
+		return n, x_axis, y_axis, like
+
+	plot_functions = plot2D()
+	print "Will use %d samples"%npts
+
+	for i, data in enumerate(datasets):
+		print "processing contour set %d/%d"%(i+1, len(datasets))
+		x, y = data[0][:npts], data[1][:npts]
+
+		n, x_axis, y_axis, like = smooth_likelihood(x, y)
+		contour1 = 1-0.68
+		contour2 = 1-0.95
+
+		level1, level2, total_mass = plot_functions._find_contours(like, x, y, n, x_axis[0], x_axis[-1], y_axis[0], y_axis[-1], contour1, contour2)
+		level0 = 1.1
+		levels = [level2, level1, level0]
+		if opaque[i]:
+			pylab.contourf(x_axis, y_axis, like.T, [level2,level0], colors=['white'])
+		if fill[i]:
+			pylab.contourf(x_axis, y_axis, like.T, [level2,level0], colors=colours[i], alpha=alphas[i])
+			pylab.contourf(x_axis, y_axis, like.T, [level1,level0], colors=colours[i], alpha=alphas[i])
+		if lines[i]:
+			pylab.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=1.5)
+			pylab.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=0.5)
+
+	plt.ylim(ylim)
+	plt.xlim(xlim)
+
+
+
+def i3plot(res, image, transform, savedir="/home/samuroff/shear_pipeline/plot_dump/toy_model", name="toy_model_bfellipse.png", colorbar=False, clim=None):
 
 	A=np.array([np.array([0.,0.]),np.array([0.,0.])])
 	A[0,0]=transform.A[0][0]
@@ -2091,7 +2243,7 @@ def i3plot(res, image, transform, savedir="/home/samuroff/shear_pipeline/plot_du
 
 	fig = plt.figure(0)
 	ax = fig.add_subplot(111, aspect="equal")
-	ax.matshow(image)
+	cax = ax.matshow(image, clim=clim)
 
 	ellip = Ellipse(xy=[int(transform.x0+xf), int(transform.y0+yf)], width=res.radius*4.2/0.27, height=res.radius*4.2/0.27*q)
 	ax.add_artist(ellip)
@@ -2103,6 +2255,9 @@ def i3plot(res, image, transform, savedir="/home/samuroff/shear_pipeline/plot_du
 	if abs(res.e2)<1e-3 : e2=0.00
 	if abs(res.e1)<1e-3 : e1=0.00
 	plt.title("$e_1=%2.3f$, $e_2=%2.3f$, $r=%2.3f$"%(e1,e2,res.radius))
+
+	if colorbar:
+		fig.colorbar(cax)
 
 	plt.savefig("%s/%s"%(savedir,name))
 	plt.close()
