@@ -22,6 +22,6 @@ for i,f in enumerate(files):
 	print flux_correction,
 
 	meds=fi.FITS(f, "rw")
-	meds["image_cutouts"].write_key("faint_flux_correction", flux_correction)
+	meds["image_cutouts"].write_key("FFC", flux_correction)
 	meds.close()
 	print "done"
