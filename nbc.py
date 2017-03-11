@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import astropy.io.fits as pyfits
-import os, pdb
+import os, pdb, copy
 import tools.diagnostics as di
 import tools.arrays as arr
 import tools.plots as plots
@@ -79,6 +79,9 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			snr_lower = self.bias_grid["snr_lower"][(self.bias_grid["i"]==i)]
 			snr_upper = self.bias_grid["snr_upper"][(self.bias_grid["i"]==i)]
 
+			sub_array = copy.copy(catalogue_to_calibrate[select_r])
+			sub_bias = copy.copy(bias[select_r])
+
 			for j, sbounds in enumerate(zip(snr_lower, snr_upper)):
 				s_lower = sbounds[0]
 				s_upper = sbounds[1]
@@ -86,7 +89,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 				print "%d [%3.2f-%3.2f] %d [%3.2f-%3.2f]"%(i, s_lower, s_upper, j, r_lower, r_upper ),
 
 				# Make the SNR selection
-				select_s = (catalogue_to_calibrate["snr"]<s_upper) & (catalogue_to_calibrate["snr"]>s_lower)
+				select_s = (sub_array["snr"]<s_upper) & (sub_array["snr"]>s_lower)
 
 				if bias_name=="m":
 					# Single value in this grid cell
@@ -95,9 +98,12 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					# Single value in this grid cell
 					val = self.bias_grid["alpha"][(self.bias_grid["i"]==i) & (self.bias_grid["j"]==j)][0]
 
-				bias[select_r & select_s] = val 
+				sub_array[select_s] = val 
 
-				print " %d galaxies, %s=%2.3f"%(bias[select_r & select_s].size, bias_name, val)
+				print " %d galaxies, %s=%2.3f"%(sub_bias[select_s].size, bias_name, val)
+
+			bias[select_r] = sub_array
+
 
 		return bias
 					
@@ -312,6 +318,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					print "Warning: no galaxies in bin %d, %d "%(i,j)
 					empty=True
 
+
 	
 				vrgp_min = rgp_edges[i]
 				vsnr_min = snr_edges[j]
@@ -342,6 +349,176 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		import pyfits
 		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
 		print 'saved %s'%filename_table_bias
+
+
+	def diff_table(self,  weights=None, compare_with_subset=None, fit="bord", table_name=None, sbins=10, rbins=5, binning="equal_number", rlim=(1.13,3), slim=(12,200)):
+		print 'measuring bias'
+
+		import tools.likelihoods as lk
+
+		data = self.res
+		print "using the full catalogue (%d objects)"%(data.size)
+		if hasattr(self, "truth"):
+			tr = self.truth
+
+		if fit.lower()!="bord":
+			print "Using %s only galaxies"%fit
+			val = int(fit.lower()=="bulge")
+			sel_fit = data["is_bulge"]==val
+		else:
+			sel_fit = np.ones_like(data).astype(bool)
+
+		data = data[sel_fit]
+		tr = tr[sel_fit]
+		wts = weights[sel_fit]
+
+		sel_lim = (data["snr"]>slim[0]) & (data["snr"]<slim[1]) & (data["mean_rgpp_rp"]>rlim[0]) & (data["mean_rgpp_rp"]<rlim[1])
+		data = data[sel_lim]
+		tr = tr[sel_lim]
+		wts = wts[sel_lim]
+		if compare_with_subset is not None:
+			compare_with_subset = compare_with_subset[sel_fit][sel_lim]
+
+
+		if isinstance(binning,str) : 
+			if binning.lower()=="uniform":
+				snr_edges = np.logspace(np.log10(slim[0]),np.log10(slim[1]),sbins+1)
+				rgp_edges = np.linspace(rlim[0],rlim[1],rbins+1)
+			elif binning.lower()=="equal_number":
+				snr_edges = di.find_bin_edges(np.log10(data["snr"]), sbins)
+				rgp_edges = di.find_bin_edges(np.log10(data["mean_rgpp_rp"]), rbins)
+
+			override_bin_edges = False
+			nrbin = rbins
+			nsbin = sbins
+		elif isinstance(binning, tuple):
+			snr_edges = binning[1]
+			rgp_edges_low = np.unique(np.array(binning[0]).T[0])
+			rgp_edges = np.hstack(( np.unique(np.array(binning[0]).T[0]), np.atleast_1d(np.unique(np.array(binning[0]).T[1])[-1]) ))
+			nrbin = np.unique(np.array(binning[0]).T[0]).size
+			override_bin_edges = True
+
+		list_bias = []
+		bias_grid=[]
+
+		eh =  np.sqrt(data["e1"]*data["e1"] + data["e2"]*data["e2"] )
+
+
+		if not override_bin_edges:
+			print "Will do dynamic binning in SNR"
+
+		for i in xrange(nrbin):
+			if not override_bin_edges:	
+				snr_samp = data["snr"][(np.log10(data['mean_rgpp_rp']) > rgp_edges[i]) & (np.log10(data['mean_rgpp_rp']) < rgp_edges[i+1])]
+				snr_edges=di.find_bin_edges(np.log10(snr_samp), sbins)
+			else:
+				select_edges = (np.array(binning[0]).T[0]==rgp_edges[i])
+				snr_edges_low = np.array(binning[1]).T[0][select_edges] 
+				snr_edges_high = np.array(binning[1]).T[1][select_edges]
+				snr_edges = np.hstack((snr_edges_low, np.atleast_1d(snr_edges_high[-1])))
+				sbins = snr_edges_high.size
+			for j in xrange(sbins):
+				empty=False
+				
+
+				# Select in bins of snr and size
+				# This is horrible. I know it, and I'm sorry.
+				if not override_bin_edges:
+					slow,shigh = 10**snr_edges[j], 10**snr_edges[j+1]
+					rlow,rhigh = 10**rgp_edges[i], 10**rgp_edges[i+1]
+					select = (data['snr'] > 10**snr_edges[j]) & (data['snr'] < 10**snr_edges[j+1]) & (data['mean_rgpp_rp'] > 10**rgp_edges[i]) & (data['mean_rgpp_rp'] < 10**rgp_edges[i+1])
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
+				else:
+					slow,shigh = 10**snr_edges_low[j], 10**snr_edges_high[j]
+					rlow,rhigh = 10**binning[0][i][0], 10**binning[0][i][1]
+					select = (data['snr'] > 10**snr_edges_low[j]) & (data['snr'] < 10**snr_edges_high[j]) & (data['mean_rgpp_rp'] > 10**binning[0][i][0]) & (data['mean_rgpp_rp'] < 10**binning[0][i][1])
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges_low[j], 10**snr_edges_high[j], 10**binning[0][i][0], 10**binning[0][i][1] )
+				ngal = np.nonzero(select.astype(int))[0].size
+
+				# Raise an error if there are too few simulated galaxies in a given bin
+				if ngal < 60:
+					print "Warning: <100 galaxies in bin %d, %d (ngal=%d)"%(i,j, ngal)
+					empty=False
+				if ngal==0:
+					print "Warning: no galaxies in bin %d, %d "%(i,j)
+					empty=True
+	
+				vrgp_min = rgp_edges[i]
+				vsnr_min = snr_edges[j]
+				vrgp_max = rgp_edges[i+1]
+				vsnr_max = snr_edges[j+1]
+
+				if ngal==0:
+					print "Warning: no galaxies in bin %d, %d"%(i,j)
+					list_bias.append([j, i, ngal, 0, vrgp_min, vrgp_max, vsnr_min, vsnr_max, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.	, 0., 0.])
+					continue
+
+				
+				b = di.get_bias(tr[select], data[select], nbins=10, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				b0 = di.get_bias(tr[select & compare_with_subset], data[select & compare_with_subset], nbins=10, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				a = di.get_alpha(data[select], data[select], nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				a0 = di.get_alpha(data[select & compare_with_subset], data[select & compare_with_subset], nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				measurement_weight = di.compute_im3shape_weight(data["e1"][select])
+
+				kl = lk.kullback_leibler(eh[select],eh[select & compare_with_subset], show=False)
+
+				print "m = [%3.3f %3.3f] %3.4f"%(b["m"][0], b0["m"][0], kl)
+
+
+				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, measurement_weight, kl, b["m"][0], b["m"][1], b0["m"][0], b0["m"][1], a["alpha"][0], a["alpha"][1], a0["alpha"][0], a0["alpha"][1]])
+
+		lab=["j","i","ngal","rgp_lower","rgp_upper","snr_lower","snr_upper","weight","kl","m","err_m","m_subsamp","err_m_subsamp","alpha","err_alpha","alpha_subsamp","err_alpha_subsamp"]
+		dt = {'names': lab, 'formats': ['i4']*3 + ['f8']*14 }
+		arr_bias = np.core.records.fromarrays(np.array(list_bias).transpose(), dtype=dt)
+
+		if table_name is None:
+			filename_table_bias = 'bias_table-%s-selection_section%d%s.fits'%(fit, split_half,"_calibrated"*apply_calibration)
+		else:
+			filename_table_bias = table_name
+
+		import pyfits
+		pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
+		print 'saved %s'%filename_table_bias
+
+	def setup_grid_tree(self):
+		self.snr = (self.bias_grid["snr_lower"]+self.bias_grid["snr_upper"])/2
+		self.rgpp = (self.bias_grid["rgp_lower"]+self.bias_grid["rgp_upper"])/2
+
+		self.fx = np.log10(self.snr).max()
+		self.fy = np.log10(self.rgpp).max()
+
+		print "Constructing tree..."
+		from scipy.spatial import KDTree as kd
+		xy = np.vstack((np.log10(self.snr)/self.fx, np.log10(self.rgpp)/self.fy))
+		self.tree = kd(xy.T)
+
+	def get_nearest_node(self):
+		if not hasattr(self, "tree"):
+			self.setup_grid_tree()
+
+		ngal = self.res["snr"].size
+
+		print "Querying tree..."
+		if ngal<1e7:
+			xy_target = np.vstack((np.log10(self.res["snr"])/self.fx, np.log10(self.res["mean_rgpp_rp"])/self.fy ))
+			self.ids, self.result = self.tree.query(xy_target.T, k=1)
+		else:
+			print "Splitting array"
+			nchunk = ngal/10
+			self.ids=[]
+			self.result=[]
+
+			for i in xrange(10):
+				print i
+				xy_target = np.vstack((np.log10(self.res["snr"][i*nchunk:(i+1)*nchunk])/self.fx, np.log10(self.res["mean_rgpp_rp"][i*nchunk:(i+1)*nchunk])/self.fy ))
+				ids, result = self.tree.query(xy_target.T, k=1)
+				self.ids.append(ids)
+				self.result.append(result)
+			if ngal!=10*nchunk:
+				xy_target = np.vstack((np.log10(self.res["snr"][(i+1)*nchunk:])/self.fx, np.log10(self.res["mean_rgpp_rp"][(i+1)*nchunk:])/self.fy ))
+				ids, result = self.tree.query(xy_target.T, k=1)
+				self.ids.append(ids)
+				self.result.append(result)
 
 	def fit_rbf(self, table="/home/samuroff/bias_table-bord-selection_section1.fits", smoothing=1):
 		bt = fi.FITS(table)[1].read()

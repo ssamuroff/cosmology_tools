@@ -13,7 +13,7 @@ header_quantity_names = {"xip":("G+R","G+R"), "xim":("G-R","G-R"), "gammat":("G+
 
 
 class fits_object():
-	def __init__(self,datavectors,covariance=None, nofz_shear=None, nofz_density=None, kernel_shear=None, kernel_density=None, verbosity=1):
+	def __init__(self,datavectors,covariance=None, nofz_shear=None, nofz_density=None, kernel_shear=None, kernel_density=None, verbosity=1, nongaussian=True):
 		#Expects a list of datavectors eg ['xi+','xi-','gammat','wtheta']
 		# And optionally a covariance wrapper object
 
@@ -69,7 +69,7 @@ class fits_object():
 			# You don't really want to delve into that
 			# But the covariance wrapper should take care of all the symmetries, so self.cov should
 			# have all elements, even where duplicated elsewhere in the matrix
-			cov = covariance.extract_all(correlations,statistics=statistics, verbosity=verbosity)
+			cov = covariance.extract_all(correlations,statistics=statistics, verbosity=verbosity, nongaussian=nongaussian)
 			setattr(self,"cov",cov)
 			setattr(self,"covariance_source", covariance)
 			self.get_sampling()
@@ -183,6 +183,13 @@ class fits_object():
 
 		out1 = np.zeros(pz1.z.size, dtype=dt1)
 		out2 = np.zeros(pz2.z.size, dtype=dt2)
+
+		if pz1.edges.size!=pz1.z.size+1:
+			dz = pz1.z[1]-pz1.z[0]/2
+			pz1.edges=np.linspace(pz1.z.min()-dz, pz1.z.max()+dz, pz1.z.size+1 )
+		if pz2.edges.size!=pz2.z.size+1:
+			dz = pz2.z[1]-pz2.z[0]/2
+			pz2.edges=np.linspace(pz2.z.min()-dz, pz2.z.max()+dz, pz2.z.size + 1 )
 
 		out1["Z_LOW"],out1["Z_HIGH"],out1["Z_MID"] = pz1.edges[:-1], pz1.edges[1:], pz1.z
 		out2["Z_LOW"],out2["Z_HIGH"],out2["Z_MID"] = pz2.edges[:-1], pz2.edges[1:], pz2.z

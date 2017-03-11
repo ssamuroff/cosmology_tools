@@ -573,6 +573,8 @@ class combined_pz(calculator):
 class nofz:
 	def __init__(self, filename):
 		self.z = np.loadtxt(filename).T[0]
+		dz = self.z[1]-self.z[0]
+		self.edges = np.linspace(self.z.min()-dz/2, self.z.min()+dz/2, self.z.size+1 )
 
 		self.bins=[]
 		for nz in np.loadtxt(filename).T[1:]: self.bins.append(nz/np.trapz(nz,self.z))

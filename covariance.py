@@ -9,7 +9,7 @@ columns={True:np.dtype([("bin1", ">i8"), ("bin2", ">i8"), ("corr1", ">i8"), ("co
 
 
 class covariance_wrapper:
-	def __init__(self, covtype, filename, nell=25, nzbins=3, correlations=["ee","ne","nn"], file_type="list", realspace=False):
+	def __init__(self, covtype, filename, nell=25, nzbins=4, correlations=["ee","ne","nn"], file_type="list", realspace=False):
 		if covtype.lower() not in ["gaussian", "hm"]:
 			raise ValueError("Please specify covariance type (Gaussian or hm)")
 
@@ -32,7 +32,7 @@ class covariance_wrapper:
 
 		self.realspace=realspace
 
-	def extract_all(self, correlations=["ee","ne","nn"], shear_bins=[1,2,3], density_bins=[1,2,3], statistics=["cl"], gaussian=True, nongaussian=True, verbosity=1):
+	def extract_all(self, correlations=["ee","ne","nn"], shear_bins=[1,2,3,4], density_bins=[1,2,3, 4], statistics=["cl"], gaussian=True, nongaussian=True, verbosity=1):
 		bins = {"e":shear_bins, "n":density_bins}
 		covmat={}
 		for obs_type1 in statistics:

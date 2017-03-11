@@ -236,7 +236,7 @@ class shapecat(i3s_plots):
 					self.res, self.files, i = di.load_results(res_path =self.res_path, format=ext[1:], cols=cols[0], ntot=len(files) ,apply_infocuts=apply_infocuts, keyword=keyword, postprocessed=postprocessed, return_filelist=True, match=match)
 			else:
 				if ext.lower()==".fits":
-					self.res = fio.FITS(files[0])[1].read(cols=cols[0])
+					self.res = fio.FITS(files[0])[1].read(columns=cols[0])
 				elif ext.lower()==".txt":
 					self.res = np.genfromtxt(files[0], names=True)
 				self.files=files
@@ -263,7 +263,7 @@ class shapecat(i3s_plots):
 				self.truth = pf.getdata(files[0])
 
 		if truth and res:
-			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id", unique=True)
+			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id", unique=False)
 			if ("ra" in self.res.dtype.names): 
 				if not (self.res["ra"]==self.truth["ra"]).all():
 					self.res["ra"] = self.truth["ra"]
@@ -294,11 +294,7 @@ class shapecat(i3s_plots):
 			except:
 				self.epoch = di.load_epoch(path.replace("bord", "disc"))
 
-		if prune:
-			sel = np.isfinite(self.res["mean_psf_e1_sky"]) & np.isfinite(self.res["mean_psf_e2_sky"]) 
-			self.res = self.res[sel]
-			if hasattr(self, "truth"):
-				self.truth = self.truth[sel]
+
 
 #		if hasattr(self, "truth"):
 #			sel = self.truth["sextractor_pixel_offset"]<1.0
@@ -337,28 +333,31 @@ class shapecat(i3s_plots):
 		else:
 			return 1.0*fcat[sel].shape[0]/fcat.shape[0]
 
-	def get_positions(self, postype):
+	def get_positions(self, postype, selection_mask=None):
 		"""Extract the position coordinates of objects, either from a truth
 		   table or from an im3shape results table."""
 		if postype not in ["world", "pixel"]:
 			"Please choose a coordinate system ('world' or 'pixel')"
 
+		if selection_mask is None:
+			selection_mask = np.ones(self.res["coadd_objects_id"].size).astype(bool)
+
 		if postype=="world":
 			xname,yname = "ra","dec"
 		elif postype=="pixel":
-			xname,yname = "X_IMAGE","Y_IMAGE"
+			xname,yname = "x_image","y_image"
 
 		print "Obtained position data from",
 
 		try:
-			x,y = self.truth[xname],self.truth[yname]
+			x,y = self.truth[xname][selection_mask],self.truth[yname][selection_mask]
 			print "truth table"
 		except:
 			try:
-				x,y = self.res[xname],self.res[yname]
+				x,y = self.res[xname][selection_mask],self.res[yname][selection_mask]
 				print "results table"
 			except:
-				x,y = self.coadd[xname],self.coadd[yname]
+				x,y = self.coadd[xname.upper()][selection_mask],self.coadd[yname.upper()][selection_mask]
 				print "coadd catalogue"
 
 		return x,y
@@ -835,9 +834,9 @@ class dummy_im3shape_options():
 
 
 class meds_wrapper(i3meds.I3MEDS):
-	def __init__(self, filename, options=None,update=False):
+	def __init__(self, filename, options=None,update=False, model="disc"):
 		if options is None:
-			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_disc.ini")
+			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_%s.ini"%model)
 		super(meds_wrapper, self).__init__(filename, options)
 		setattr(self, "filename", self._filename)
 
@@ -1326,11 +1325,12 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "bands:", bands
 			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, weights_stack, inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
 
-		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(best_img[:,wt.shape[0]*i:wt.shape[0]*i+wt.shape[0]],wt) for i,wt in enumerate(weights) ]
+		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(image,wt) for i,(image, wt) in enumerate(zip(images, weights_stack)) ]
 		print "Mean Mask Fraction : %f"%(1-np.array(unmasked_fraction).mean())
 		boxsize = wt.shape[0]
-		nexp = len(wt)
-		effective_npix = boxsize*boxsize * nexp * (1-np.array(unmasked_fraction).mean())
+		nexp = len(weights_stack)
+		effective_npix = boxsize*boxsize * nexp * np.array(unmasked_fraction).mean()
+		print "Effective npix : boxsize^2 x Num Exp x Unmasked Pixel Frac = %f^2 x %f x %f = %f"%(boxsize, nexp, np.array(unmasked_fraction).mean(), effective_npix)
 		print "chi2 per pixel : -2 x %f / %f = %f"%(result.obj.likelihood, effective_npix, -2*result.obj.likelihood / effective_npix)
 
 		if isinstance(save,str):
@@ -1341,12 +1341,13 @@ class meds_wrapper(i3meds.I3MEDS):
 			np.savetxt(save+"/image.txt", image )
 			np.savetxt(save+"/weights.txt", np.hstack(tuple(wt)) )
 
+		image = np.hstack(tuple(galaxy_stack)) 
+		wt = inputs.all('weight')
+
 	
 		if show:
 			import pylab as plt
 			cmap = plt.get_cmap("jet")
-			image = np.hstack(tuple(galaxy_stack)) 
-			wt = inputs.all('weight')
 
 			nrow = 2
 
@@ -1362,7 +1363,7 @@ class meds_wrapper(i3meds.I3MEDS):
 
 	
 		if return_vals:
-			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
+			return result.get_params(), image, best_img, np.hstack(tuple(wt)), inputs.all('transform')
 		else:
 			return result, result.get_params()
 
@@ -1426,4 +1427,34 @@ def split_by(array, column_name, pivot, return_mask=False, logger=None):
 
 	else:
 		return f, upper, lower
+
+def translate_infocut(info_val):
+	bits_set = [i for i,j in enumerate(' '.join(word[::-1] for word in bin(info_val)[2:].split()) ) if int(j)==1]
+
+	for bit_set in bits_set: 
+		print bit_set, "%s : %s"%INFO_FLAGS[bit_set]
+
+INFO_FLAGS={ 
+0   : ("INFO_GOLD_MASK",  "This area is masked out in the gold catalog" ),
+1   : ("INFO_BAD_MASK",  "This object is flagged in the gold catalog" ),
+2   : ("INFO_MODEST",  "This modest classifier suggests this is not a galaxy" ),
+3   : ("INFO_MASK",  "mask fraction > 0.75" ),
+4   : ("INFO_EVALS",  "levmar_like_evals > 10000" ),
+5   : ("INFO_SEXR_NEIGHBOURS",  "r-band sextractor flagged with 0x1, indicating bright neigbours" ),
+6   : ("INFO_SEXR_BLEND",  "r-band sextractor flagged with 0x2, indicating blending" ),
+7   : ("INFO_MASKFLUX",  "More than 25% of flux masked" ),
+8   : ("INFO_SMALL_SNR",  "S/N < 10" ),
+9   : ("INFO_HUGE_SNR",  "snr > 10000" ),
+10   : ("INFO_SMALL_RGPP_RP",  "rgpp_rp < 1.1" ),
+11   : ("INFO_LARGE_RGPP_RP",  "rgpp_rp > 3.5 (very large galaxy)" ),
+12   : ("INFO_LARGE_RADIUS",  "radius > 5 arcsec" ),
+13   : ("INFO_SMALL_RADIUS",  "radius < 0.1 arcsec" ),
+14   : ("INFO_LARGE_CENTROID_SHIFT",  "centroid more than 1 arcsec from nominal" ),
+15   : ("INFO_SMALL_CHI2",  "Chi2 per effective pixel < 0.5" ),
+16   : ("INFO_LARGE_CHI2",  "Chi2 per effective pixel > 1.5" ),
+17   : ("INFO_MINRES",  "Normed residuals < -0.2 somewhere" ),
+18   : ("INFO_MAXRES",  "Normed residuals > 0.2 somewhere" ),
+19   : ("INFO_LARGE_PSF",  "Very large PSF" ),
+20   : ("INFO_NEG_PSF",  "Negative PSF FWHM" ),
+21   : ("INFO_ERROR",  "One or more error flags is set" ) }
 
