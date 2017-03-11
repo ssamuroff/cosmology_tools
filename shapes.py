@@ -263,7 +263,7 @@ class shapecat(i3s_plots):
 				self.truth = pf.getdata(files[0])
 
 		if truth and res:
-			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id", unique=True)
+			self.res, self.truth = di.match_results(self.res,self.truth, name1="DES_id", name2="coadd_objects_id", unique=False)
 			if ("ra" in self.res.dtype.names): 
 				if not (self.res["ra"]==self.truth["ra"]).all():
 					self.res["ra"] = self.truth["ra"]
@@ -294,11 +294,7 @@ class shapecat(i3s_plots):
 			except:
 				self.epoch = di.load_epoch(path.replace("bord", "disc"))
 
-		if prune:
-			sel = np.isfinite(self.res["mean_psf_e1_sky"]) & np.isfinite(self.res["mean_psf_e2_sky"]) 
-			self.res = self.res[sel]
-			if hasattr(self, "truth"):
-				self.truth = self.truth[sel]
+
 
 #		if hasattr(self, "truth"):
 #			sel = self.truth["sextractor_pixel_offset"]<1.0
@@ -337,28 +333,31 @@ class shapecat(i3s_plots):
 		else:
 			return 1.0*fcat[sel].shape[0]/fcat.shape[0]
 
-	def get_positions(self, postype):
+	def get_positions(self, postype, selection_mask=None):
 		"""Extract the position coordinates of objects, either from a truth
 		   table or from an im3shape results table."""
 		if postype not in ["world", "pixel"]:
 			"Please choose a coordinate system ('world' or 'pixel')"
 
+		if selection_mask is None:
+			selection_mask = np.ones(self.res["coadd_objects_id"].size).astype(bool)
+
 		if postype=="world":
 			xname,yname = "ra","dec"
 		elif postype=="pixel":
-			xname,yname = "X_IMAGE","Y_IMAGE"
+			xname,yname = "x_image","y_image"
 
 		print "Obtained position data from",
 
 		try:
-			x,y = self.truth[xname],self.truth[yname]
+			x,y = self.truth[xname][selection_mask],self.truth[yname][selection_mask]
 			print "truth table"
 		except:
 			try:
-				x,y = self.res[xname],self.res[yname]
+				x,y = self.res[xname][selection_mask],self.res[yname][selection_mask]
 				print "results table"
 			except:
-				x,y = self.coadd[xname],self.coadd[yname]
+				x,y = self.coadd[xname.upper()][selection_mask],self.coadd[yname.upper()][selection_mask]
 				print "coadd catalogue"
 
 		return x,y
@@ -1326,11 +1325,12 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "bands:", bands
 			result, best_img, images, weights = p3s.analyze_multiexposure( inputs.all('image'), psfs, weights_stack, inputs.all('transform'), self.options, ID=coadd_objects_id, bands=bands)
 
-		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(best_img[:,wt.shape[0]*i:wt.shape[0]*i+wt.shape[0]],wt) for i,wt in enumerate(weights) ]
+		unmasked_fraction = [ p3s.utils.get_unmasked_flux_fraction(image,wt) for i,(image, wt) in enumerate(zip(images, weights_stack)) ]
 		print "Mean Mask Fraction : %f"%(1-np.array(unmasked_fraction).mean())
 		boxsize = wt.shape[0]
-		nexp = len(wt)
-		effective_npix = boxsize*boxsize * nexp * (1-np.array(unmasked_fraction).mean())
+		nexp = len(weights_stack)
+		effective_npix = boxsize*boxsize * nexp * np.array(unmasked_fraction).mean()
+		print "Effective npix : boxsize^2 x Num Exp x Unmasked Pixel Frac = %f^2 x %f x %f = %f"%(boxsize, nexp, np.array(unmasked_fraction).mean(), effective_npix)
 		print "chi2 per pixel : -2 x %f / %f = %f"%(result.obj.likelihood, effective_npix, -2*result.obj.likelihood / effective_npix)
 
 		if isinstance(save,str):
@@ -1363,7 +1363,7 @@ class meds_wrapper(i3meds.I3MEDS):
 
 	
 		if return_vals:
-			return result.get_params(), image, best_img, np.hstack(tuple(wt)) 
+			return result.get_params(), image, best_img, np.hstack(tuple(wt)), inputs.all('transform')
 		else:
 			return result, result.get_params()
 

@@ -123,8 +123,9 @@ def get_pixel_cols(meds_path):
 
 def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=True, return_filelist=False, cols=None, ntot=-1, apply_infocuts=False, additional_cuts=[], match=[]):
     files=[]
-    ind=[]
+    ind={}
     Nf=0
+    i0=0
     if apply_infocuts:
         print "Applying info flag cuts on loading."
     if format=='txt':
@@ -178,8 +179,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
                 dat = fits[1].read(columns=cols)
             else:
                 dat = fits[1].read()
-
-                fits.close()
+            fits.close()
         elif format.lower()=="txt":
             if not cols:
                 dat=np.array(astropy.table.Table.read(f, format="ascii")).astype(dt)
@@ -196,26 +196,20 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             exec cut
             dat = dat[cuts]
 
-        try:
-            i0 = np.argwhere(res["coadd_objects_id"]==0)[0,0]
-            nameid = "coadd_objects_id"
-        except : 
-            import pdb ; pdb.set_trace()
-        i1 = i0 + len(dat)
+        nrows = len(dat)
+        i1 = i0 + nrows
         if res[i0:i1].size<(i1-i0):
             print "Need more space - adding %d rows to the catalogue."%((i1-i0)*2)
             res = np.array(astropy.table.join(res, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         res[i0:i1] = dat
-        ind+=[(i0,i1)]
+        ind[tile]=(i0,i1)
        # if res[i1]!=dat[-1]:
         #    print "ERROR: Data overflow. %d %d"%(i1, len(res))
-        print Nf, tile
+        print Nf, tile, "(%d-%d)"%(i0,i1)
         Nf+=1
+        i0 += nrows
 
-    try:
-        res = res[res["id"]!=0]
-    except:
-        res = res[res["coadd_objects_id"]!=0]
+    res = res[:i0]
 
     print 'Read results for %d objects from %d files.' %(len(res),len(files))
 
@@ -261,6 +255,7 @@ def load_results0(res_path='None', keyword='fornax'):
 
 def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, cols=None, ind=None, res=None, faint=False, add_tilename_col=False):
     files=[]
+    i0=0
     if truth_path!=None:
         files = glob.glob(os.path.join(truth_path,'*%s*-truth*.fits*'%keyword))
         if len(files)==0:
@@ -312,26 +307,25 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
         else:
             dat = fits[extension].read()
         fits.close()
-            
+
         if ind!=None and res!=None:
-            #selres=res[ind[i][0]:ind[i][1]]
-            selres = res[res["tilename"]==tile]
-            r,dat=match_results(selres,dat, name1="DES_id", name2="coadd_objects_id")
+            mask = np.in1d(dat["DES_id"], res["coadd_objects_id"][ind[tile][0]:ind[tile][1]])
+            dat = dat[mask]
+
 
         if add_tilename_col and ("tilename" not in dat.dtype.names):
             dat = arr.add_col(dat, "tilename", dat.shape[0]*[tile])
             dat = arr.add_col(dat, "tile", dat.shape[0]*[i])
 
-
-        i0 = np.argwhere(truth[bookmark]==0)[0,0]
-        
-        i1 = i0 + len(dat)
+        nrows = len(dat)
+        i1 = i0 + nrows
 
         while truth[i0:i1].size!=(i1-i0):
             print "Need more space - adding %d rows to the truth table."%((i1-i0)*2)
             truth = np.array(astropy.table.join(truth, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         truth[i0:i1] = dat
         print i+1, tile, "%d/%d"%(i1, len(truth))
+        i0 += nrows 
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
     
                 
