@@ -17,6 +17,7 @@ parser.add_argument('--nrealisations', type=int, action='store', default=2000)
 parser.add_argument('--output', type=str, default="/home/samuroff/hoopoe_paper/toy_model_data")
 parser.add_argument('--fatal_errors', action='store_true')
 parser.add_argument('--mpi', action='store_true')
+parser.add_argument('--identifier', type=str, action='store', default="")
 args = parser.parse_args()
 
 # Mean neighbour distance (pixels) : 39.79
@@ -36,7 +37,7 @@ except:
 	rank=0
 	size=1
 
-config = yaml.load(open("/home/samuroff/calibration_config.yaml"))
+config = yaml.load(open("/home/samuroff/calibration_config_no_box_cut.yaml"))
 hoopoe = s.shapecat(res=config["hoopoe_dir"], truth=config["hoopoe_dir"] )
 hoopoe.res = fi.FITS(config["hoopoe_dir"])["i3s"][:args.nrealisations*4]
 hoopoe.truth = fi.FITS(config["hoopoe_dir"])["truth"][:args.nrealisations*4]
@@ -72,4 +73,4 @@ inp["neighbour_hlr"]=ncat["hlr"]
 
 from tools.im3shape import mcmc_toy_model as mc
 model=mc.mcmc_toy_model() 
-model.run(inp, filename="%s/mc_toy_model-results-%d.txt"%(args.output,rank), size=size, rank=rank)
+model.run(inp, filename="%s/mc_toy_model-results-%s-%d.txt"%(args.output,args.identifier,rank), size=size, rank=rank)

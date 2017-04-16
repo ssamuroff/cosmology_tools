@@ -50,6 +50,7 @@ class mcmc_toy_model:
         #-----------------------------------------------------------------------
         
         self.m=[]
+        self.centroid=[]
 
         print "Setting up model"
 
@@ -57,7 +58,7 @@ class mcmc_toy_model:
 
 
         shears = [-0.02,0.02]
-        angles = np.linspace(0,2*np.pi,20) 
+        angles = np.linspace(0,2*np.pi,31)[:-1]
 
         self.params={"fc":0,"fn":0,"dgn":0,"Rc":0,"Rn":0, "psf_size":0}
         self.priors={"fc":[200,8000],"fn":[2,9000],"dgn":[1,70],"Rc":[0.1,6.0],"Rn":[0.1,6.0], "psf_size":[0.1,4.0]}
@@ -77,6 +78,7 @@ class mcmc_toy_model:
             if idone>niterations: continue
 
             evec_g=[]
+            restart=False
             # Second level loop - input shear
             #-----------------------------------------------------------------------
             print "Will evaluate m using %d shear values"%len(shears)
@@ -84,11 +86,13 @@ class mcmc_toy_model:
                 print "g = (%2.2f, 0.00)"%g
 
                 evec_t = []
+                centroid=[]
 
                 # Third level loop - neighbour position
                 #-----------------------------------------------------------------------
                 print "Will use %d neighbour angles"%len(angles)
                 for ipos, theta in enumerate(angles):
+                    if restart: continue
 
                     x = self.params["dgn"]*np.cos(theta)
                     y = self.params["dgn"]*np.sin(theta)
@@ -96,24 +100,31 @@ class mcmc_toy_model:
 
                     gal,psf = i3s.setup_simple(boxsize=96,shear=(g,0.0), psf_size=self.params["psf_size"],  size=self.params["Rc"], neighbour_ellipticity=(0.0,0.0), neighbour_flux=self.params["fn"], flux=self.params["fc"], neighbour_size=self.params["Rn"], neighbour=[x,y], opt=meds.options)
                     res = i3s.i3s([gal.array],[psf], meds=meds)
-                    if ireal in [0,1,2,3]:
-                        plt.matshow(gal.array)
-                        out_path = os.path.dirname(filename)
-                        plt.savefig("%s/toy_model_realisation%d-g%2.3f-position%f.png"%(out_path,ireal,g,theta))
 
                     evec_t.append([res.e1, res.e2])
+                    centroid.append(np.sqrt(res.ra_as*res.ra_as + res.dec_as*res.dec_as))
+                
 
                 meane1 = np.array(evec_t).T[0].mean()
                 meane2 = np.array(evec_t).T[1].mean()
                 evec_g.append([meane1, meane2])
+            
 
             # Finally we have a vector, containing one mean measured shape for each of the input shear values
             # Calculate m
             residual_e1 = np.array(evec_g).T[0] - np.array(shears)
             residual_e2 = np.array(evec_g).T[1]
 
+            m=(residual_e1[-1]-residual_e1[0])/(shears[-1]-shears[0])
+
+
+            print "---------------------- m=%f"%m
+            print centroid
+
             self.m.append([(residual_e1[-1]-residual_e1[0])/(shears[-1]-shears[0]), (residual_e2[-1]-residual_e2[0])/(shears[-1]-shears[0])]) 
+            self.centroid.append([np.array(centroid).mean(), np.array(centroid).max()])
             if abs(self.m[-1][0])>2: continue
+            if (self.m[-1][0]<-0.01) and (np.array(centroid).mean()<1): import pdb ; pdb.set_trace()
             self.write_output_line(filename)
             idone+=1
         
@@ -122,7 +133,7 @@ class mcmc_toy_model:
 
     def write_output_line(self, filename):
         f = open(filename, "a")
-        line = "%3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.6f %3.6f \n"%(self.params["Rc"], self.params["Rn"], self.params["fc"], self.params["fn"], self.params["dgn"], self.params["psf_size"], self.m[-1][0], self.m[-1][1])
+        line = "%3.4f %3.4f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.6f %3.6f \n"%(self.centroid[-1][0], self.centroid[-1][1], self.params["Rc"], self.params["Rn"], self.params["fc"], self.params["fn"], self.params["dgn"], self.params["psf_size"], self.m[-1][0], self.m[-1][1])
         f.write(line)
         f.close()
 
@@ -223,7 +234,7 @@ class results:
 
         self.samples = np.concatenate(self.samples)
 
-        self.priors={"fc":[200,8000],"fn":[0.,12000],"dgn":[1,70],"Rc":[0.1,8.0],"Rn":[0.1,8.0], "psf_size":[0.1,4.0]}
+        self.priors={"fc":[200,8000],"fn":[0.,12000],"dgn":[1,12],"Rc":[0.1,8.0],"Rn":[0.1,8.0], "psf_size":[0.1,4.0]}
         if impose_priors:
             self.impose_priors()
 
