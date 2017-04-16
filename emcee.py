@@ -18,10 +18,12 @@ class chain(samp.sampler):
 		self.samples=tb.Table.read(filename, format="ascii")
 		try:
 			self.post = self.samples["post"]
+			self.samples.remove_column("post")
 		except:
 			self.post = self.samples["like"]
+			self.samples.remove_column("like")
 		self.wt = np.ones_like(self.post)
-		self.samples.remove_column("post")
+		
 
 		self.mask = np.ones_like(self.post)
 		self.bounds={}
@@ -329,6 +331,28 @@ class chain(samp.sampler):
 
 		if colourbar:
 			plt.colorbar(label="posterior")
+
+	def check_compatibility(self, chain):
+		compatible = True
+		if chain.npar!=self.npar:
+			print "parameter space dimensons differ"
+			compatible = False
+
+		if not np.in1d(self.samples.dtype.names, chain.samples.dtype.names).all():
+			print "parameter space is non identical"
+			compatible - False
+
+		return compatible
+
+def merge_chains(chain1, chain2):
+	if not chain1.check_compatibility(chain2):
+		raise ValueError("Chains are not compatible.")
+	else:
+		new = copy.deepcopy(chain1)
+		new.samples = np.hstack((chain1.samples, chain2.samples))
+		new.post = np.hstack((chain1.post, chain2.post))
+
+	return new
 
 def gaussian(x,mu,sigma):
 	return np.exp(-1.0*(x-mu)*(x-mu)/2/sigma/sigma) / np.sqrt(2*np.pi)/sigma
