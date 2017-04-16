@@ -11,19 +11,19 @@ import os, yaml, argparse, glob, gc, copy
 plt.switch_backend("agg")
 
 
-def setup(calculate, catalogue, config):
-	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "is_bulge", "tilename"]
+def setup(calculate, catalogue, config, y1v2=None):
+	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "is_bulge", "tilename", "bulge_flux", "disc_flux", "mean_mask_fraction", "mag_auto_r"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	# Load the y1 data
-	if (calculate and config["output"]["histograms"]) or catalogue or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]:
+	if (y1v2 is  None ) and ((calculate and config["output"]["histograms"]) or catalogue or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]):
 		y1v2 = s.shapecat(res=config["i3s_dir"])
 		y1v2.load(truth=False, prune=True, cols=[im3shape_columns,truth_columns])
-		y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
+		#y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
 		sel=((y1v2.res["snr"] > 12) & (y1v2.res["snr"] < 200) & (y1v2.res["mean_rgpp_rp"] > 1.13) & (y1v2.res["mean_rgpp_rp"] < 3.0))
 		y1v2.res=y1v2.res[sel]
 	else:
-		y1v2 = None
+		print "Not loading data (either it's been loaded already or it's not needed)"
 	
 
 	# And the simulation results
@@ -31,9 +31,11 @@ def setup(calculate, catalogue, config):
 		hoopoe = s.shapecat(res=config["hoopoe_dir"] ,truth=config["hoopoe_dir"])
 		hoopoe.res=fi.FITS(hoopoe.res_path)["i3s"].read()
 		hoopoe.truth=fi.FITS(hoopoe.truth_path)["truth"].read()
+
 		sel = np.isfinite(hoopoe.res["mean_hsm_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_hsm_psf_e2_sky"])
-		hoopoe.res = hoopoe.res[sel]
 		hoopoe.truth = hoopoe.truth[sel]
+		hoopoe.res = hoopoe.res[sel]
+		
 
 		apply_selection = False
 		if ("apply_selection" in config.keys()):
@@ -52,9 +54,10 @@ def setup(calculate, catalogue, config):
 
 		if not config["tophat_binning"]:
 			print "Using DES redshift bins"
-			bin_allocation = fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/hoopoe-v2-zbin_allocation.fits")[1].read()
-			bin_num, hoopoe.res = di.match_results(bin_allocation, hoopoe.res)
-			hoopoe.res = arr.add_col(hoopoe.res,"des_bin", bin_num["bin"])
+
+			#bin_allocation = fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/hoopoe-v2-zbin_allocation.fits")[1].read()
+			#bin_num, hoopoe.res = di.match_results(bin_allocation, hoopoe.res)
+			#hoopoe.res = arr.add_col(hoopoe.res,"des_bin", bin_num["bin"])
 			exclude = (hoopoe.res["des_bin"]!=0 )
 			hoopoe.truth = hoopoe.truth[exclude]  
 			weights = weights[exclude]  
@@ -82,13 +85,14 @@ def main(args):
 	
 	# And the simulation results
 	if args.calculate:
-		rbins=12
-		sbins=12
+		rbins=11
+		sbins=11
 
+		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=config["output"]["tables"], vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
 
 		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
 		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
-		diagnostics(y1v2, hoopoe, weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+		
 
 		if config["cosmos_halves"]:
 			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, tomographic_calibration=config["tomography"], histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
@@ -215,6 +219,7 @@ def diagnostics(y1v2, hoopoe, tomographic_calibration=False, histograms=True, sp
 	#### Process disc then bulge runs
 
 	# Fit the binned galaxies. Save one set of calibration data for disc objects, one for bulges
+	import pdb ; pdb.set_trace()
 	if table:
 		if ("match_gridpoints" in config.keys()):
 			redges_bulge, sedges_bulge = bin_edges_from_table(config["match_gridpoints"], type="bulge")
@@ -237,12 +242,12 @@ def diagnostics(y1v2, hoopoe, tomographic_calibration=False, histograms=True, sp
 				nbc_disc.compute(split_half=1, fit="disc", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], split_method, sbins,rbins, k))
 				nbc_bulge.compute(split_half=1, fit="bulge", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], split_method, sbins,rbins, k))
 
-			if table:
-				print "Calculating full tables in %d redshift bins"%zbin_numbers.size
-				for k in zbin_numbers:
-					print "bin %d"%k
-					nbc_disc.compute(split_half=0, fit="disc", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins, rbins, k))
-					nbc_bulge.compute(split_half=0, fit="bulge", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins,rbins, k))
+		if table:
+			print "Calculating full tables in %d redshift bins"%zbin_numbers.size
+			for k in zbin_numbers:
+				print "bin %d"%k
+				nbc_disc.compute(split_half=0, fit="disc", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins, rbins, k))
+				nbc_bulge.compute(split_half=0, fit="bulge", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, redshift_bin=k, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins-zbin%d.fits"%(config["output_dir"], sbins,rbins, k))
 
 	if rbf:
 		scheme="rbf"
@@ -283,10 +288,12 @@ def diagnostics(y1v2, hoopoe, tomographic_calibration=False, histograms=True, sp
 		wt1, wt2 = nbc.get_split_data(hoopoe, weights=weights, method=split_method)
 		nbc = calibrate_in_bins(nbc, halfcats=False, split_method=None, scheme=scheme, config=config, sbins=sbins, rbins=rbins, smoothing=smoothing, names=names)
 
+		import pdb ; pdb.set_trace()
+
 		plt.close()
 		if "m" in names:
 			nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
-			nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
+			bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
 			plt.ylabel("Multiplicative Bias $m$")
 			plt.legend(loc="center right")
 			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d-tomographic_calibration.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
@@ -390,6 +397,23 @@ def calibrate_in_bins(nbc, halfcats=False, split_method="", scheme="rbf", config
 
 	return nbc
 
+def generate_difference_table(config1, config2,sbins=16, rbins=16, y1v2=None):
+	hoopoe1, weights1, y1v2 = ct.setup(True, True, config1, y1v2=y1v2)
+	hoopoe2, weights2, y1v2 = ct.setup(True, False, config2, y1v2=y1v2)
+
+	subset = np.in1d(hoopoe1.res["coadd_objects_id"], hoopoe2.res["coadd_objects_id"])
+
+	nbc = cal.nbc()
+	nbc_disc = cal.nbc()
+	nbc_bulge = cal.nbc()
+	wt1, wt2 = nbc.get_split_data(hoopoe1, weights=weights1, method="random")
+	nbc_disc.load_from_cat(nbc, name="all")
+	nbc_bulge.load_from_cat(nbc, name="all")
+
+	import pdb ; pdb.set_trace()
+
+	nbc_disc.diff_table(weights=weights1, compare_with_subset=subset, fit="disc", table_name="diff_table_disc.fits", sbins=sbins, rbins=rbins, binning="equal_number", rlim=(1.13,3), slim=(12,200))
+	nbc_bulge.diff_table(weights=weights2, compare_with_subset=subset, fit="bulge", table_name="diff_table_bulge.fits", sbins=sbins, rbins=rbins, binning="equal_number", rlim=(1.13,3), slim=(12,200))
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(add_help=False)
