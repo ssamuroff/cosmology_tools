@@ -9,7 +9,7 @@ from tools import samplers as samp
 labels={"sigma8": "$\sigma_8$", "s8" : "$S_8 \equiv \sigma_8 ( \Omega_m / 0.31 ) ^{0.5}$", "w0":"$w_0$", "omega_m": "$\Omega _m$", "h" : '$h$', "ns":"$n_s$", "omega_b" : '$\Omega _b$', "shear--bias_1":"$\delta z^1$", "shear--bias_2":"$\delta z^2$", "shear--bias_3":"$\delta z^3$", "sz1":"$S_z ^1$", "sz2":"$S_z ^2$", "sz3":"$S_z ^3$", "redmagic--bias_1":"$\delta z^1$ (redmagic)", "redmagic--bias_2":"$\delta z^2$ (redmagic)", "redmagic--bias_3":"$\delta z^3$ (redmagic)", "a": "$A$", "eta": "$\eta$","A_II": "$A_{II}$", "eta_II": "$\eta_{II}$", "A_GI": "$A_{GI}$", "eta_GI": "$\eta_{GI}$", "m1":"$m_1$", "m2":"$m_2$", "m3":"$m_3$", "b_1": '$b_g^1$', "b_2" : '$b_g^2$', "b_3" : '$b_g^3$'}
 
 
-parameters={"omega_m" : 'cosmological_parameters--omega_m', "s8":"cosmological_parameters--s8", "w0": "cosmological_parameters--w", "h" : 'cosmological_parameters--h0', "omega_b" : 'cosmological_parameters--omega_b', "sigma8": 'cosmological_parameters--sigma8_input', "ns": 'cosmological_parameters--n_s', "A_II" : 'intrinsic_alignment_parameters--a_ii', "eta_II" : 'intrinsic_alignment_parameters--alpha_ii', "A_GI" : 'intrinsic_alignment_parameters--a_gi', "eta_GI" : 'intrinsic_alignment_parameters--alpha_gi', "A" : 'intrinsic_alignment_parameters--a',  "eta" : 'intrinsic_alignment_parameters--alpha', "b_1": 'bias_parameters--b_1', "b_2" : 'bias_parameters--b_2', "b_3" : 'bias_parameters--b_3', "shear--bias_1": 'shear--bias_1', "shear--bias_2" : 'shear--bias_2', "shear--bias_3" : 'shear--bias_3',  "sz1": 'shear--s_z_1', "sz2" : 'shear--s_z_2', "sz3" : 'shear--s_z_3', "m1" : 'shear--m1', "m2" : 'shear--m2', "m3" : 'shear--m3', "redmagic--bias_1" : 'redmagic--bias_1', "redmagic--bias_2" : 'redmagic--bias_2', "redmagic--bias_3" : 'redmagic--bias_3'}
+parameters={"omega_m" : 'cosmological_parameters--omega_m', "s8":"cosmological_parameters--s8", "w0": "cosmological_parameters--w", "h" : 'cosmological_parameters--h0', "omega_b" : 'cosmological_parameters--omega_b', "sigma8": 'cosmological_parameters--sigma8_input',"sigma_8": 'cosmological_parameters--sigma_8', "ns": 'cosmological_parameters--n_s', "A_II" : 'intrinsic_alignment_parameters--a_ii', "eta_II" : 'intrinsic_alignment_parameters--alpha_ii', "A_GI" : 'intrinsic_alignment_parameters--a_gi', "eta_GI" : 'intrinsic_alignment_parameters--alpha_gi', "A" : 'intrinsic_alignment_parameters--a',  "eta" : 'intrinsic_alignment_parameters--alpha', "b_1": 'bias_parameters--b_1', "b_2" : 'bias_parameters--b_2', "b_3" : 'bias_parameters--b_3', "shear--bias_1": 'shear--bias_1', "shear--bias_2" : 'shear--bias_2', "shear--bias_3" : 'shear--bias_3',  "sz1": 'shear--s_z_1', "sz2" : 'shear--s_z_2', "sz3" : 'shear--s_z_3', "m1" : 'shear--m1', "m2" : 'shear--m2', "m3" : 'shear--m3', "redmagic--bias_1" : 'redmagic--bias_1', "redmagic--bias_2" : 'redmagic--bias_2', "redmagic--bias_3" : 'redmagic--bias_3'}
 
 fiducial = {"sigma8":0.82, "s8":0.8273733018687 ,"w0": -1.0, "omega_m":0.3156, "eta":0.0 ,"eta_ii": 0.0, "eta_gi": 0.0, "a_ii": 1.0 , "a_gi": 1.0, "a":1.0}
 
@@ -36,6 +36,10 @@ class chain(samp.sampler):
 		text = open(self.filename).read()
 		self.header = text.split(sep)[0]+sep
 		self.npar = int(self.header.split("n_varied=")[1].split("\n")[0])
+
+		for name in self.samples.dtype.names:  
+			if name.lower()!=name:
+				self.samples.rename_column(name,name.lower())
 
 	def add_column(self, name, pmin=-1, pmax=1, values="random", cosmosis_section="cosmological_parameters"):
 		"""Draw new samples from a uniform distribution over a specified range."""
@@ -164,7 +168,7 @@ class chain(samp.sampler):
 			dirname=os.path.dirname(filename)
 			h1=os.path.join(dirname,"h1_"+base)
 			h2=os.path.join(dirname,"h2_"+base)
-			self.write_halfchains(0,name1=h1,name2=h2)
+			self.write_halfchains(name1=h1,name2=h2)
 
 		del(samp)
 
@@ -172,7 +176,7 @@ class chain(samp.sampler):
 
 		#self.samples.remove_column("post")
 
-	def write_halfchains(self, burn, name1="halfchain1.txt", name2="halfchain2.txt"):
+	def write_halfchains(self, name1="halfchain1.txt", name2="halfchain2.txt"):
 		post = tb.Column(self.post, name="post")
 		samp = copy.deepcopy(self.samples)
 		samp.add_column(post)
@@ -343,6 +347,17 @@ class chain(samp.sampler):
 			compatible - False
 
 		return compatible
+
+	def halfchain_test(self, smoothing=2.5, dirname="halfchain_test"):
+		print "Will check convergence of chain"
+
+		os.system("mkdir -p halfchain_test")
+
+		self.write_halfchains()
+		cmd = "postprocess -o %s/out --either aa --only bb --factor-kde=%f --extra $MKPLOT_HALFCHAINS halfchain1.txt halfchain2.txt"%(dirname,smoothing)
+		os.system(cmd)
+
+		os.system("mv halfchain[1,2].txt halfchain_test")
 
 def merge_chains(chain1, chain2):
 	if not chain1.check_compatibility(chain2):
