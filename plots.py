@@ -1470,8 +1470,8 @@ class im3shape_results_plots:
 			z1 = self.res["e1"]
 			z2 = self.res["e2"]
 		elif etype=="psf":
-			z1 = self.res["mean_psf_e1_sky"]
-			z2 = self.res["mean_psf_e2_sky"]
+			z1 = self.res["mean_hsm_psf_e1_sky"]
+			z2 = self.res["mean_hsm_psf_e2_sky"]
 		elif etype=="shear":
 			z1 = self.truth["true_g1"]
 			z2 = self.truth["true_g2"]

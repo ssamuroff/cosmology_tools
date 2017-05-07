@@ -836,7 +836,7 @@ class dummy_im3shape_options():
 class meds_wrapper(i3meds.I3MEDS):
 	def __init__(self, filename, options=None,update=False, model="disc"):
 		if options is None:
-			options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/params_%s.ini"%model)
+			options = p3s.Options("/global/cscratch1/sd/sws/hoopoe-image-simulations/end-to-end/end-to-end_code/%s_sim.ini"%model)
 		super(meds_wrapper, self).__init__(filename, options)
 		setattr(self, "filename", self._filename)
 

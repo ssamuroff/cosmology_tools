@@ -295,6 +295,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
         buff=26000
     else:
         buff = 50000
+    if faint: buff*=1000
     truth = np.zeros(len(filelist)*buff, dtype=dt)
     if add_tilename_col and ("tilename" not in dt.names):
         truth = arr.add_col(truth, "tilename", len(filelist)*buff*["DES0000+0000"])
