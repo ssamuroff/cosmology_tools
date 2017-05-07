@@ -1344,7 +1344,7 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
 
             cell_sample = (row_data["snr"]>snr_lower) &  (row_data["snr"]<snr_upper)
 
-            wt = compute_im3shape_weight(row_data["e1"][cell_sample], verbose=False)
+            wt, method = compute_im3shape_weight(row_data["e1"][cell_sample], verbose=False, return_method=True)
             ngal  = row_data["e1"][cell_sample].size
 
             if simdat is not None:
@@ -1357,12 +1357,12 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
 
             print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
 
-            wt_vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, wt, nsim, wt_sim ])
+            wt_vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, wt, nsim, wt_sim, method ])
 
     if filename is not None:
         out_fits = fi.FITS(filename, "rw")
 
-        out_table = np.zeros(len(wt_vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", float), ("inverse_weight", float), ("nsim", float), ("simulation_inverse_weight", float)])
+        out_table = np.zeros(len(wt_vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", float), ("inverse_weight", float), ("nsim", float), ("simulation_inverse_weight", float), ("method", int)])
         for i, col in enumerate(out_table.dtype.names):
             print "Writing column %s"%col
             out_table[col] = np.array(wt_vec).T[i]
@@ -1374,7 +1374,7 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
 
 
 
-def compute_im3shape_weight(e1, verbose=True):
+def compute_im3shape_weight(e1, verbose=True, return_method=False):
     """Return either the direct measurement of the variance, or the width of the best fit Gaussian distribution"""
     sigma_direct = e1.std()
 
@@ -1383,25 +1383,44 @@ def compute_im3shape_weight(e1, verbose=True):
     param, cov = optimise.curve_fit(gaussian, x, data, [0.25])
     sigma_fit = param[0]
 
+    method = None
+
     if (not np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
         if verbose:
             print "WARNING fit variance is not finite: %2.4f"%simga_direct
+        method = 0
+        if return_method:
+            sigma_direct = (sigma_direct, method)
+
         return sigma_direct
 
     elif (np.isfinite(sigma_fit)) and (not np.isfinite(sigma_direct)):
         if verbose:
             print "WARNING direct variance estimate is not finite: %2.4f"%sigma_fit
+        method = 1
+        if return_method:
+            sigma_fit = (sigma_fit, method)
+
         return sigma_fit
     elif (np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
         if verbose:
             print "Using the maximum of direct : %2.4f, best fit : %2.4f"%(sigma_direct,sigma_fit)
-        return max(sigma_direct,sigma_fit)
+
+        var = max(sigma_direct,sigma_fit)
+        method = int(sigma_fit==var)
+        if return_method:
+            var = (var, method)
+
+        return var
 
     else:
         print "WARNING: neither variance estimate is finite. Using default (0.25)"
-        return 0.25
+        var = 0.25
+        if return_method:
+            var = (var, -1)
+        return var
 
-def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".", outfile="im3shape_weights.fits"):
+def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, save=True, outdir=".", outfile="im3shape_weights.fits"):
     from scipy.interpolate import Rbf
     # Set up the interpolator with some fixed scale factor
     print "Setting up variance interpolator"
@@ -1421,12 +1440,12 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".
     else:
         print "Splitting array"
         ngal = target_data["snr"].size
-        nchunk = ngal/4
+        nchunk = ngal/8
         interpolated_sigma=[]
-        for i in xrange(4):
+        for i in xrange(8):
             print i
             interpolated_sigma.append( interpolator( np.log10(target_data["snr"][i*nchunk:(i+1)*nchunk])/fx, np.log10(target_data["mean_rgpp_rp"][i*nchunk:(i+1)*nchunk])/fy ) )
-        if ngal!=4*nchunk:
+        if ngal!=8*nchunk:
             interpolated_sigma.append( interpolator( np.log10(target_data["snr"][(i+1)*nchunk:])/fx, np.log10(target_data["mean_rgpp_rp"][(i+1)*nchunk:])/fy ) )
 
         interpolated_sigma = np.concatenate(interpolated_sigma)
@@ -1436,12 +1455,15 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, outdir=".
     out["coadd_objects_id"] = target_data["coadd_objects_id"] 
     out["weight"] = 1./(interpolated_sigma * interpolated_sigma)
 
-    print "Saving output to %s/%s"%(outdir, outfile)
-    out_fits = fi.FITS("%s/%s"%(outdir, outfile), "rw")
-    out_fits.write(out)
-    out_fits[-1].write_key("EXTNAME", "i3s_weights_col")
-    out_fits.close()
-    print "Done"
+    if save:
+        print "Saving output to %s/%s"%(outdir, outfile)
+        out_fits = fi.FITS("%s/%s"%(outdir, outfile), "rw")
+        out_fits.write(out)
+        out_fits[-1].write_key("EXTNAME", "i3s_weights_col")
+        out_fits.close()
+        print "Done"
+
+    return out
 
 
 
@@ -1725,9 +1747,8 @@ def get_selection_to_match_3d(target, unweighted, nbins=40, xlim=(None,None), ex
 def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None), existing_weights=None):
     """Return a set of weights which will force one distribution to look like another."""
 
-    if xlim[0] is None:
-        dx=(unweighted.max()-unweighted.min())/nbins
-        xlim=( unweighted.min()-dx, unweighted.max()+dx)
+    dx=(unweighted.max()-unweighted.min())/nbins
+    xlim=( unweighted.min()-dx, unweighted.max()+dx)
 
     n_uw, bins_uw = np.histogram(unweighted, bins=nbins, normed=1, range=xlim, weights=existing_weights)
     n_tar, bins_tar = np.histogram(target, bins=nbins, normed=1, range=xlim)
@@ -2234,6 +2255,88 @@ def setup_rbf_interpolator(x, y, z, logx=True, logy=True, scale=[]):
 
     return Rbf(xfunction(x)/fx, yfunction(y)/fy, z, smooth=0, function="multiquadric")
         
+
+
+def dilute_shear(dilution_factor, data):
+
+    print "WARNING : Will dilute shear by factor of %3.3f"%dilution_factor
+
+    ntot = data.size
+    nscramble = int(dilution_factor*ntot)
+
+    source_indices = np.random.choice(nscramble, nscramble, replace=False)
+    target_indices = source_indices[np.random.choice(nscramble, nscramble, replace=False)]
+    data["true_g1"][source_indices] = data["true_g1"][source_indices][target_indices]
+    data["true_g2"][source_indices] = data["true_g2"][source_indices][target_indices]
+
+    return data
+
+def reassign_random_shears(mask, data):
+
+    ngal = data[mask].size
+    ntot = data.size
+
+    print "WARNING : Will randomise shears of %d galaxies (%3.3f percent of total)"%(ngal, ngal*100.0/ntot)
+
+    g1 = np.random.rand(ngal)*0.16-0.08
+    g2 = np.random.rand(ngal)*0.16-0.08
+
+    print np.mean(g1), np.mean(g2)
+
+    data["true_g1"][mask] = g1
+    data["true_g2"][mask] = g2
+
+    return data
+
+def get_heymans_number_density(catalogue, external_weights_column=None):
+    fac = 60.
+    area = np.unique(catalogue["tilename"]).size * 0.75 * 0.75 * fac * fac
+    num = catalogue["e1"].size
+    print "Total area : %3.3f deg^2"%(area/fac/fac)
+
+    if (external_weights_column==None) and ("weight" in catalogue.dtype.names):
+        wts = catalogue["weight"]
+    elif (external_weights_column!=None):
+        print "Using external weights column"
+        wts = external_weights_column
+    else:
+        wts = np.ones(num)
+        print "Warning : no weight column found. Will return raw number density."
+        return (wts.sum())**2 / (wts*wts).sum() / area
+
+    nraw = num/area
+    neff = (wts.sum())**2 / (wts*wts).sum() / area
+
+    return neff, nraw
+
+def get_chang_number_density(catalogue, external_weights_column=None, component=1):
+    fac = 60.
+    area = np.unique(catalogue["tilename"]).size * 0.75 * 0.75 * fac * fac
+    num = catalogue["e1"].size
+    print "Total area : %3.3f deg^2"%(area/fac/fac)
+
+    if (external_weights_column==None) and ("weight" in catalogue.dtype.names):
+        wts = catalogue["weight"]
+    elif (external_weights_column!=None):
+        print "Using external weights column"
+        wts = external_weights_column
+    else:
+        wts = np.ones(num)
+        print "Warning : no weight column found. Will return raw number density."
+        return (wts.sum())**2 / (wts*wts).sum() / area
+
+    e = catalogue["e%d"%component] #np.sqrt(catalogue["e1"]*catalogue["e1"] + catalogue["e2"]*catalogue["e2"])
+    sigma_sn2 = 0.5 * sum(wts*wts*e*e - wts) / sum(wts*wts - (1./wts/wts))
+    sigma_e2 = (1./wts) - sigma_sn2
+
+    nraw = num/area
+
+    nh = (wts.sum())**2 / (wts*wts).sum() / area
+    sn = (wts * wts * sigma_e2).sum() / (wts*wts*e*e).sum()
+
+    return nh * (1 - 2 * sn), nraw
+
+
 
 
 #

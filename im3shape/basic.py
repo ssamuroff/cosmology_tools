@@ -64,7 +64,7 @@ def get_fixed_gaussian_psf(options, psf_size, psf_e1, psf_e2, wcs=None):
     assert psf_stamp_array.shape == (psf_box, psf_box)
     return psf_sky, psf_stamp.array.copy()
 
-def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neighbour=[np.inf,np.inf], neighbour_size=2.0, neighbour_flux=0.13, neighbour_ellipticity=(0,0),psf_ellipticity=(0,0), psf_size=0.1, wcs=None, opt=None):
+def setup_simple(boxsize=32, model="disc", upsample=1, size=2, flux=None, shear=(0,0), neighbour=[np.inf,np.inf], neighbour_size=2.0, neighbour_flux=0.13, neighbour_ellipticity=(0,0),psf_ellipticity=(0,0), psf_size=0.1, wcs=None, opt=None):
     """Basic function to construct a test galaxy for exploring shape biases."""
 
     if opt is None:
@@ -75,7 +75,7 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
     psfsize=(boxsize+opt._struct.contents.padding)*opt._struct.contents.upsampling
     upsampling=opt._struct.contents.upsampling
 
-    large_boxsize = boxsize*6
+    large_boxsize = boxsize*7
 
     gal1 = get_model(size=size, type=model, g1=shear[0], g2=shear[1], flux=flux)
     pos1 = galsim.PositionD(0,0)
@@ -123,13 +123,13 @@ def setup_simple(boxsize=32, model="disc", size=2, flux=None, shear=(0,0), neigh
 
         im3+=im2.array
 
-    trim = (large_boxsize-boxsize)/2
+    trim = (large_boxsize-boxsize)/2.
     lim = galsim.BoundsI(xmin=trim, xmax=large_boxsize-trim-1, ymin=trim, ymax=large_boxsize-trim-1)
 
     del(wcs)
     gc.collect()
 
-    return im3[lim], psf_image
+    return im3[lim].array, psf_image
 
 
 def i3s(sub_image=[None], psfs=[None], coadd_objects_id=-9999, meds=None, return_model=False, return_all_i3s=False):
@@ -146,11 +146,13 @@ def i3s(sub_image=[None], psfs=[None], coadd_objects_id=-9999, meds=None, return
         result, best_img, images, weights = p3s.analyze_multiexposure( sub_image, psfs, [np.ones_like(sub_image[0])], trans, meds.options, ID=3000000, bands=bands)
 
         if return_model:
-            return result.get_params(), best_img
+            out=( result.get_params(), best_img)
         elif return_all_i3s:
-            return result, trans, result.get_params(), best_img
+            out = (result, trans, result.get_params(), best_img, images)
         else:
-            return result.get_params()
+            out = result.get_params()
+
+        return out
 
 def run(galaxy_image, psf_image, save=None, show=False, weights=[[None]], opt=None, ncols=1, col=1, return_cat=False, flat_background=0, noise=0, check=False):
     if opt is None:
@@ -538,6 +540,11 @@ def plot_alpha(filename, sim, show_mean=True, points=False, ncat=None):
         ax2.axvline(sim_distn.mean(), color="k", ls="--")
 
     plt.show()
+
+
+
+
+
 
 
 

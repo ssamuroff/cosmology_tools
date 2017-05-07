@@ -1,6 +1,6 @@
 import numpy as np
 import galsim
-import fitsio
+import fitsio 
 import glob, argparse, os
 import tools.shapes as s
 
@@ -57,8 +57,26 @@ def main():
     print "Will remove %s bias"%args.mode
     print "Resimulated tiles will be written to %s"%args.output
 
-    filelist = glob.glob("%s/DES*%s*fits*.fz"%(args.input,args.field))
-    print "found %d tiles"%len(filelist)
+    if ".fits" in args.input:
+        tilelist = np.unique(fitsio.FITS(args.input)["i3s"].read()["tilename"])
+        print "Found %d unique tiles to resimulate"%tilelist.size
+        print "will contruct file list"
+        filelist = []
+        path = "/share/des/disc8/cambridge/meds/"
+        for i, tile in enumerate(tilelist):
+            if i%size!=rank: continue
+            filename = glob.glob("%s/%s*.fz"%(path,tile))
+            if len(filename)==0:
+                comm = "scp sws@cori.nersc.gov:/global/cscratch1/sd/sws/v2sims/hoopoeA*/ohioA*/meds/spt-e-gold/r/%s*.fz %s"%(tile, path)
+                os.system(comm)
+
+                filename = glob.glob("%s/%s*.fz"%(path,tile))
+
+            filelist.append(filename[0])
+            print filename[0]
+    else:
+        filelist = glob.glob("%s/DES*%s*fits*.fz"%(args.input,args.field))
+        print "found %d tiles"%len(filelist)
 
     for i, f in enumerate(filelist):
     	if os.path.exists("%s/%s"%(args.output,os.path.basename(f))):

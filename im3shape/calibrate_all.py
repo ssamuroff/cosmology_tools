@@ -12,11 +12,12 @@ plt.switch_backend("agg")
 
 
 def main(args):
-	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "is_bulge", "tilename"]
+	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "radius", "coadd_objects_id", "mean_flux", "n_exposure", "stamp_size", "is_bulge", "tilename", "info_flag", "disc_flux", "bulge_flux"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	# Load the y1 data
-	if (args.calculate and config["output"]["histograms"]) or args.catalogue or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]:
+	#if (args.calculate and config["output"]["histograms"]) or args.catalogue or args.weights or config["resample"] or config["resample_perbin"] or config["reweight_perbin"]:
+	if True:
 		y1v2 = s.shapecat(res=config["i3s_dir"])
 		y1v2.load(truth=False, prune=True, cols=[im3shape_columns,truth_columns])
 		y1v2.res=y1v2.res[y1v2.res["info_flag"]==0]
@@ -35,6 +36,7 @@ def main(args):
 		hoopoe.res = hoopoe.res[sel]
 		hoopoe.truth = hoopoe.truth[sel]
 
+
 		apply_selection = False
 		if ("apply_selection" in config.keys()):
 			if config["apply_selection"]:
@@ -52,9 +54,10 @@ def main(args):
 
 		if not config["tophat_binning"]:
 			print "Using DES redshift bins"
-			bin_allocation = fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/hoopoe-v2-zbin_allocation.fits")[1].read()
-			bin_num, hoopoe.res = di.match_results(bin_allocation, hoopoe.res)
-			hoopoe.res = arr.add_col(hoopoe.res,"des_bin", bin_num["bin"])
+
+			#bin_allocation = fi.FITS("/share/des/disc6/samuroff/y1/hoopoe/hoopoe-v2-zbin_allocation.fits")[1].read()
+			#bin_num, hoopoe.res = di.match_results(bin_allocation, hoopoe.res)
+			#hoopoe.res = arr.add_col(hoopoe.res,"des_bin", bin_num["bin"])
 			exclude = (hoopoe.res["des_bin"]!=0 )
 			hoopoe.truth = hoopoe.truth[exclude]  
 			weights = weights[exclude]  
@@ -79,13 +82,24 @@ def main(args):
 		print "Final selection : %d galaxies"%hoopoe.res["coadd_objects_id"].size
 		print "Final selection : %d unique COSMOS IDs"%np.unique(hoopoe.truth["cosmos_ident"]).size
 
-		rbins=16
-		sbins=16
+	if args.calculate:
+
+		rbins= config["rbins"]
+		sbins= config["sbins"]
+		print "Using %d SNR bins , %d size bins"%(sbins,rbins)
+
+		if config["cosmos_halves"]:
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=config["output"]["tables"], half_tables=True, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins)
+			
 
 
-		diagnostics(y1v2, hoopoe, weights=weights, vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=config["output"]["histograms"], rbf=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+		diagnostics(y1v2, hoopoe, weights=weights, histograms=config["output"]["histograms"], alpha=False, table=config["output"]["tables"], vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+
+		diagnostics(y1v2, hoopoe, weights=weights, vssnr=config["output"]["snr"], vsredshift=config["output"]["redshift"], table=config["output"]["tables"], alpha=config["output"]["alpha"], histograms=False, rbf=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
 		diagnostics(y1v2, hoopoe, weights=weights, histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
-		diagnostics(y1v2, hoopoe, weights=weights, histograms=False, alpha=False, table=False, vsredshift=True, rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins, half_tables=config["random_halves"])
+		
 
 		if config["cosmos_halves"]:
 			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
@@ -95,9 +109,14 @@ def main(args):
 
 
 	if args.catalogue:
-		calibrate(y1v2)
+		rbins= config["rbins"]
+		sbins= config["sbins"]
+		print "Using %d SNR bins , %d size bins"%(sbins,rbins)
+		calibrate(y1v2, config=config, sbins=sbins, rbins=rbins)
 
 	if args.weights:
+		hoopoe = s.shapecat()
+		hoopoe.res = None
 		get_weights(y1v2, hoopoe, config=config)
 
 def mkdirs(config):
@@ -109,7 +128,7 @@ def mkdirs(config):
 	os.system("mkdir -p %s/nbc_data"%config["output_dir"] )
 
 
-def calibrate(data, method="rbf", smoothing=3, sbins=16, rbins=10):
+def calibrate(data, method="grid", config=None, smoothing=3, sbins=16, rbins=16):
 
 	rbf = (method.lower()=="rbf")
 
@@ -292,11 +311,13 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 		zbins=[ 0.2, 0.43, 0.63, 0.9, 1.3]
 		tophat = config["tophat_binning"]
 
+		import pdb ; pdb.set_trace()
+
 		if half_tables:
 			plt.close()
 			if "m" in names:
-				nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
-				nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
+				bias0=nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
+				bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
 				plt.ylabel("Multiplicative Bias $m$")
 				plt.legend(loc="center right")
 				plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
@@ -336,18 +357,57 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 		nbc_bulge.apply(split_half=0, scheme=scheme, names=names)
 		nbc.combine_bd(nbc_disc,nbc_bulge, split_half=0, names=["m"]*("m" in names) + ["c1", "c2"]*("a" in names) )
 
-		import pdb ; pdb.set_trace()
-
-
 
 		plt.close()
 		if "m" in names:
-			nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
-			nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
+			bias0 = nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
+			bias = nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=weights, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
 			plt.ylabel("Multiplicative Bias $m$")
 			plt.legend(loc="center right")
 			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
 			plt.close()
+
+			#Save the calibration data so we can reporoduce the paper plots quickly without rerunning all of the above
+			out = fi.FITS("hoopoe-v2-nbc-%s.fits"%scheme, "rw")
+			dat = np.empty(nbc.res.size, dtype=[("coadd_objects_id", int), ("m", float), ("c1", float), ("c2", float) ])
+			for name in ["coadd_objects_id", "m", "c1", "c2"]: dat[name]=nbc.res[name]
+			out.write(dat)
+			out[-1].write_key("EXTNAME", "nbc_col")
+			out[-1].write_key("METHOD", scheme)
+			out.close()
+
+
+			np.savetxt("m-vs-z-dvec-fullcat-uncalibrated-tophatbins.txt", np.array(bias0).T, header="z m1 em1 m2 em2 m em")
+			np.savetxt("shear_pipeline/plot_dump/datavecs/m-vs-z-dvec-fullcat-%s-nbc-tophatbins.txt"%scheme, np.array(bias).T, header="z m1 em1 m2 em2 m em")
+
+			rewt=di.get_weights_to_match(y1v2.res["mean_rgpp_rp"], hoopoe.res["mean_rgpp_rp"],nbins=25)
+
+			bmask = (hoopoe.res["is_bulge"]==1)
+			mask = (hoopoe.res["bulge_flux"]<10) & (hoopoe.res["disc_flux"]<10)
+
+			rewtb=di.get_weights_to_match(y1v2.res["bulge_flux"][y1v2.res["bulge_flux"]!=0], hoopoe.res["bulge_flux"][bmask & mask],nbins=25, xlim=(0.0,10.))
+			rewtd=di.get_weights_to_match(y1v2.res["disc_flux"][y1v2.res["bulge_flux"]==0], hoopoe.res["disc_flux"][np.invert(bmask) & mask],nbins=25, xlim=(0.0,10.))
+			wts_flux = np.zeros(hoopoe.res.size)
+			wts_flux[bmask & mask] = rewtb
+			wts_flux[np.invert(bmask) & mask] = rewtd
+			wts_flux = wts_flux[mask]
+
+
+			bias_size_wtd = nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=rewt, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
+			bias_flux_wtd = nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wts_flux, split_half=0, bins=zbins, tophat=tophat, separate_components=False)
+
+			out=np.vstack((bias_size_wtd[0], bias_size_wtd[-2], bias_size_wtd[-1], bias[-2], bias[-1]))
+			np.savetxt("m-vs-z_sizewtd-%s.txt"%scheme, out.T)
+
+			out=np.vstack((bias_flux_wtd[0], bias_flux_wtd[-2], bias_flux_wtd[-1], bias[-2], bias[-1]))
+			np.savetxt("m-vs-z_fluxwtd-%s.txt"%scheme, out.T)
+
+
+
+
+
+
+
 
 		if "a" in names:
 			nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=weights, split_half=0, bins=zbins, tophat=tophat)
@@ -358,10 +418,11 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			plt.close()
 
 
-def get_weights(y1v2, hoopoe, sbins=21, rbins=21, config=None):
+def get_weights(y1v2, hoopoe, sbins=9, rbins=9, config=None):
 	os.system("mkdir -p %s/weights/"%config["output_dir"])
-	weights_grid = di.im3shape_weights_grid(y1v2, bins_from_table=False, filename="%s/weights/im3shape_weights_grid.fits"%config["output_dir"], sbins=sbins, rbins=rbins, simdat=hoopoe.res, binning="fixed")
-	di.interpolate_weights_grid(weights_grid, y1v2, smoothing=1, outdir="%s/weights/"%config["output_dir"], outfile="im3shape_weights_column.fits")
+	import pdb ; pdb.set_trace()
+	weights_grid = di.im3shape_weights_grid(y1v2.res, bins_from_table=False, filename="%s/weights/im3shape_weights_grid_v5_extra.fits"%config["output_dir"], sbins=sbins, rbins=rbins, simdat=hoopoe.res, binning="log")
+	di.interpolate_weights_grid(weights_grid, y1v2.res, smoothing=2.5, outdir="%s/weights/"%config["output_dir"], outfile="hoopoe_weights_column-v4_extra.fits")
 
 
 
@@ -384,8 +445,8 @@ def bin_edges_from_table(table_dir, type="disc"):
 	return rgpp_edges, snr_edges
 
 def set_defaults(config):
-	names=["resample", "resample_perbin", "reweight", "reweight_perbin", "tophat_binning"]
-	defaults = [False,False,False,False,False]
+	names=["resample", "resample_perbin", "reweight", "reweight_perbin", "tophat_binning", "sbins", "rbins"]
+	defaults = [False,False,False,False,False, 16, 16]
 	for (name,default) in zip(names,defaults):
 		if name not in config.keys(): config[name] = default
 

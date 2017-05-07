@@ -77,6 +77,57 @@ class shapecat(i3s_plots):
 				except:
 					print "Once results catalogue found (no splits)"
 
+	def get_simple_m(self, subtract_intrinsic=True):
+		modifier = [0,0]
+		if subtract_intrinsic:
+			modifier[0] = self.truth["intrinsic_e1"]
+			modifier[1] = self.truth["intrinsic_e2"]
+		m1 = (self.res["e1"] - modifier[0]) / self.truth["true_g1"] -1 
+		m2 = (self.res["e2"] - modifier[1]) / self.truth["true_g2"] -1 
+		return (m1+m2)/2
+
+	def get_correlation(self, names=["e1", "e1"], slop=0.1, tbounds=[2,300], tbins=20):
+		"""Get a 2pt function for this dataset.
+		   names : quantities to correlate
+		   slop : bin slop
+		   tbounds : min/max angular scale, in arcmin
+		   tbins : number of angular bins 
+		"""
+		if (names[0]=="m"):
+			q1 = self.get_simple_m(subtract_intrinsic=True)
+		else:
+			q1 = self.res[names[0]]
+		if (names[1]=="m"):
+			q2 = self.get_simple_m(subtract_intrinsic=True)
+		else:
+			q2 = self.res[names[1]]
+
+		import treecorr
+		plt.style.use("y1a1")
+		wts =fi.FITS("/share/des/disc8/cambridge/cal/no_box_cut/weights//hoopoe_weights_column-v4_extra.fits")[-1].read()
+
+		print "Setting up catalogue"
+		cat1 = treecorr.Catalog(k=q1, wt=wts["weight"], ra=self.res["ra"], dec=self.res["dec"], ra_units="deg", dec_units="deg")
+		cat2 = treecorr.Catalog(k=q2, wt=wts["weight"], ra=self.res["ra"], dec=self.res["dec"], ra_units="deg", dec_units="deg")
+
+		print "Creating tree"
+		twopt = treecorr.KKCorrelation(nbins=tbins, min_sep=tbounds[0], max_sep=tbounds[1], sep_units='arcmin', bin_slop=slop)
+
+		print "Running treecorr"
+		twopt.process(cat1,cat2)
+
+		return np.exp(twopt.logr), twopt.xi, np.sqrt(twopt.varxi)
+
+
+	def get_number_density(self, method="chang"):
+		if method=="chang":
+			neff,nraw = di.get_chang_number_density(self.res)
+		if method=="heymans":
+			neff,nraw = di.get_heymans_number_density(self.res)
+
+		print "neff = %3.3f; nraw = %3.3f"%(neff,nraw)
+		return neff
+
 
 	def do_rbf_interpolation(self, bias, cat):
 
@@ -1363,7 +1414,7 @@ class meds_wrapper(i3meds.I3MEDS):
 
 	
 		if return_vals:
-			return result.get_params(), image, best_img, np.hstack(tuple(wt)), inputs.all('transform')
+			return result.get_params(), image, best_img, np.hstack(tuple(wt)), inputs.all('transform'), result
 		else:
 			return result, result.get_params()
 

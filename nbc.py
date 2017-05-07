@@ -284,12 +284,12 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					slow,shigh = 10**snr_edges[j], 10**snr_edges[j+1]
 					rlow,rhigh = 10**rgp_edges[i], 10**rgp_edges[i+1]
 					select = (data['snr'] > 10**snr_edges[j]) & (data['snr'] < 10**snr_edges[j+1]) & (data['mean_rgpp_rp'] > 10**rgp_edges[i]) & (data['mean_rgpp_rp'] < 10**rgp_edges[i+1])
-					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] )
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges[j], 10**snr_edges[j+1], 10**rgp_edges[i], 10**rgp_edges[i+1] ), 
 				else:
 					slow,shigh = 10**snr_edges_low[j], 10**snr_edges_high[j]
 					rlow,rhigh = 10**binning[0][i][0], 10**binning[0][i][1]
 					select = (data['snr'] > 10**snr_edges_low[j]) & (data['snr'] < 10**snr_edges_high[j]) & (data['mean_rgpp_rp'] > 10**binning[0][i][0]) & (data['mean_rgpp_rp'] < 10**binning[0][i][1])
-					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges_low[j], 10**snr_edges_high[j], 10**binning[0][i][0], 10**binning[0][i][1] )
+					print "bin %d %d  snr = [%2.3f-%2.3f] rgpp/rp = [%2.3f-%2.3f]"%(j, i, 10**snr_edges_low[j], 10**snr_edges_high[j], 10**binning[0][i][0], 10**binning[0][i][1] ),
 				ngal = np.nonzero(select.astype(int))[0].size
 
 				if resample_per_bin:
@@ -318,7 +318,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					print "Warning: no galaxies in bin %d, %d "%(i,j)
 					empty=True
 
-
+			
 	
 				vrgp_min = rgp_edges[i]
 				vsnr_min = snr_edges[j]
@@ -332,6 +332,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 				
 				b = di.get_bias(tr[select][subsample], data[select][subsample], weights=bin_wts, apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				print "m = %3.3f"%b["m"][0]
 				a = di.get_alpha(data[select][subsample], data[select][subsample], weights=bin_wts, nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 				measurement_weight = di.compute_im3shape_weight(data["e1"][select][subsample])
 

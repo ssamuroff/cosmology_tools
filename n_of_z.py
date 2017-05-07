@@ -642,7 +642,7 @@ class nofz:
 			plt.plot(self.z, n, lw=2.5, color=colors[i], alpha=0.5, label=labels2[i])
 
 		for i in [0,1,2,3]:
-			plt.hist(self.true_z[self.bin_allocation==i+1], lw=2.5, color=colors[i], normed=1, bins=60, histtype="step" , ls="dashed", label=labels[i] )
+			plt.hist(self.true_z[self.bin_allocation==i+1], lw=2.5, color=colors[i], normed=1, bins=np.linspace(0,1.8,48), histtype="step" , ls="dashed", label=labels[i] )
 
 		plt.xlabel("Redshift $z$")
 		plt.xlim(0,1.8)
