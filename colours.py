@@ -1,5 +1,7 @@
 import numpy as np
 import fitsio as fi
+import pylab as plt
+plt.switch_backend("pdf")
 # All of these catalogues should be pre-matched 
 
 #im3shape
@@ -106,15 +108,17 @@ class y1shear:
 			print "'bpz_template' for T_B"
 			print "'im3shape_bord' for im3shape bulge or disc fit"
 
-	def show_colourspace_division(self,mask, colours=["g","z"], coloured_by=[None,"number"], cmap="BuPu"):
-		if (mask==None):
+	def show_colourspace_division(self,mask, colours=["g","z"], colour_by=[None,"number",50], cmap="BuPu"):
+		if len(mask)==0:
+			print "Warning -- no masking (this may not be a good idea)"
 			mask = np.ones(self.gold.size).astype(bool)
 		# Normalise the fluxes to the mean
 		f0 = self.gold["mof_flux_r"][mask].mean()
 
-		colour = self.gold["mof_flux_%s"%colours[0]][select]/self.gold["mof_flux_%s"%colours[1]][select]
+		colour = self.gold["mof_flux_%s"%colours[0]][mask]/self.gold["mof_flux_%s"%colours[1]][mask]
 
 		#Count the galaxies in grid cells
+		print "Counting..."
 		countsf,xbinsf,ybinsf = np.histogram2d(self.gold["mof_flux_r"][mask]/f0,colour,bins=[np.linspace(0,0.4,500),np.linspace(0,0.7,500) ])
 		yf=(ybinsf[:-1]+ybinsf[1:])/2
 		xf=(xbinsf[:-1]+xbinsf[1:])/2
@@ -125,16 +129,21 @@ class y1shear:
 		x=(xbins[:-1]+xbins[1:])/2
 		xx,yy=np.meshgrid(x,y)
 
-		# Render the histograms as contours
+		# Plot out whatever quantity is needed as a colour map in this space
+		print "Plotting colour map..."
 		plt.close()
 		if (colour_by[1]=="number"):
-			C = contourf(xxf,yyf,countsf, cmap=cmap)
+			C = plt.contourf(xxf,yyf,countsf, cmap=cmap)
 		else:
-			prin "Colouring by %s"%self,colour_by[1]
+			print " ---- Colouring by %s"%colour_by[1]
 			cat = getattr(self,colour_by[0])
-			plt.scatter(self.gold["mof_flux_r"][mask][::50]/f0, colour[::50], c=cat[colour_by[1]][::50], edgecolors="none")
-			
-		C=contour(xx,yy,counts, 8, colors='black', linewidth=.5)
+			thin = colour_by[2]
+			plt.scatter(self.gold["mof_flux_r"][mask][::thin]/f0, colour[::thin], c=cat[colour_by[1]][mask][::thin], edgecolors="none", cmap=cmap)
+			plt.colorbar(label=colour_by[1], fontsize=22)
+
+		# Render the histograms as contours
+		print "Making histograms..."
+		C = plt.contour(xx,yy,counts, 8, colors='black', linewidth=.5)
 		plt.xlabel("$r-$band Flux $f_r$")
 		plt.ylabel("Photometric Colour $f_g/f_z$")
 		plt.xlim(xbins.min(),xbins.max())
@@ -144,4 +153,5 @@ class y1shear:
 		lin = -7*x+0.7
 		plt.plot(x,lin, color="forestgreen", ls="--", lw=2.5)
 
-		plt.savefig("/global/cscratch1/sd/sws/mof_colour_space_division.pdf") 
+		print "Saving..."
+		plt.savefig("/global/cscratch1/sd/sws/mof_colour_space_division-colouredby_%s.pdf"%colour_by[1]) 
