@@ -31,28 +31,28 @@ class y1shear:
 		#metacal
 		if metacal:
 			print "Loading metacal catalogue"
-			self.mcal = fi.FITS("/global/cscratch1/sd/sws/y1/shapesmcal-y1a1-combined-riz-blind-v4-matched.fits")[-1].read()
+			self.mcal = fi.FITS("/global/cscratch1/sd/sws/y1/shapes/mcal-y1a1-combined-riz-blind-v4-matched.fits")[-1].read()
 			self.mselect = (self.mcal["flags_select"]==0)
 
 		#gold
 		if gold:
 			print "loading gold catalogue"
-			self.gold = fi.FITS("/global/cscratch1/sd/sws/y1/shapesy1a1-gold-mof-badregion.fits")[-1].read()
+			self.gold = fi.FITS("/global/cscratch1/sd/sws/y1/shapes/y1a1-gold-mof-badregion.fits")[-1].read()
 		# photoz
 		if bpz:
 			print "loading photo-z catalogue"
 			self.bpz = fi.FITS("/global/cscratch1/sd/tvarga/bpz_matching/y1a1-gold-mof-badregion_BPZ.fits")[-1].read()
 
 	def get_from_cat(self,cat):
-		self.i3s = cat.i3s
-		self.iselect = cat.iselect
 
-		self.mcal = cat.mcal 
-		self.mselect = cat.mselect
-
-		self.gold = cat.gold
-
-		self.bpz = cat.bpz
+		attrs = dir(cat)
+		for attr in attrs:
+			# Copy all attributes of cat which are not functions
+			is_function = hasattr( getattr(cat,attr), "__call__")
+			if not is_function:
+				print "Copying attribute %s"%attr
+				val = getattr(cat, attr)
+				setattr(self, attr, val)
 
 	def get_fofz(self, split="colour", mask=[], weights=[] ):
 		if len(mask)==0:
@@ -106,7 +106,7 @@ class y1shear:
 			print "'bpz_template' for T_B"
 			print "'im3shape_bord' for im3shape bulge or disc fit"
 
-	def show_colourspace_division(self,mask,colours=["g","z"]):
+	def show_colourspace_division(self,mask, colours=["g","z"], coloured_by=[None,"number"], cmap="BuPu"):
 		if (mask==None):
 			mask = np.ones(self.gold.size).astype(bool)
 		# Normalise the fluxes to the mean
@@ -127,7 +127,13 @@ class y1shear:
 
 		# Render the histograms as contours
 		plt.close()
-		C=contourf(xxf,yyf,countsf, cmap="BuPu")
+		if (colour_by[1]=="number"):
+			C = contourf(xxf,yyf,countsf, cmap=cmap)
+		else:
+			prin "Colouring by %s"%self,colour_by[1]
+			cat = getattr(self,colour_by[0])
+			plt.scatter(self.gold["mof_flux_r"][mask][::50]/f0, colour[::50], c=cat[colour_by[1]][::50], edgecolors="none")
+			
 		C=contour(xx,yy,counts, 8, colors='black', linewidth=.5)
 		plt.xlabel("$r-$band Flux $f_r$")
 		plt.ylabel("Photometric Colour $f_g/f_z$")
