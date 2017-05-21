@@ -1,0 +1,29 @@
+# Config file for packaging 2pt shear datavectors
+
+nofz: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/nofz/nofz-mcal-early.fits
+covariance: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/covariance/cov-mcal-all.fits
+2pt:
+  xip: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/2pt/xip-mcal-early.txt
+  xim: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/2pt/xim-mcal-early.txt
+
+data_type : real
+
+output : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/dvec-mcal-early.fits
+
+
+modifications:
+  nofz:
+    bias : False
+    bin1 : [shift, 0]
+    bin2 : [shift, 0]
+    bin3 : [shift, 0]
+    bin4 : [shift, 0]
+    truncate : None
+  calibration_bias:
+    bias : False
+    bin1 : 0
+    bin2 : 0
+    bin3 : 0
+    bin4 : 0
+
+

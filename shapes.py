@@ -896,6 +896,45 @@ class meds_wrapper(i3meds.I3MEDS):
 			print "Beware: FITS file can be overwritten in update mode."
 			self._fits = fitsio.FITS(filename, "rw")
 
+	def moments(self, iobj=-9999, iexp=0, cid=-9999, weights="tophat", wparams=[], itype="galaxy"):
+			print "Will calculate the second momenents of image"
+
+			import tools.moments as moments
+
+			if iobj==-9999:
+				iobj = np.argwhere(self._fits["object_data"].read()["id"]==cid)[0,0]
+				print cid, iobj
+
+			inputs = self.get_im3shape_inputs(iobj)
+			if itype=="galaxy":
+				image = inputs.all("image")
+			elif itype=="psf":
+				image = inputs.all("psf")
+			if itype=="test":
+				import tools.im3shape.basic as tm
+				gal, psf = tm.setup_simple(boxsize=32,shear=(0.02,0.0), psf_ellipticity=(0,0), psf_size=0.5,  size=1.5, neighbour=[np.inf,np.inf], opt=self.options)
+				image = [gal]
+
+			calculator = moments.calculator(image[iexp], weight=weights, wparams=wparams)
+			calculator.upsample()
+			calculator.find_centroid()
+			Q = calculator.find_moments()
+
+			e1 = (Q[0]-Q[1])/(Q[0]+Q[1]+2*np.sqrt(Q[0]*Q[1]-Q[2]*Q[2]) )
+			e2 = 2*Q[2]/(Q[0]+Q[1]+2*np.sqrt(Q[0]*Q[1]-Q[2]*Q[2]) )
+			
+			return Q, [e1,e2]
+
+
+	def get_from_existing(self,meds):
+			attrs = dir(meds)
+			for attr in attrs:
+				is_function = hasattr( getattr(meds,attr), "__call__")
+				if not is_function:
+					print "Copying attribute %s"%attr
+					val = getattr(meds, attr)
+					setattr(self, attr, val)
+
 	def setup_dummy_im3shape_options(self):
 		self.options = dummy_im3shape_options()
 		
@@ -919,6 +958,7 @@ class meds_wrapper(i3meds.I3MEDS):
 		elif type in [hdr.read_header()["EXTNAME"] for hdr in self._fits[1:]]:
 			return type
 		else: raise ValueError("bad cutout type '%s'" % type)
+
 
 	def get_zpmag_scaling(self, iobj, iexp):
 
@@ -1417,6 +1457,13 @@ class meds_wrapper(i3meds.I3MEDS):
 			return result.get_params(), image, best_img, np.hstack(tuple(wt)), inputs.all('transform'), result
 		else:
 			return result, result.get_params()
+
+
+
+
+
+
+
 
 
 
