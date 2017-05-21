@@ -1,0 +1,29 @@
+# Config file for packaging 2pt shear datavectors
+
+nofz: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/nofz/nofz-mcal.fits
+covariance: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/covariance/cov-mcal-all.fits
+2pt:
+  xip: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/2pt/mcal-blended
+  xim: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/2pt/
+
+data_type : mock
+
+output : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/dvec-mcal-blended-zbias.fits
+
+
+modifications:
+  nofz:
+    bias : False
+    bin1 : [shift, 0]
+    bin2 : [shift, 0]
+    bin3 : [shift, 0]
+    bin4 : [shift, 0]
+    truncate : None
+  calibration_bias:
+    bias : False
+    bin1 : 0
+    bin2 : 0
+    bin3 : 0
+    bin4 : 0
+
+

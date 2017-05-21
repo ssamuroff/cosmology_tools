@@ -102,11 +102,14 @@ class chain(samp.sampler):
 
 	def thin(self, factor):
 		print "Thinning chain by a factor of %2.3f"%factor
-		num  = len(self.samples[range[0]:range[1]])/factor
-		sel = np.arange(0,len(self.samples), len(self.samples)/num).astype(int)
+		#num  = len(self.samples[range[0]:range[1]])/factor
+		#sel = np.arange(0,len(self.samples), len(self.samples)/num).astype(int)
 
-		self.samples = self.samples[sel]
-		self.post = self.post[sel]
+		self.samples = self.samples[::int(factor)]
+		self.post = self.post[::int(factor)]
+
+		if hasattr(self, "mask"):
+			self.mask = self.mask[::factor]
 
 	def change_deltaz_prior(self, newprior, oldprior):
 		b1 = self.samples["shear--bias_1"]

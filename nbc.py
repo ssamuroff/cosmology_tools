@@ -39,7 +39,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 	def get_split_data(self, cat, weights=None, method="random"):
 		self.res = cat.res
 		# Fix this so the random split for a given input is always the same
-		np.random.seed(9000)
+		np.random.seed(9000*4)
 		if method=="random":
 			print "Subdividing catalogue by coadd objects ID"
 			sel = np.random.randint(0,2,cat.res.size).astype(bool)

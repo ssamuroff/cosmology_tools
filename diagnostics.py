@@ -2086,12 +2086,12 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, apply_ca
         import pylab as plt
         fig, ax1 = plt.subplots()
         plt.subplots_adjust(wspace=0, hspace=0, top=0.85, bottom=0.06)
-        ax1.errorbar(x,y11, variance_y11, fmt="o", color="purple")
-        ax1.errorbar(x,y22, variance_y22, fmt="D", color="steelblue")
-        ax1.plot(x,x*m11+c11, lw=2.5, color="purple", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
-        ax1.plot(x,x*m22+c22, lw=2.5, color="steelblue", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
-        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$")
-        ax1.set_ylabel("Ellipticity $e_{i}$")
+        ax1.errorbar(x,y11, variance_y11, fmt="o", color="blue")
+        ax1.errorbar(x,y22, variance_y22, fmt="D", color="darkred")
+        ax1.plot(x,x*m11+c11, lw=2.5, color="blue", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
+        ax1.plot(x,x*m22+c22, lw=2.5, color="darkred", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
+        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$", fontsize=22)
+        ax1.set_ylabel("Ellipticity $e_{i}$", fontsize=22)
         ax1.set_xlim(xlim[0],xlim[1])
         ax1.set_ylim(-0.005,0.005)
         ax1.axhline(0,color="k", lw=2.)
@@ -2099,11 +2099,12 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, apply_ca
         ax2 = ax1.twinx()
         ax2.set_xlim(xlim[0], xlim[1])
         plt.setp(ax2.get_yticklabels(), visible=False)
-        ax2.hist(g1, alpha=0.1, bins=45, color="purple")
-        ax2.hist(g2, alpha=0.1, bins=45, color="steelblue")
+        ax2.hist(g1, alpha=0.2, bins=50, color="blue", histtype="stepfilled", normed=1)
+        ax2.hist(g2, alpha=0.2, bins=50, color="darkred", histtype="stepfilled", normed=1)
         ax1.legend(loc="upper left")
 
-        plt.tight_layout()
+        #plt.tight_layout()
+        plt.subplots_adjust(top=0.95, bottom=0.12, left=0.13)
 
 
     biases_dict = {"alpha":(m,error_m), "c":(c,error_c), "alpha11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "alpha22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "alpha12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "alpha21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
@@ -2334,6 +2335,28 @@ def get_chang_number_density(catalogue, external_weights_column=None, component=
     sn = (wts * wts * sigma_e2).sum() / (wts*wts*e*e).sum()
 
     return nh * (1 - 2 * sn), nraw
+
+
+def reduce(x, y, nbins=6, bin_type="equal", xlim=(-np.inf,np.inf), ylim=(-np.inf,np.inf)):
+    if (bin_type=="equal"):
+        bins = find_bin_edges(x[(x<xlim[1]) & (x>xlim[0])], nbins)
+    elif (bin_type=="linear"):
+        bins=np.linspace(x[(x<xlim[1]) & (x>xlim[0])].min(), x[(x<xlim[1]) & (x>xlim[0])].max(), nbins+1)
+    elif (bin_type=="log"):
+        bins=np.logspace(x[(x<xlim[1]) & (x>xlim[0])].min(), x[(x<xlim[1]) & (x>xlim[0])].max(), nbins+1)
+
+    xvec=[]
+    yvec=[]
+
+    for i, (lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+        print i, lower, upper
+        select = (x<upper) & (x>lower)
+        xvec.append([x[select].mean(), x[select].std(), x[select].size ])
+        ysel = (y>ylim[0]) & (y<ylim[1])
+        yvec.append([y[select & ysel].mean(), y[select & ysel].std(), y[select & ysel].size ])
+
+    return np.array(xvec), np.array(yvec)
+
 
 
 

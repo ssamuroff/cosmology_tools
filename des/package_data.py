@@ -302,4 +302,3 @@ nofz.modify(config["modifications"]["nofz"])
 cov = y1cov(config["covariance"])
 
 export(config["output"], theta, xi, nofz, cov)
-

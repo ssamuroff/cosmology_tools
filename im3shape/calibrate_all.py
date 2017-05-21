@@ -88,10 +88,10 @@ def main(args):
 		sbins= config["sbins"]
 		print "Using %d SNR bins , %d size bins"%(sbins,rbins)
 
-		if config["cosmos_halves"]:
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=config["output"]["tables"], half_tables=True, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins)
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
-			diagnostics(y1v2, hoopoe, split_method="cosmos", weights=weights, histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins)
+		if config["random_halves"]:
+			diagnostics(y1v2, hoopoe, split_method="random", weights=weights, histograms=False, alpha=False, table=config["output"]["tables"], half_tables=True, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=True, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="random", weights=weights, histograms=False, alpha=False, table=False, half_tables=config["output"]["tables"], vsredshift=config["output"]["redshift"], rbf=True, config=config, sbins=sbins, rbins=rbins)
+			diagnostics(y1v2, hoopoe, split_method="random", weights=weights, histograms=False, alpha=False, table=False, half_tables=False, vsredshift=config["output"]["redshift"], rbf=False, simple_grid=False, config=config, sbins=sbins, rbins=rbins)
 			
 
 
@@ -249,7 +249,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			nbc_disc.compute(split_half=1, fit="disc", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], split_method, sbins,rbins))
 			nbc_bulge.compute(split_half=1, fit="bulge", weights=wt1, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], split_method, sbins,rbins))
 
-		if table:
+		if config["full_catalogue"]:
 			nbc_disc.compute(split_half=0, fit="disc", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_disc, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output_dir"], sbins, rbins))
 			nbc_bulge.compute(split_half=0, fit="bulge", weights=weights, reweight_per_bin=config["reweight_perbin"], resample_per_bin=config["resample_perbin"], refdata=y1v2, binning=edges_bulge, rbins=rbins, sbins=sbins, rlim=(1.13,3.0), slim=(12,200), table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-bulge-%dsbins-%drbins.fits"%(config["output_dir"], sbins,rbins))
 		
@@ -317,7 +317,7 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			plt.close()
 			if "m" in names:
 				bias0=nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=3, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
-				bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=3, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
+				bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=4, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
 				plt.ylabel("Multiplicative Bias $m$")
 				plt.legend(loc="center right")
 				plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output_dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
@@ -445,12 +445,13 @@ def bin_edges_from_table(table_dir, type="disc"):
 	return rgpp_edges, snr_edges
 
 def set_defaults(config):
-	names=["resample", "resample_perbin", "reweight", "reweight_perbin", "tophat_binning", "sbins", "rbins"]
-	defaults = [False,False,False,False,False, 16, 16]
+	names=["resample", "resample_perbin", "reweight", "reweight_perbin", "tophat_binning", "sbins", "rbins", "full_catalogue"]
+	defaults = [False,False,False,False,False, 16, 16, True]
 	for (name,default) in zip(names,defaults):
 		if name not in config.keys(): config[name] = default
 
 	return config
+
 
 
 if __name__ == "__main__":

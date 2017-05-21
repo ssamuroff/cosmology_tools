@@ -912,7 +912,7 @@ class meds_wrapper(i3meds.I3MEDS):
 				image = inputs.all("psf")
 			if itype=="test":
 				import tools.im3shape.basic as tm
-				gal, psf = tm.setup_simple(boxsize=32,shear=(0.0,0.0), psf_ellipticity=(0,0), psf_size=0.5,  size=1.5, neighbour=[np.inf,np.inf], opt=self.options)
+				gal, psf = tm.setup_simple(boxsize=32,shear=(0.02,0.0), psf_ellipticity=(0,0), psf_size=0.5,  size=1.5, neighbour=[np.inf,np.inf], opt=self.options)
 				image = [gal]
 
 			calculator = moments.calculator(image[iexp], weight=weights, wparams=wparams)
