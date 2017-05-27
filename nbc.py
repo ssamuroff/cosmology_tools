@@ -48,6 +48,8 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 			cosmos_ids = np.unique(cat.truth["cosmos_ident"])
 			selected_ids = np.random.choice(cosmos_ids, cosmos_ids.size/2, replace=False)
 			sel = np.in1d(cat.truth["cosmos_ident"], selected_ids)
+		elif method=="none":
+			sel = np.ones(cat.res.size).astype(bool)
 
 		self.res1 = self.res[sel]
 		self.res2 = self.res[np.invert(sel)]
@@ -176,7 +178,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 			print "Finished calibration"
 
-	def compute(self, split_half=0, redshift_bin=None, weights=None, fit="bord", reweight_per_bin=False, resample_per_bin=False, apply_calibration=False, refdata=None, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
+	def compute(self, split_half=0, redshift_bin=None, weights=None, fit="bord", use_catalogue_weights=False, reweight_per_bin=False, resample_per_bin=False, apply_calibration=False, refdata=None, table_name=None, ellipticity_name="e", sbins=10, rbins=5, binning="equal_number",rlim=(1,3), slim=(10,1000)):
 		print 'measuring bias'
 
 
@@ -331,9 +333,9 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 					continue
 
 				
-				b = di.get_bias(tr[select][subsample], data[select][subsample], weights=bin_wts, apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
+				b = di.get_bias(tr[select][subsample], data[select][subsample], weights=bin_wts, use_catalogue_weights=use_catalogue_weights, apply_calibration=apply_calibration, nbins=10, ellipticity_name=ellipticity_name, binning="equal_number", names=["m","c","m11","m22","c11","c22"], silent=True)
 				print "m = %3.3f"%b["m"][0]
-				a = di.get_alpha(data[select][subsample], data[select][subsample], weights=bin_wts, nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
+				a = di.get_alpha(data[select][subsample], data[select][subsample], weights=bin_wts, use_catalogue_weights=use_catalogue_weights, nbins=10, xlim=(-0.03, 0.02), binning="equal_number", names=["alpha", "alpha11", "alpha22"], silent=True, use_weights=False)
 				measurement_weight = di.compute_im3shape_weight(data["e1"][select][subsample])
 
 				list_bias.append([j, i, ngal, 10**vrgp_min, 10**vrgp_max, 10**vsnr_min, 10**vsnr_max, measurement_weight, kl, b["m"][0], b["m"][1], b["c"][0], b["c"][1], b["m11"][0], b["m11"][1], b["m22"][0], b["m22"][1], b["c11"][0], b["c11"][1], b["c22"][0], b["c22"][1], a["alpha"][0], a["alpha"][1], a["alpha11"][0], a["alpha11"][1], a["alpha22"][0], a["alpha22"][1] ])
