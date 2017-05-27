@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=100:00:00
+#PBS -N calibrate_no_blending
+#PBS -o calibrate_no_blending.log
+#PBS -j oe
+
+cd /home/samuroff/
+python -m tools.im3shape.calibrate_all --calculate -c /home/samuroff/calibration_config_neighbour_free.yaml
+
+python -m tools.im3shape.calibrate_all --catalogue -c /home/samuroff/calibration_config_neighbour_free.yaml

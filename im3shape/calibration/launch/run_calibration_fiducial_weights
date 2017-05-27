@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=100:00:00
+#PBS -N y1i3s-internal_wts
+#PBS -o y1i3s-internal_wt-.log
+#PBS -j oe
+
+DIRNAME=/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config
+cd /home/samuroff/
+python -m tools.im3shape.calibration.calibrate_y1 --calculate -c $DIRNAME/fiducial-y1.yaml
+
+#python -m tools.im3shape.calibrate_all --catalogue -c /home/samuroff/calibration_config_no_box_cut.yaml
+
+#python -m tools.im3shape.calibrate_all --weights -c /home/samuroff/calibration_config_no_box_cut.yaml 

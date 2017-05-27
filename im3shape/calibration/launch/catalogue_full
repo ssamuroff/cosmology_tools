@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=100:00:00
+#PBS -N cat-y1main
+#PBS -o /home/samuroff/calibration/logs/cat-y1main.log
+#PBS -j oe
+
+cd /home/samuroff/
+python -m tools.im3shape.calibrate_all --catalogue -c /home/samuroff/calibration/config/calibration_config_no_box_cut.yaml
