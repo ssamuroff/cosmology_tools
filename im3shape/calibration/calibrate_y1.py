@@ -98,6 +98,34 @@ def setup(load_sim, load_data, config, verbose=True):
 
 	return hoopoe, weights, y1v2
 
+def allocate_tasks(nthread, outputs):
+	"""Returns a dictionary with a list of task names for each thread"""
+	task_allocation = {}
+	for i in xrange(nthread):
+		task_allocation[i]=[]
+
+	tasks_to_do=[]
+	if "tables" in outputs:
+		tasks_to_do.append("bulge_table")
+		tasks_to_do.append("disc_table")
+	if "half_tables" in outputs:
+		tasks_to_do.append("bulge_htable")
+		tasks_to_do.append("disc_htable")
+
+	njobs = len(tasks_to_do)
+	print "Distributing %d task(s) amongst %d MPI thread(s)"%(njobs, nthread)
+
+	i = 0
+	for task in tasks_to_do:
+		if (i>nthread):
+			i = 0
+		task_allocation[i].append(task)
+		i+=1
+	print task_allocation
+
+	return task_allocation
+
+
 
 def choose_inputs(args):
 	sim, data = False, False
@@ -126,10 +154,11 @@ def choose_outputs(config):
 	print outputs
 	return outputs
 
-def main(args):
+def main(args, nthread=1, rank=0):
 
 	load_sim, load_data = choose_inputs(args)
 	outputs = choose_outputs(config)
+	task_allocation = allocate_tasks(nthread, outputs)
 	hoopoe, weights, y1v2 = setup(load_sim, load_data, config)
 	
 	if args.calculate:
@@ -145,14 +174,17 @@ def main(args):
 			method=config["calibration"]["method"],
 			config=config,
 			sbins=sbins,
-			rbins=rbins)
+			rbins=rbins,
+			nthread=nthread,
+			rank=rank,
+			task_allocation=task_allocation)
 		
 
 	if args.catalogue:
 		rbins= config["calibration"]["rbins"]
 		sbins= config["calibration"]["sbins"]
 		print "Using %d SNR bins , %d size bins"%(sbins,rbins)
-		calibrate(y1v2, config=config, sbins=sbins, rbins=rbins)
+		calibrate(y1v2, config=config, sbins=sbins, rbins=rbins, nthread=nthread, rank=rank)
 
 	if args.weights:
 		hoopoe = s.shapecat()
@@ -227,7 +259,7 @@ def calibrate(data, method="grid", config=None, smoothing=3, sbins=16, rbins=16)
 	nbc.export(filename="%s/%s"%(config["output"]["dir"],config["output_catalogue"]))
 
 
-def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], method="grid", smoothing=3, config=None, names=["m", "a"], sbins=16, rbins=16):
+def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], method="grid", smoothing=3, config=None, names=["m", "a"], sbins=16, rbins=16, nthread=1, rank=0, task_allocation={0 : ["disc_table", "bulge_table", "disc_htable", "bulge_htable"]} ):
 
 	if not os.path.exists(config["output"]["dir"]):
 		print "Warning - output plots directory does not exist"
@@ -265,7 +297,8 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 	edges_disc = "equal_number"
 
 	if ("half_tables" in outputs):
-		nbc_disc.compute(split_half=1, 
+		if ("disc_htable" in task_allocation[rank]):
+			nbc_disc.compute(split_half=1, 
 			    fit="disc", weights=wt1,
 			    use_catalogue_weights=config["selection"]["weights"], 
 				reweight_per_bin=False, resample_per_bin=False,
@@ -273,7 +306,8 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 				rbins=rbins, sbins=sbins, 
 				rlim=(1.13,3.0), slim=(12,200),
 				table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-disc-%dsbins-%drbins.fits"%(config["output"]["dir"], split_method, sbins,rbins))
-		nbc_bulge.compute(split_half=1, 
+		if ("bulge_htable" in task_allocation[rank]):
+			nbc_bulge.compute(split_half=1, 
 			    fit="bulge", weights=wt1,
 			    use_catalogue_weights=config["selection"]["weights"],
 				reweight_per_bin=False, resample_per_bin=False,
@@ -283,7 +317,8 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 				table_name="%s/nbc_data/bias_table_hoopoe-v1-%s-halfcat-bulge-%dsbins-%drbins.fits"%(config["output"]["dir"], split_method, sbins,rbins))
 
 	if ("tables" in outputs):
-		nbc_disc.compute(split_half=0,
+		if ("disc_table" in task_allocation[rank]):
+			nbc_disc.compute(split_half=0,
 			    fit="disc", weights=weights,
 			    use_catalogue_weights=config["selection"]["weights"],
 				reweight_per_bin=False, resample_per_bin=False,
@@ -291,7 +326,8 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 				rbins=rbins, sbins=sbins,
 				rlim=(1.13,3.0), slim=(12,200),
 				table_name="%s/nbc_data/bias_table_hoopoe-v1-fullcat-disc-%dsbins-%drbins.fits"%(config["output"]["dir"], sbins, rbins))
-		nbc_bulge.compute(split_half=0,
+		if ("bulge_table" in task_allocation[rank]):
+			nbc_bulge.compute(split_half=0,
 			    fit="bulge", weights=weights,
 			    use_catalogue_weights=config["selection"]["weights"],
 				reweight_per_bin=False, resample_per_bin=False,
@@ -447,12 +483,22 @@ if __name__ == "__main__":
 	parser.add_argument('--config',"-c", type=str, action='store')
 	parser.add_argument('--catalogue', action='store_true')
 	parser.add_argument('--calculate', action='store_true')
+	parser.add_argument('--mpi', action='store_true')
 	parser.add_argument('--weights', type=str, action='store', default='none')
 
 	args = parser.parse_args()
 
+	if args.mpi:
+		print "Setting up MPI"
+		import mpi4py.MPI
+		rank = mpi4py.MPI.COMM_WORLD.Get_rank()
+		nthread = mpi4py.MPI.COMM_WORLD.Get_size()
+	else:
+		rank = 0
+		nthread = 1
+
 	config =yaml.load(open(args.config))
 
 	mkdirs(config)
-	main(args)
+	main(args, nthread, rank)
 
