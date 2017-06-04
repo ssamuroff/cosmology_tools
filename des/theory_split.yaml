@@ -1,14 +1,20 @@
 # Config file for packaging 2pt shear datavectors
 
-nofz: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/nofz/nofz-mcal.fits
-covariance: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/covariance/cov-mcal-all.fits
+nofz: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/mcal_phot-ngcov/dvec-mcal-all.fits
+covariance: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/real/mcal_phot-ngcov/dvec-mcal-all.fits
 2pt:
-  xip: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/2pt/mcal-blended
+  xip: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/2pt/mcal-blended-04062107
   xim: /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/2pt/
 
 data_type : mock
 
-output : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/dvec-mcal-blended-zbias.fits
+fabrication :
+  ini : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/theory_split/ini/theory_split.ini
+  values : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/theory_split/ini/theory_split_values-fixed.ini
+  extra_flags : ""
+
+
+output : /share/des/disc3/samuroff/mpp/cosmosis/sws/ias/datavecs/mock/dvec-mcal-blended.fits
 
 
 modifications:

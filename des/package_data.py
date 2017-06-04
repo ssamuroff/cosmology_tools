@@ -2,7 +2,7 @@ import fitsio as fi
 import pylab as plt
 import os, yaml, argparse
 import glob, copy
-import scipy as sp
+import scipy.interpolate as spi
 import numpy as np
 
 description = ''
@@ -39,9 +39,9 @@ def load_and_subsample_xis(directory, nbins=np.inf, match_template=False):
         xim = np.loadtxt(directory+"/shear_xi/ximinus_%d_%d.txt"%(i,j) )[select][::thin]
         if match_template:
             t0 = theta_target[(bin1==j) & (bin2==i)]
-            interpolate_xip = sp.interpolate.interp1d(np.log(theta[select]), np.log(xip), kind="cubic")
+            interpolate_xip = spi.interp1d(np.log(theta[select]), np.log(xip), kind="cubic")
             xip = np.exp(interpolate_xip(np.log(t0)))
-            interpolate = sp.interpolate.interp1d(np.log(theta[select]), np.log(xim), kind="cubic")
+            interpolate = spi.interp1d(np.log(theta[select]), np.log(xim), kind="cubic")
             xim = np.exp(interpolate(np.log(t0)))
             xi["theta"][(i,j)] = t0
 
@@ -285,8 +285,14 @@ class y1cov:
        
 config = yaml.load(open(args.config))
 
+def cosmosis(output, nofz, cov, ini, values):
+    command = "cosmosis %s -p test.save_dir=%s 2pt_like.data_file=%s output.filename=%s fits_nz.nz_file=%s pipeline.values=%s"%(ini, output, cov, output, nofz, values)
+    print command
+    os.system(command)
+
 print "Will use %s data"%config["data_type"]
 if (config["data_type"]=="mock"):
+    cosmosis(config["2pt"]["xip"], config["nofz"], config["covariance"], config["fabrication"]["ini"], config["fabrication"]["values"])
     theta, xi = load_and_subsample_xis(config["2pt"]["xip"], match_template=True)
 else:
     theta, xi = load_real_xis(config["2pt"])
