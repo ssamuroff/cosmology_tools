@@ -22,7 +22,7 @@ output :
     alpha : False
     snr : False
     redshift : True
-    tables : True
+    tables : False
     half_tables : False
     filename: y1a1-nbc-grid-im3shape-r-1-2-6.fits
     dir : /share/des/disc8/cambridge/cal/interpolated_weights

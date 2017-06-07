@@ -1,0 +1,29 @@
+
+input:
+  i3s : /share/des/disc7/samuroff/des/y1a1-im3shape-v6-infocuts.fits
+  hoopoe : /share/des/disc8/cambridge/bord-fits/combined_cats/hoopoe-ohio_A4_A6-infocuts-hv2-i3sv2-catv3.fits
+
+selection:
+    mask : /share/des/disc8/cambridge/bord-fits/selection_masks/mask-ohio_A4_A6-infocuts-hv2-i3sv2-catv02-no_Rb_cut.fits
+    cut_glowing_edges : False
+    reweight : False
+    resample : False
+    weights : True
+    weights_file :  
+
+calibration:
+  method : grid
+  rbins : 16
+  sbins : 16
+  ztype : des
+  split : random
+
+output :
+    histograms : False
+    alpha : False
+    snr : False
+    redshift : True
+    tables : True
+    half_tables : False
+    filename: y1a1-unblinded-nbc-grid-im3shape-r-1-2-7.fits
+    dir : /share/des/disc8/y1-unblinded-combined_cats/cal/v7_weights

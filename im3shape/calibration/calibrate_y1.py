@@ -11,11 +11,12 @@ import os, yaml, argparse, glob, gc
 plt.switch_backend("pdf")
 
 def setup(load_sim, load_data, config, verbose=True):
-	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp","mean_mask_fraction", "radius", "coadd_objects_id", "is_bulge", "bulge_flux", "disc_flux", "info_flag", "mag_auto_r"]
+	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "mean_psf_fwhm","snr", "mean_rgpp_rp","mean_mask_fraction","radius", "coadd_objects_id", "is_bulge", "bulge_flux", "disc_flux", "mean_flux", "info_flag", "mag_auto_r", "tilename", "ra", "dec", "stamp_size", "n_exposure", "likelihood", "chi2_pixel"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	y1v2 = None
 	hoopoe = None
+	weights = None
 
 	# Load the y1 data
 	if load_data:
@@ -26,6 +27,12 @@ def setup(load_sim, load_data, config, verbose=True):
 		y1v2.res = y1v2.res[y1v2.res["info_flag"]==0] # This should always be true, but just in case...
 		sel = ((y1v2.res["snr"] > 12) & (y1v2.res["snr"] < 200) & (y1v2.res["mean_rgpp_rp"] > 1.13) & (y1v2.res["mean_rgpp_rp"] < 3.0))
 		y1v2.res=y1v2.res[sel]
+		if config["selection"]["cut_glowing_edges"]:
+			print "Removing glowing edges."
+			glowing_edges_ids = fi.FITS("/share/des/disc7/samuroff/des/y1a1-im3shape-bad-edge-ids-sorted.fits")[-1].read()
+			glowing_edges_mask = np.invert(np.in1d(y1v2.res["coadd_objects_id"], glowing_edges_ids["ids"]))
+			n0 = y1v2.res["coadd_objects_id"].size
+			y1v2.res = y1v2.res[glowing_edges_mask]
 	else:
 		if verbose:
 			print "Not loading data (either it's been loaded already or it's not needed)"
@@ -37,16 +44,8 @@ def setup(load_sim, load_data, config, verbose=True):
 		hoopoe = s.shapecat(res=config["input"]["hoopoe"] ,truth=config["input"]["hoopoe"])
 		hoopoe.res = fi.FITS(hoopoe.res_path)["i3s"].read()
 		hoopoe.truth = fi.FITS(hoopoe.truth_path)["truth"].read()
+		hoopoe.res, hoopoe.truth = di.match_results(hoopoe.res, hoopoe.truth, name1="DES_id")
 
-		if (config["selection"]["weights"]):
-			if (config["selection"]["weights_file"]!="none"):
-				print "Reading weights"
-				im3shape_weights = fi.FITS(config["selection"]["weights"])[-1].read()
-				wts = im3shape_weights["weight"]
-				hoopoe.res = arr.add_col(hoopoe.res, "weight", wts)
-			else:
-				print "Using im3shape weights from catalogue"
-				print "mean weight : %3.3f"%(hoopoe.res["weight"].mean())
 
 		sel = np.isfinite(hoopoe.res["mean_hsm_psf_e1_sky"]) & np.isfinite(hoopoe.res["mean_hsm_psf_e2_sky"])
 		hoopoe.truth = hoopoe.truth[sel]
@@ -56,6 +55,9 @@ def setup(load_sim, load_data, config, verbose=True):
 			apply_selection = True
 			selection = fi.FITS(config["selection"]["mask"])["sel"].read().astype(bool)
 			weights = fi.FITS(config["selection"]["mask"])["wts"].read()
+
+			sel = ((hoopoe.res["snr"] > 12) & (hoopoe.res["snr"] < 200) & (hoopoe.res["mean_rgpp_rp"] > 1.13) & (hoopoe.res["mean_rgpp_rp"] < 3.0))
+			selection = selection & sel
 
 			if verbose:
 				print "Applying additional cuts and weights from %s"%config["selection"]["mask"]
@@ -67,7 +69,7 @@ def setup(load_sim, load_data, config, verbose=True):
 				print "Ignoring weights."
 			weights = np.ones(hoopoe.res["coadd_objects_id"].size)
 
-		if not config["calibration"]["ztype"]:
+		if not (config["calibration"]["ztype"]=="tophat"):
 			if verbose:
 				print "Using DES redshift bins"
 
@@ -88,6 +90,27 @@ def setup(load_sim, load_data, config, verbose=True):
 			hoopoe.truth = hoopoe.truth[subsample]
 			weights = weights[subsample]
 
+		if (config["selection"]["weights_file"].lower()!="none"):
+			import astropy.table as tb
+			wts = fi.FITS(config["selection"]["weights_file"])["i3s_weights_col"].read()
+			col_to_replace = "mean_unmasked_flux_frac"
+			print "Renaming column '%s' as 'weight'"%col_to_replace
+			tab = tb.Table(hoopoe.res)
+			tab.rename_column(col_to_replace,"weight")
+			tab["weight"] = wts["weight"]
+			hoopoe.res = np.array(tab)
+
+		if config["selection"]["cut_glowing_edges"]:
+			print "Removing glowing edges."
+			glowing_edges_ids = fi.FITS("/share/des/disc7/samuroff/des/y1a1-im3shape-bad-edge-ids-sorted.fits")[-1].read()
+			glowing_edges_mask = np.invert(np.in1d(hoopoe.res["coadd_objects_id"], glowing_edges_ids["ids"]))
+			n0 = hoopoe.res["coadd_objects_id"].size
+			hoopoe.truth = hoopoe.truth[glowing_edges_mask]
+			hoopoe.res = hoopoe.res[glowing_edges_mask]
+			weights = weights[glowing_edges_mask]
+			print "cut removes %2.2fM/%2.2fM galaxies"%((n0-hoopoe.res["coadd_objects_id"].size)/1e6,n0/1e6)
+
+		
 
 		print "Final selection : %d galaxies"%hoopoe.res["coadd_objects_id"].size
 		print "Final selection : %d unique COSMOS IDs"%np.unique(hoopoe.truth["cosmos_ident"]).size
@@ -125,12 +148,11 @@ def allocate_tasks(nthread, outputs):
 
 	return task_allocation
 
-
-
 def choose_inputs(args):
 	sim, data = False, False
 	if args.calculate:
 		sim = True
+		data = True
 	if args.catalogue:
 		data = True
 	if (args.weights.lower()=="data"):
@@ -158,8 +180,16 @@ def main(args, nthread=1, rank=0):
 
 	load_sim, load_data = choose_inputs(args)
 	outputs = choose_outputs(config)
-	task_allocation = allocate_tasks(nthread, outputs)
+	if args.mpi:
+		task_allocation = allocate_tasks(nthread, outputs)
+	else:
+		task_allocation = {0:["bulge_table","disc_table","bulge_htable","disc_htable"]}
 	hoopoe, weights, y1v2 = setup(load_sim, load_data, config)
+
+	if config["blinding"]["unblind"]:
+		hoopoe.unblind(location=config["blinding"]["location"])
+	else:
+		print "Data is blinded."
 	
 	if args.calculate:
 
@@ -200,7 +230,7 @@ def mkdirs(config):
 	os.system("mkdir -p %s/nbc_data"%config["output"]["dir"] )
 
 
-def calibrate(data, method="grid", config=None, smoothing=3, sbins=16, rbins=16):
+def calibrate(data, method="grid", config=None, smoothing=3, sbins=16, rbins=16, nthread=1, rank=0):
 
 	rbf = (method.lower()=="rbf")
 
@@ -255,8 +285,8 @@ def calibrate(data, method="grid", config=None, smoothing=3, sbins=16, rbins=16)
 	if not os.path.exists(os.path.dirname(config["output"]["dir"])):
 		os.system("mkdir -p %s"%os.path.dirname(config["output"]["dir"]))
 
-	print "Saving calibrated catalogue to %s"%config["output_catalogue"]
-	nbc.export(filename="%s/%s"%(config["output"]["dir"],config["output_catalogue"]))
+	print "Saving calibrated catalogue to %s"%config["output"]["filename"]
+	nbc.export(filename="%s/%s"%(config["output"]["dir"],config["output"]["filename"]))
 
 
 def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], method="grid", smoothing=3, config=None, names=["m", "a"], sbins=16, rbins=16, nthread=1, rank=0, task_allocation={0 : ["disc_table", "bulge_table", "disc_htable", "bulge_htable"]} ):
@@ -386,25 +416,25 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 		zbins=[ 0.2, 0.43, 0.63, 0.9, 1.3]
 		tophat = config["calibration"]["ztype"]=="tophat"
 
-		import pdb ; pdb.set_trace()
-
 		# Only do the redshift plots with the split catalogues if they were recalculated this time
-		if ("half_tables" in outputs):
+		plt.close()
+		if "m" in names:
+			bias0=nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=4, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
+			bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=4, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
+			plt.ylabel("Multiplicative Bias $m$")
+			plt.legend(loc="center right")
+			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
 			plt.close()
-			if "m" in names:
-				bias0=nbc.redshift_diagnostic(bias="m", label="Uncalibrated", ls="none", nbins=4, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
-				bias=nbc.redshift_diagnostic(bias="m", label="Calibrated", ls="none", nbins=4, fmt=["^",">"], apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat, separate_components=False)
-				plt.ylabel("Multiplicative Bias $m$")
-				plt.legend(loc="center right")
-				plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
-				plt.close()
-			if "a" in names:
-				nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=4, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat)
-				nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=4, apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat)
-				plt.ylabel(r"PSF Leakage $\alpha$")
-				plt.legend(loc="upper left")
-				plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
-				plt.close()
+		if "a" in names:
+			nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=4, fmt=["o","D"], colour="steelblue", weights=wt2, bins=zbins, tophat=tophat)
+			nbc.redshift_diagnostic(bias="alpha", label="Calibrated", ls="none",fmt=["^",">"], nbins=4, apply_calibration=True, colour="purple", weights=wt2, bins=zbins, tophat=tophat)
+			plt.ylabel(r"PSF Leakage $\alpha$")
+			plt.legend(loc="upper left")
+			plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-%s-halfcat-s%2.3f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"], sub_dir, split_method, smoothing, sbins,rbins, int(tophat)))
+			plt.close()
+
+		np.savetxt("m-vs-z-uncalibrated-%s-halfcat-unblinded%s.txt"%(split_method, ""+"-tophat"*int(tophat)), np.array(bias0))
+		np.savetxt("m-vs-z-%s_nbc-%s-halfcat-unblinded%s.txt"%(method,split_method, ""+"-tophat"*int(tophat)),np.array(bias))
 
 		# Finally redo the fits with the full catalogue
 		nbc = cal.nbc()
@@ -440,6 +470,8 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 			plt.legend(loc="center right")
 			plt.savefig("%s/release/%s/m-bias-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
 			plt.close()
+			np.savetxt("m-vs-z-uncalibrated-fullcat-unblinded%s.txt"%""+"-tophat"*int(tophat), np.array(bias0))
+			np.savetxt("m-vs-z-%s_nbc-fullcat-unblinded%s.txt"%(method,""+"-tophat"*int(tophat)), np.array(bias))
 
 		if "a" in names:
 			nbc.redshift_diagnostic(bias="alpha", label="Uncalibrated",ls="none", nbins=4, fmt=["o","D"], colour="steelblue", weights=weights, split_half=0, bins=zbins, tophat=tophat)
@@ -448,6 +480,9 @@ def calculate(y1v2, hoopoe, split_method="none", weights=None, outputs=[], metho
 			plt.legend(loc="upper left")
 			plt.savefig("%s/release/%s/alpha-vs-redshift-diagnostic-v1-fullcat-s%2.2f-sbins%d-rbins%d-tophat%d.png"%(config["output"]["dir"],sub_dir, smoothing, sbins, rbins, int(tophat)))
 			plt.close()
+
+		print "Done"
+		return 0
 
 
 def get_weights(y1v2, hoopoe, sbins=9, rbins=9, config=None, catalogue="data"):
