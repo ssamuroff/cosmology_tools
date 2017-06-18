@@ -1559,7 +1559,7 @@ def get_bias(xdata, catalogue, external_calibration_col=None, use_catalogue_weig
         variance_y11.append(w1)
 
         y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y22.append(w22)
+        variance_y22.append(w2)
 
         y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
         variance_y12.append(w1)
@@ -2365,6 +2365,48 @@ def reduce(x, y, nbins=6, bin_type="equal", xlim=(-np.inf,np.inf), ylim=(-np.inf
         yvec.append([y[select & ysel].mean(), y[select & ysel].std(), y[select & ysel].size ])
 
     return np.array(xvec), np.array(yvec)
+
+
+def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200], filename="/share/des/disc7/samuroff/hoopoe-bulge-disc-grid.fits"):
+
+    print "Using log bins in rgpp"
+    bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
+    bt["rgp_lower"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[:-1]
+    bt["rgp_upper"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[1:]
+    
+    vec = []
+    for i, (rgpp_lower, rgpp_upper) in enumerate(zip(np.unique(bt["rgp_lower"]), np.unique(bt["rgp_upper"]))):
+
+        row_data = data[ (data["mean_rgpp_rp"]>rgpp_lower) & (data["mean_rgpp_rp"]<rgpp_upper) ]
+        snr_edges0 = np.logspace(np.log10(xlim[0]),np.log10(xlim[1]),sbins+1)[:-1]
+        snr_edges1 = np.logspace(np.log10(xlim[0]),np.log10(xlim[1]),sbins+1)[1:]
+
+        for j, (snr_lower, snr_upper) in enumerate(zip(snr_edges0, snr_edges1)):
+
+            cell_sample = (row_data["snr"]>snr_lower) &  (row_data["snr"]<snr_upper)
+
+            select_bulge = (row_data["disc_flux"][cell_sample]==0 ) 
+
+            ngal  = row_data["e1"][cell_sample].size
+            nb  = row_data["e1"][cell_sample][select_bulge].size
+
+            fb = nb*1.0/ngal
+
+            print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
+
+            vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, nb])
+
+    if filename is not None:
+        out_fits = fi.FITS(filename, "rw")
+
+        out_table = np.zeros(len(vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", int), ("nb", int)])
+        for i, col in enumerate(out_table.dtype.names):
+            print "Writing column %s"%col
+            out_table[col] = np.array(vec).T[i]
+
+        out_fits.write(out_table, clobber=True)
+        out_fits.close()
+    return out_table
 
 
 

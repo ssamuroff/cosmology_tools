@@ -6,8 +6,9 @@ import os, pdb, copy
 import pylab as plt
 from tools import samplers as samp
 
-labels={"sigma8": "$\sigma_8$", "s8" : "$S_8 \equiv \sigma_8 ( \Omega_m / 0.31 ) ^{0.5}$", "w0":"$w_0$", "omega_m": "$\Omega _m$", "h" : '$h$', "ns":"$n_s$", "omega_b" : '$\Omega _b$', "shear--bias_1":"$\delta z^1$", "shear--bias_2":"$\delta z^2$", "shear--bias_3":"$\delta z^3$", "sz1":"$S_z ^1$", "sz2":"$S_z ^2$", "sz3":"$S_z ^3$", "redmagic--bias_1":"$\delta z^1$ (redmagic)", "redmagic--bias_2":"$\delta z^2$ (redmagic)", "redmagic--bias_3":"$\delta z^3$ (redmagic)", "a": "$A$", "eta": "$\eta$","A_II": "$A_{II}$", "eta_II": "$\eta_{II}$", "A_GI": "$A_{GI}$", "eta_GI": "$\eta_{GI}$", "m1":"$m_1$", "m2":"$m_2$", "m3":"$m_3$", "b_1": '$b_g^1$', "b_2" : '$b_g^2$', "b_3" : '$b_g^3$'}
+labels={"a1":"$A^{1}_\mathrm{IA}$","a2":"$A^{2}_\mathrm{IA}$","a3":"$A^{3}_\mathrm{IA}$","a4":"$A^{4}_\mathrm{IA}$","sigma8": "$\sigma_8$", "s8" : "$S_8 \equiv \sigma_8 ( \Omega_m / 0.31 ) ^{0.5}$", "w0":"$w_0$", "omega_m": "$\Omega _m$", "h" : '$h$', "ns":"$n_s$", "omega_b" : '$\Omega _b$', "shear--bias_1":"$\delta z^1$", "shear--bias_2":"$\delta z^2$", "shear--bias_3":"$\delta z^3$", "sz1":"$S_z ^1$", "sz2":"$S_z ^2$", "sz3":"$S_z ^3$", "redmagic--bias_1":"$\delta z^1$ (redmagic)", "redmagic--bias_2":"$\delta z^2$ (redmagic)", "redmagic--bias_3":"$\delta z^3$ (redmagic)", "a": "$A$", "eta": "$\eta$","A_II": "$A_{II}$", "eta_II": "$\eta_{II}$", "A_GI": "$A_{GI}$", "eta_GI": "$\eta_{GI}$", "m1":"$m_1$", "m2":"$m_2$", "m3":"$m_3$", "b_1": '$b_g^1$', "b_2" : '$b_g^2$', "b_3" : '$b_g^3$'}
 
+sections={"a1": "intrinsic_alignment_parameters", "a2": "intrinsic_alignment_parameters", "a3": "intrinsic_alignment_parameters", "a4": "intrinsic_alignment_parameters"}
 
 parameters={"omega_m" : 'cosmological_parameters--omega_m', "s8":"cosmological_parameters--s8", "w0": "cosmological_parameters--w", "h" : 'cosmological_parameters--h0', "omega_b" : 'cosmological_parameters--omega_b', "sigma8": 'cosmological_parameters--sigma8_input',"sigma_8": 'cosmological_parameters--sigma_8', "ns": 'cosmological_parameters--n_s', "A_II" : 'intrinsic_alignment_parameters--a_ii', "eta_II" : 'intrinsic_alignment_parameters--alpha_ii', "A_GI" : 'intrinsic_alignment_parameters--a_gi', "eta_GI" : 'intrinsic_alignment_parameters--alpha_gi', "A" : 'intrinsic_alignment_parameters--a',  "eta" : 'intrinsic_alignment_parameters--alpha', "b_1": 'bias_parameters--b_1', "b_2" : 'bias_parameters--b_2', "b_3" : 'bias_parameters--b_3', "shear--bias_1": 'shear--bias_1', "shear--bias_2" : 'shear--bias_2', "shear--bias_3" : 'shear--bias_3',  "sz1": 'shear--s_z_1', "sz2" : 'shear--s_z_2', "sz3" : 'shear--s_z_3', "m1" : 'shear--m1', "m2" : 'shear--m2', "m3" : 'shear--m3', "redmagic--bias_1" : 'redmagic--bias_1', "redmagic--bias_2" : 'redmagic--bias_2', "redmagic--bias_3" : 'redmagic--bias_3'}
 
@@ -110,6 +111,110 @@ class chain(samp.sampler):
 
 		if hasattr(self, "mask"):
 			self.mask = self.mask[::factor]
+
+	def visualise(self, dirname="/home/samuroff/convergence/", colour="purple", blind=False, overplot=[]):
+		os.system("mkdir -p %s"%dirname)
+		colours=["deeppink","slateblue", "plum", "midnightblue","darkred"]
+		self.nsamp = len(self.samples)
+		for param in self.samples.dtype.names:
+			if param=="post": continue
+			print param,
+			plt.plot(self.samples[param], ".", color=colour)
+			for i, c2 in enumerate(overplot):
+				plt.plot(c2.samples[param], ".", color=colours[i])
+			if blind:
+				plt.yticks(visible=False)
+				print ""
+			else:
+				print "%3.3f"%self.samples[param][3*self.nsamp/4 :].mean()
+				plt.axhline(self.samples[param][3*self.nsamp/4 :].mean(), color="k", ls=":")
+			plt.title(param)
+			plt.savefig("%s/%s.png"%(dirname,param))
+			plt.close()
+
+	def choose_panel_contents(self, i, j, name1, name2, colour="purple", kde=None, plots=None, xlim=[],ylim=[], contours=True):
+		import tools.plots as pl
+		if i==j:
+			n1,x1,p1 = self.get_1d_likelihood(name1, kde=kde)
+			plt.plot(x1,p1,lw=1.5,color=colour)
+		else:
+			x = self.samples[name1]
+			y = self.samples[name2]
+			if contours:
+				pl.kde_hist([[y,x]], kde=kde, plots=plots, colours=[colour])
+			else:
+				plt.scatter(x, y, marker=".", edgecolor=colour, facecolor=colour)
+
+	def likelihood_cornerplot(self, names, colour="purple", kde=None, plots=None, lims=[], contours=True, blind=True):
+		plt.style.use("y1a1")
+		plt.switch_backend("pdf")
+		
+		npar = len(names)
+		naxis = npar
+		ipanel = 0
+		print "Will make corner plot of %d parameters"
+		for i,name1 in enumerate(names):
+			fullname1 = "%s--%s"%(sections[name1], name1)
+			for j, name2 in enumerate(names):
+				ipanel += 1
+				fullname2 = "%s--%s"%(sections[name2], name2)
+				if j>i: continue
+				plt.subplot(naxis,naxis,ipanel, aspect="auto")
+				print i, j, fullname1, fullname2
+				self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, xlim=lims[0], ylim=lims[1], contours=contours)
+
+				plt.yticks(visible=False)
+				plt.xticks(visible=False)
+
+				if (j==0) and (i!=0):
+					if not blind: plt.yticks(np.arange(lims[0][0], lims[0][1], 1)[::2][1:],visible=True, fontsize=10)
+					plt.ylabel(labels[name1], fontsize=18)
+				if i==naxis-1:
+					if not blind: plt.xticks(np.arange(lims[1][0], lims[1][1], 1)[::2][1:],visible=True, fontsize=10)
+					plt.xlabel(labels[name2], fontsize=18)
+					
+				if len(lims)>0 and (i!=j):
+					plt.xlim(lims[j][0], lims[j][1])
+					plt.ylim(lims[i][0], lims[i][1])
+				if i==j:
+					plt.xlim(lims[j][0], lims[j][1])
+				plt.axhline(0,color="k", ls=":", alpha=0.5)
+				plt.axvline(0,color="k", ls=":", alpha=0.5)
+
+		plt.subplots_adjust(hspace=0, wspace=0)
+
+
+
+
+	def smooth_likelihood(self, x, mod):
+		
+		n = 150
+		factor = 1.8
+		kde = mod.KDE(x, factor=factor)
+		x_axis, like = kde.grid_evaluate(n, (x.min(), x.max()) )
+		return n, x_axis, like
+
+	def get_1d_likelihood(self, name, kde=None, verbose=True):
+		x = self.samples[name]
+		if verbose:
+			print " - 1D likelihood ", name
+
+		if kde is None:
+			from cosmosis.plotting import kde
+
+		if x.max()-x.min()==0: return None
+
+		n, x_axis, like = self.smooth_likelihood(x, kde)
+		like/=like.max()
+
+		return n, x_axis, like
+
+
+	def save(self, filename, burn, extra=["s8"]):
+		if "s8" in extra:
+			self.add_column("s8", values="sigma_8*((omega_m/0.3)**0.5)")
+		self.burn(burn)
+		self.write_columns(filename)
 
 	def change_deltaz_prior(self, newprior, oldprior):
 		b1 = self.samples["shear--bias_1"]
