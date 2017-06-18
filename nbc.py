@@ -112,6 +112,7 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 
 	def apply(self, names=["m","a"], split_half=2, scheme="rbf"):
 
+		use_rbf=False
 		if scheme=="rbf":
 			print "Using RBF interpolation"
 			use_rbf=True

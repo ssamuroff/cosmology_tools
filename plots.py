@@ -1803,8 +1803,8 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 	plt.style.use("y1a1")
 
 	matplotlib.rcParams['font.family']='serif'
-	matplotlib.rcParams['font.size']=24
-	matplotlib.rcParams['xtick.labelsize']=22
+	matplotlib.rcParams['font.size']=17
+	matplotlib.rcParams['xtick.labelsize']=16
 	matplotlib.rcParams['legend.fontsize']=26
 	matplotlib.rcParams['xtick.major.size'] = 10.0
 	matplotlib.rcParams['ytick.major.size'] = 10.0
@@ -1823,7 +1823,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 
 	if "snr" in names:
 		plt.close()
-		plt.subplot(111, aspect='auto')
+		plt.subplot(111, aspect=0.52)
 		print "-- SNR"
 		plt.hist(np.log10(data["snr"]), histtype="step", bins=np.linspace(1,2, 60), weights=weights, normed=1, lw=2.5, color="purple") #, label="$hoopoe$")
 		if data2 is not None:
@@ -1835,10 +1835,11 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 				rel_ent = lk.kullback_leibler(np.log10(data["snr"][sel1]),np.log10(data2["snr"][sel2]), show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
 
-		plt.xlabel("Signal-to-Noise $\log (S/R)$", fontsize=22)
+		plt.xlabel("Signal-to-Noise $\log (S/N)$", fontsize=18)
 		plt.xlim(1,2.05)
 		plt.ylim(0,2.25)
 		plt.yticks(visible=False)
+		plt.subplots_adjust(bottom=0.12)
 		#plt.subplots_adjust(hspace=0, wspace=0, left=left, right=right, bottom=bottom, top=top)
 		plt.savefig("%s/snr-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
@@ -1861,6 +1862,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		#plt.subplots_adjust(hspace=0, wspace=0, left=left, right=right, bottom=bottom, top=top)
 		plt.xlim(1,2.2)
 		plt.ylim(0,3.25)
+		plt.subplots_adjust(bottom=0.12)
 		plt.savefig("%s/rgpp_rp-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
 
@@ -1943,12 +1945,12 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 			if kl:
 				rel_ent = lk.kullback_leibler(es, ed, show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
-		ax3.set_xlabel("Ellipticity $|e|$")
+		ax3.set_xlabel("Ellipticity $|e|$", fontsize=22)
 
 		if blind:
 			plt.xticks(visible=True)
 
-		plt.subplots_adjust(hspace=0, wspace=0, left=left,right=right, top=top, bottom=bottom)
+		#plt.subplots_adjust(hspace=0, wspace=0, left=left,right=right, top=top, bottom=bottom)
 		plt.savefig("%s/ellipticity-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
 	
@@ -1970,14 +1972,15 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 			if kl:
 				rel_ent = lk.kullback_leibler(es, ed, show=False)
 				plt.title("$KL[p_1,p_2]=%2.3f$"%rel_ent)
-		plt.xlabel("Ellipticity $|e|$", fontsize=22)
+		plt.subplots_adjust(bottom=0.12)
+		plt.xlabel("Ellipticity $|e|$", fontsize=18)
 		if blind:
 			plt.xticks(visible=False)
 		plt.yticks(visible=False)
 
 		#plt.subplots_adjust(hspace=0, wspace=0, left=left,right=right, top=top, bottom=bottom)
-		plt.xlim(0,0.96)
-		plt.ylim(0,2.65)
+		plt.xlim(0,1.1)
+		plt.ylim(0,2.8)
 		plt.savefig("%s/ellipticity-mag-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
 
@@ -2058,6 +2061,8 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 
 		plt.xlim(0,0.06)
 
+		plt.subplots_adjust(bottom=0.12)
+
 		#plt.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
 		plt.savefig("%s/psf_ellipticity-mag-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
@@ -2082,6 +2087,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		plt.xticks([0.3,0.4,0.5,0.6])
 		plt.xlim(0.299,0.65)
 		plt.yticks(visible=False)
+		plt.subplots_adjust(bottom=0.12)
 		plt.savefig("%s/psf_size-hist-v2sim-vs-y1v2data.pdf"%outdir)
 		plt.close()
 	#	plt.subplots_adjust(left=left,right=right,top=top, bottom=bottom)
@@ -2104,6 +2110,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 		plt.xlabel("Mean Mask Fraction ", fontsize=22)
 		plt.xlim()
 		plt.yticks(visible=False)
+		plt.subplots_adjust(bottom=0.12)
 #		plt.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
 
 		plt.savefig("%s/mask_frac-hist-v2sim-vs-y1v2data.pdf"%outdir)
@@ -2236,7 +2243,7 @@ def sky_coord(ra, dec):
 	return ra_rad*180/np.pi, dec_rad*180/np.pi
 
 
-def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=None, clim=None):
+def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=None, clim=None, cmap="PuOr"):
 
 	from astropy.coordinates import SkyCoord
 	from astropy import units as u
@@ -2248,7 +2255,7 @@ def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=No
 	plt.figure(figsize=(8,4.2))
 	plt.subplot(111,projection="mollweide")
 	plt.grid(True)
-	plt.scatter(ra_rad, dec_rad, c=colour)
+	plt.scatter(ra_rad, dec_rad, c=colour, cmap=cmap)
 	plt.clim(clim[0],clim[1])
 	plt.colorbar(fraction=0.036, pad=0.04, label=label)
 	plt.subplots_adjust(top=0.95,bottom=0.08, right=0.85)
@@ -2260,20 +2267,21 @@ def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=No
 
 
 
-def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, npts=10000, factor=4, xlim=None, ylim=None, fill=[True]*10, lines=[True]*10, opaque=[False]*10, alphas=[0.4]*10):
+def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, colours=None, kde=None,plots=None,npts=10000, factor=4, xlim=None, ylim=None, fill=[False]*10, lines=[True]*10, opaque=[False]*10, alphas=[0.4]*10):
 	import sys
-	sys.path.append('/home/samuroff/cosmosis/')
-	from cosmosis.postprocessing import plots
-	from cosmosis.postprocessing import lazy_pylab as pylab
-	from cosmosis.postprocessing import statistics
-	from cosmosis.plotting.kde import KDE
-	from cosmosis.postprocessing.elements import PostProcessorElement
-	from cosmosis.postprocessing.elements import MCMCPostProcessorElement, MultinestPostProcessorElement, WeightedMCMCPostProcessorElement
-	from cosmosis.postprocessing.elements import Loadable
-	from cosmosis.postprocessing.outputs import PostprocessPlot
-	from cosmosis.postprocessing.utils import std_weight, mean_weight
+	#sys.path.append('/home/samuroff/cosmosis/')
+	#from cosmosis.postprocessing import plots
+	#from cosmosis.postprocessing import lazy_pylab as pylab
+	#from cosmosis.postprocessing import statistics
+	#from cosmosis.plotting.kde import KDE
+	#from cosmosis.postprocessing.elements import PostProcessorElement
+	#from cosmosis.postprocessing.elements import MCMCPostProcessorElement, MultinestPostProcessorElement, WeightedMCMCPostProcessorElement
+	#from cosmosis.postprocessing.elements import Loadable
+	#from cosmosis.postprocessing.outputs import PostprocessPlot
+	#from cosmosis.postprocessing.utils import std_weight, mean_weight
 
-	colours = ["forestgreen", "purple", "steelblue", "pink"]
+	if colours is None:
+		colours = ["forestgreen", "purple", "steelblue", "pink"]
 
 	class plot2D(plots.MetropolisHastingsPlots2D):
 		contours=[]
@@ -2281,24 +2289,24 @@ def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, npts=10000, factor
 		def __init__(self):
 			print "done"
 
-	def smooth_likelihood(x, y, factor=4):
-		n = 100                           
-		kde = KDE([x,y], factor=factor)     
+	def smooth_likelihood(x, y, factor=1.8, kde=None):
+		n = 100
+		kde = kde.KDE([x,y], factor=factor)     
 		x_range = (x.min(), x.max())
 		y_range = (y.min(), y.max())
 		(x_axis, y_axis), like = kde.grid_evaluate(n, [x_range, y_range])
 		return n, x_axis, y_axis, like
 
 	plot_functions = plot2D()
-	print "Will use %d samples"%npts
+	#print "Will use %d samples"%npts
 
 	proxies = []
 
 	for i, data in enumerate(datasets):
-		print "processing contour set %d/%d"%(i+1, len(datasets))
+		#print "processing contour set %d/%d"%(i+1, len(datasets))
 		x, y = data[0][:npts], data[1][:npts]
 
-		n, x_axis, y_axis, like = smooth_likelihood(x, y)
+		n, x_axis, y_axis, like = smooth_likelihood(x, y, kde=kde)
 		contour1 = 1-0.68
 		contour2 = 1-0.95
 
@@ -2306,23 +2314,23 @@ def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, npts=10000, factor
 		level0 = 1.1
 		levels = [level2, level1, level0]
 		if opaque[i]:
-			pylab.contourf(x_axis, y_axis, like.T, [level2,level0], colors=['white'])
+			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=['white'])
 		if fill[i]:
-			pylab.contourf(x_axis, y_axis, like.T, [level2,level0], colors=colours[i], alpha=alphas[i])
-			pylab.contourf(x_axis, y_axis, like.T, [level1,level0], colors=colours[i], alpha=alphas[i])
+			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=colours[i], alpha=alphas[i])
+			plt.contourf(x_axis, y_axis, like.T, [level1,level0], colors=colours[i], alpha=alphas[i])
 		if lines[i]:
-			pylab.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=2.5)
-			pylab.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=1.5)
+			plt.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=1)
+			plt.contour(x_axis, y_axis, like.T, [level2,level1], colors=colours[i], linestyles=linestyles[i], linewidths=0.5)
 
 		if labels[i] is not None:
 			conv=matplotlib.colors.ColorConverter()
 			edgecolor=colours[i]
 			facecolor=conv.to_rgba(colours[i],alpha=1-(1-alphas[i])**2)
 			#proxies.append(pylab.Rectangle((0,0),1,1, facecolor=colours[i], edgecolor=colours[i]))
-			proxies.append(pylab.plot([],[], color=colours[i], linestyle=linestyles[i], linewidth=2.5)[0])
+			proxies.append(plt.plot([],[], color=colours[i], linestyle=linestyles[i], linewidth=2.5)[0])
 
 	try:
-		leg=pylab.legend(proxies, labels, loc="upper right")
+		leg=plt.legend(proxies, labels, loc="upper right")
 		leg.get_frame().set_alpha(0) # this will make the box totally transparent
 		leg.get_frame().set_edgecolor('white') 
 	except:

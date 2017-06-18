@@ -187,7 +187,10 @@ def main(args, nthread=1, rank=0):
 	hoopoe, weights, y1v2 = setup(load_sim, load_data, config)
 
 	if config["blinding"]["unblind"]:
-		hoopoe.unblind(location=config["blinding"]["location"])
+		if hoopoe is not None:
+			hoopoe.unblind(location=config["blinding"]["location"])
+		if y1v2 is not None:
+			y1v2.unblind(sim=False, location=config["blinding"]["location"])
 	else:
 		print "Data is blinded."
 	

@@ -28,6 +28,6 @@ output :
     snr : False
     redshift : True
     tables : False
-    half_tables : True
+    half_tables : False
     filename: y1a1-unblinded-nbc-grid-im3shape.fits
     dir : /share/des/disc8/y1-unblinded-combined_cats/cal/v8

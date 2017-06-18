@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=100:00:00
+#PBS -N unblinded-grid-compute
+#PBS -o unblinded-grid-compute.log
+#PBS -j oe
+
+
+python -m tools.im3shape.calibration.calibrate_y1 --config /home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config/fiducial-y1-unblinded.yaml --catalogue

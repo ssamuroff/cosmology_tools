@@ -1,0 +1,137 @@
+Will output the following :
+['redshift']
+Loading data /share/des/disc7/samuroff/des/y1a1-im3shape-v6-infocuts.fits
+Initialised.
+/share/des/disc7/samuroff/des/y1a1-im3shape-v6-infocuts.fits/*.fits
+loading 1 results file(s) from /share/des/disc7/samuroff/des/y1a1-im3shape-v6-infocuts.fits
+Removing glowing edges.
+Loading simulation /share/des/disc8/cambridge/bord-fits/combined_cats/hoopoe-ohio_A4_A6-infocuts-hv2-i3sv2-catv3.fits
+Initialised.
+Sorting...
+Matched 17967207 objects
+Applying additional cuts and weights from /share/des/disc8/cambridge/bord-fits/selection_masks/mask-ohio_A4_A6-infocuts-hv2-i3sv2-catv02-no_Rb_cut.fits
+Ignoring weights.
+Using DES redshift bins
+Renaming column 'mean_unmasked_flux_frac' as 'weight'
+Removing glowing edges.
+cut removes 1.89M/17.21M galaxies
+Final selection : 15325739 galaxies
+Final selection : 26116 unique COSMOS IDs
+WARNING ---- WARNING ---- WARNING ---- WARNING ---- WARNING ---- 
+Unblinding - please proceed with caution!
+/share/des/disc8/y1-unblinded-combined_cats/combined_cats/chicago-hoopoe_A4_A6-infocuts-hv2-i3sv2-catv07.fits
+Sorting...
+Matching...
+Checking the other columns match...
+ra_as True
+dec_as True
+e1 False
+e2 False
+radius True
+radius_ratio True
+bulge_a True
+disc_a True
+bulge_index True
+disc_index True
+coadd_objects_id True
+time True
+bulge_flux True
+disc_flux True
+flux_ratio True
+snr True
+old_snr is missing
+min_residuals is missing
+max_residuals is missing
+model_min is missing
+model_max is missing
+likelihood True
+mean_flux is missing
+number_varied_params is missing
+n_exposure True
+nparam_varied True
+stamp_size True
+mean_rgpp_rp True
+mean_psf_e1_sky is missing
+mean_psf_e2_sky is missing
+mean_psf_fwhm is missing
+weight is missing
+mean_model_edge_mu is missing
+mean_model_edge_sigma is missing
+mean_edge_mu is missing
+mean_edge_sigma is missing
+mean_hsm_psf_e1_sky True
+mean_hsm_psf_e2_sky True
+mean_hsm_psf_sigma True
+fails_hsm_psf_sigma is missing
+mean_hsm_psf_rho4 is missing
+mean_mask_fraction True
+round_snr True
+round_snr_mw is missing
+bands True
+dec True
+tilename True
+ra True
+chi2_pixel True
+modest True
+mag_auto_r True
+flags_r True
+desdm_zp is missing
+gold_mask True
+bad_mask True
+error_flag True
+info_flag True
+is_bulge True
+x_image is missing
+y_image is missing
+des_bin False
+WARNING ---- WARNING ---- WARNING ---- WARNING ---- WARNING ---- 
+Unblinding - please proceed with caution!
+/share/des/disc8/y1-unblinded-combined_cats/combined_cats/y1-im3shape-v7-infocuts-no_nbc.fits
+Sorting...
+Matching...
+Checking the other columns match...
+e1 False
+e2 False
+radius True
+coadd_objects_id True
+bulge_flux True
+disc_flux True
+snr True
+likelihood True
+mean_flux True
+n_exposure True
+stamp_size True
+mean_rgpp_rp True
+mean_hsm_psf_e1_sky True
+mean_hsm_psf_e2_sky True
+mean_hsm_psf_sigma True
+mean_psf_fwhm True
+mean_mask_fraction True
+tilename True
+ra True
+dec True
+chi2_pixel True
+mag_auto_r True
+info_flag True
+is_bulge True
+Using 16 SNR bins , 16 size bins
+initialising from memory
+initialising from memory
+initialising from memory
+Subdividing catalogue by coadd objects ID
+Using polynomial fit
+creating column m
+Traceback (most recent call last):
+  File "/home/zuntz/modules/module-install/python/lib/python2.7/runpy.py", line 162, in _run_module_as_main
+    "__main__", fname, loader, pkg_name)
+  File "/home/zuntz/modules/module-install/python/lib/python2.7/runpy.py", line 72, in _run_code
+    exec code in run_globals
+  File "/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/calibrate_y1.py", line 541, in <module>
+    main(args, nthread, rank)
+  File "/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/calibrate_y1.py", line 213, in main
+    task_allocation=task_allocation)
+  File "/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/calibrate_y1.py", line 413, in calculate
+    nbc_disc.apply(split_half=2, scheme=method, names=names)
+  File "/home/samuroff/local/python/lib/python2.7/site-packages/tools/nbc.py", line 159, in apply
+    self.res2 = arr.add_col(self.res2, bias_name, np.zeros_like(bias))
+UnboundLocalError: local variable 'bias' referenced before assignment

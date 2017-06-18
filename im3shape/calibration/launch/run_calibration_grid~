@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=100:00:00
+#PBS -N unblinded-grid-diagnostics
+#PBS -o unblinded-grid-diagnostics.log
+#PBS -j oe
+
+
+mpiexec -n 4 python -m tools.im3shape.calibration.calibrate_y1 --mpi --config /home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config/fiducial-y1-unblinded.yaml --calculate
