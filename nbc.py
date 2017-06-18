@@ -6,7 +6,7 @@ import tools.diagnostics as di
 import tools.arrays as arr
 import tools.plots as plots
 import tools.shapes as sh
-import tktools
+#import tktools
 import gc
 from scipy.interpolate import Rbf
 
