@@ -1475,7 +1475,7 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, save=True
 
 
 
-def get_bias(xdata, catalogue, external_calibration_col=None, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], visual=False, binning="equal_number", silent=False, mask=None):
+def get_bias(xdata, catalogue, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, nbins=5, weights=None, xlim=(-1,1), ellipticity_name="e", names=["m","c"], visual=False, binning="equal_number", silent=False, mask=None):
 
     g1 = xdata['true_g1']
     g2 = xdata['true_g2']
@@ -1548,17 +1548,25 @@ def get_bias(xdata, catalogue, external_calibration_col=None, apply_calibration=
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
+        if use_catalogue_weights:
+            mean_weight = catalogue["weight"][sel][sel1].mean()
+            w1 = 1. / np.sqrt(mean_weight) / (e1[sel1].size**0.5)
+            w2 = 1. / np.sqrt(mean_weight) / (e2[sel2].size**0.5)
+        else:
+            w1 = compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5)
+            w2 = compute_im3shape_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5)
+
         y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+        variance_y11.append(w1)
 
         y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y22.append( compute_im3shape_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
+        variance_y22.append(w2)
 
         y12.append(np.sum(w[sel2]*(e1[sel2]-c1[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
-        variance_y12.append( compute_im3shape_weight(e2[sel1]-g2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+        variance_y12.append(w1)
        
         y21.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y21.append( compute_im3shape_weight(e1[sel2]-g1[sel2], verbose=False) / (e1[sel2].size**0.5) )
+        variance_y21.append(w2)
 
     d1 = np.array(y11)-x
     d2 = np.array(y22)-x
@@ -1961,7 +1969,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
@@ -1975,13 +1983,14 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, apply_ca
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
 
-    if "weight" in catalogue.dtype.names and (use_weights):
-        w = catalogue["weight"][sel]
-    elif weights is not None:
+
+    if weights is not None:
         print "Will use weights provided"
         w = weights[sel]
     else:
         w = np.ones_like(e1)
+    if use_catalogue_weights:
+        w = w*  catalogue["weight"][sel]
 
     if apply_calibration:
         if external_calibration_col is None:
@@ -2357,6 +2366,48 @@ def reduce(x, y, nbins=6, bin_type="equal", xlim=(-np.inf,np.inf), ylim=(-np.inf
         yvec.append([y[select & ysel].mean(), y[select & ysel].std(), y[select & ysel].size ])
 
     return np.array(xvec), np.array(yvec)
+
+
+def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200], filename="/share/des/disc7/samuroff/hoopoe-bulge-disc-grid.fits"):
+
+    print "Using log bins in rgpp"
+    bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
+    bt["rgp_lower"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[:-1]
+    bt["rgp_upper"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[1:]
+    
+    vec = []
+    for i, (rgpp_lower, rgpp_upper) in enumerate(zip(np.unique(bt["rgp_lower"]), np.unique(bt["rgp_upper"]))):
+
+        row_data = data[ (data["mean_rgpp_rp"]>rgpp_lower) & (data["mean_rgpp_rp"]<rgpp_upper) ]
+        snr_edges0 = np.logspace(np.log10(xlim[0]),np.log10(xlim[1]),sbins+1)[:-1]
+        snr_edges1 = np.logspace(np.log10(xlim[0]),np.log10(xlim[1]),sbins+1)[1:]
+
+        for j, (snr_lower, snr_upper) in enumerate(zip(snr_edges0, snr_edges1)):
+
+            cell_sample = (row_data["snr"]>snr_lower) &  (row_data["snr"]<snr_upper)
+
+            select_bulge = (row_data["disc_flux"][cell_sample]==0 ) 
+
+            ngal  = row_data["e1"][cell_sample].size
+            nb  = row_data["e1"][cell_sample][select_bulge].size
+
+            fb = nb*1.0/ngal
+
+            print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
+
+            vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, nb])
+
+    if filename is not None:
+        out_fits = fi.FITS(filename, "rw")
+
+        out_table = np.zeros(len(vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", int), ("nb", int)])
+        for i, col in enumerate(out_table.dtype.names):
+            print "Writing column %s"%col
+            out_table[col] = np.array(vec).T[i]
+
+        out_fits.write(out_table, clobber=True)
+        out_fits.close()
+    return out_table
 
 
 

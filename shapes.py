@@ -86,6 +86,40 @@ class shapecat(i3s_plots):
 		m2 = (self.res["e2"] - modifier[1]) / self.truth["true_g2"] -1 
 		return (m1+m2)/2
 
+	def unblind(self, sim=True, location="fornax", return_old=False, check_columns=True):
+		print "WARNING ---- " * 5
+		print "Unblinding - please proceed with caution!"
+
+		# Read and match the unblinded data
+		path = get_unblinded_catalogue_path(sim, location)
+		print path
+
+		unblinded_shapes = fitsio.FITS(path)[1].read()
+
+		r,ur = di.match_results(self.res, unblinded_shapes)
+
+		# Check they are consistent
+		if not np.array_equal(self.res["coadd_objects_id"], r["coadd_objects_id"]):
+			print "Error -- some objects do not have unblinded results"
+			return None
+
+		if check_columns:
+			print "Checking the other columns match..."
+			for col in self.res.dtype.names:
+				if col not in ur.dtype.names:
+					print col, "is missing"
+				else:
+					print col, (self.res[col]==ur[col]).all()
+
+		self.res["e1"] = ur["e1"]
+		self.res["e2"] = ur["e2"]
+
+		if return_old:
+			return r["e1"],r["e2"]
+
+		else:
+			return None
+
 	def get_correlation(self, names=["e1", "e1"], slop=0.1, tbounds=[2,300], tbins=20):
 		"""Get a 2pt function for this dataset.
 		   names : quantities to correlate
@@ -920,7 +954,7 @@ class meds_wrapper(i3meds.I3MEDS):
 			calculator.find_centroid()
 			Q = calculator.find_moments()
 
-			e1 = (Q[0]-Q[1])/(Q[0]+Q[1]+2*np.sqrt(Q[0]*Q[1]-Q[2]*Q[2]) )
+			e1 = (Q[0]-Q[1])/ (Q[0]+Q[1]+2*np.sqrt(Q[0]*Q[1]-Q[2]*Q[2]) )
 			e2 = 2*Q[2]/(Q[0]+Q[1]+2*np.sqrt(Q[0]*Q[1]-Q[2]*Q[2]) )
 			
 			return Q, [e1,e2]
@@ -1531,6 +1565,14 @@ def translate_infocut(info_val):
 
 	for bit_set in bits_set: 
 		print bit_set, "%s : %s"%INFO_FLAGS[bit_set]
+
+def get_unblinded_catalogue_path(sim, location):
+	if location.lower()=="fornax":
+		if sim:
+			return "/share/des/disc8/y1-unblinded-combined_cats/combined_cats/chicago-hoopoe_A4_A6-infocuts-hv2-i3sv2-catv07.fits"
+		else:
+			return "/share/des/disc8/y1-unblinded-combined_cats/combined_cats/y1-im3shape-v7-infocuts-no_nbc.fits"
+
 
 INFO_FLAGS={ 
 0   : ("INFO_GOLD_MASK",  "This area is masked out in the gold catalog" ),
