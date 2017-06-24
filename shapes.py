@@ -855,6 +855,105 @@ class shapecat(i3s_plots):
 
 		return x, alpha
 
+	def get_neff(self,mask=None):
+
+		if mask is None:
+			mask = np.ones(self.res.size).astype(bool)
+
+		if not hasattr(self,'area'):
+			self.get_area(mask=mask)
+
+		if not hasattr(self,'sigma_e'):
+			self.get_sigma_e(mask=mask)
+
+		self.neff = []
+		self.neffc = []
+
+		if "m1" in self.res.dtype.names:
+			m1 = self.res['m1'][mask]
+			m2 = self.res['m2'][mask]
+		else:
+			m1 = self.res['m'][mask]
+			m2 = self.res['m'][mask]
+		e1  = self.res['e1'][mask]
+		e2  = self.res['e2'][mask]
+		w   = self.res["weight"][mask]
+		s = (m1+m2)/2.
+		snvar = 0.24
+		snvar = np.sqrt((self.res['e1'][mask][self.res['snr'][mask]>100].var()+self.res['e2'][mask][self.res['snr'][mask]>100].var())/2.)                                                         
+		var = 1./w - snvar**2
+		var[var < 0.] = 0.
+		w[w > snvar**-2] = snvar**-2
+
+		a    = np.sum(w)**2
+		b    = np.sum(w**2)
+		c    = self.area * 60. * 60.
+
+		self.neff.append( a/b/c )
+		self.neffc.append( ((self.sigma_ec**2 * np.sum(w * s)**2) / np.sum(w**2 * (s**2 * self.sigma_ec**2 + var/2.))) / self.area / 60**2 )
+
+		print 'ratio',self.sigma_e**2/self.neff[-1],self.sigma_ec**2/self.neffc[-1]
+
+		return
+
+	def get_sigma_e(self,mask=[]):
+
+		if len(mask)==0:
+			mask = np.ones(self.res.size).astype(bool)
+
+		if not hasattr(self,'area'):
+			self.get_area() 
+
+		self.sigma_e = []
+		self.sigma_ec = []
+
+		if "m1" in self.res.dtype.names:
+			m1 = self.res['m1'][mask]
+			m2 = self.res['m2'][mask]
+		else:
+			m1 = self.res['m'][mask]
+			m2 = self.res['m'][mask]
+
+		e1  = self.res['e1'][mask]
+		e2  = self.res['e2'][mask]
+		w   = self.res['weight'][mask]
+		s = (m1+m2)/2.
+		snvar = 0.24#
+		snvar = np.sqrt((self.res['e1'][mask][self.res['snr'][mask]>100].var()+self.res['e2'][mask][self.res['snr'][mask]>100].var())/2.)              
+		print 'snvar',snvar
+		var = 1./w - snvar**2
+		var[var < 0.] = 0.
+		w[w > snvar**-2] = snvar**-2
+		print 'var',var.min(),var.max()
+
+		a1 = np.sum(w**2 * e1**2)
+		a2 = np.sum(w**2 * e2**2)
+		b  = np.sum(w**2)
+		c  = np.sum(w * s)
+		d  = np.sum(w)
+
+		self.sigma_e =  np.sqrt( (a1/c**2 + a2/c**2) * (d**2/b) / 2. )
+		self.sigma_ec =  np.sqrt( np.sum(w**2 * (e1**2 + e2**2 - var)) / (2.*np.sum(w**2 * s**2)) )
+		print np.sum(e1**2 + e2**2 - var),np.max(e1**2 + e2**2 - var),np.min(e1**2 + e2**2 - var)
+
+		return
+
+	def get_area(self,mask=[]):
+
+		if len(mask)==0:
+			mask = np.ones(self.res.size).astype(bool)
+
+		if not hasattr(self,"area"):
+			import healpy as hp
+			pix=hp.ang2pix(4096, np.pi/2.-np.radians(self.res['dec'][mask]),np.radians(self.res['ra'][mask]), nest=True)
+			area=hp.nside2pixarea(4096)*(180./np.pi)**2
+			mask=np.bincount(pix)>0
+			self.area=np.sum(mask)*area
+			self.area=float(self.area)
+			print self.area
+
+		return
+
 	def get_fofz(self, nbins, error_type="bootstrap", zmax=1.8, binning="equal_number", T_B=False, return_number=False, split_type="im3shape", bin_type="mean_z_bpz"):
 		"""Calculate the bulge fraction in bins using the given definition"""
 		fr=[]
@@ -921,7 +1020,12 @@ class dummy_im3shape_options():
 class meds_wrapper(i3meds.I3MEDS):
 	def __init__(self, filename, options=None,update=False, model="disc"):
 		if options is None:
-			options = p3s.Options("/global/cscratch1/sd/sws/hoopoe-image-simulations/end-to-end/end-to-end_code/%s_sim.ini"%model)
+			import socket
+			hostname = socket.gethostname()
+			if "cori" in hostname:
+				options = p3s.Options("/global/cscratch1/sd/sws/hoopoe-image-simulations/end-to-end/end-to-end_code/%s_sim.ini"%model)
+			elif "fornax" in hostname:
+				options = p3s.Options("/home/samuroff/shear_pipeline/end-to-end/end-to-end_code/config_files/im3shape/%s.ini"%model)
 		super(meds_wrapper, self).__init__(filename, options)
 		setattr(self, "filename", self._filename)
 
