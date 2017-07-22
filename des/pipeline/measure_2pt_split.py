@@ -11,9 +11,9 @@ CORES_PER_TASK=64
 
 global_measure_2_point = None
 
-def task(ijkl):
-    i,j,k,l=ijkl
-    global_measure_2_point.call_treecorr(i,j,k,l)
+def task(ijklm):
+    i,j,k,l,m=ijklm
+    global_measure_2_point.call_treecorr(i,j,k,l,m)
 
 class Measure2Point(PipelineStage):
     name = "2pt"
@@ -126,12 +126,16 @@ class Measure2Point(PipelineStage):
             nc = 1
         else:
             nc = 3 
+        if self.params["lensfile"]!="None":
+            ncorr = 3
+        else:
+            ncorr=1
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(nc)]
+        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
-        for i,j,k,l in all_calcs:
+        for i,j,k,l,m in all_calcs:
             if ((k==l) and (i<=j)) or  (k!=l):
-                calcs.append((i,j,k,l))
+                calcs.append((i,j,k,l,m))
 
         self.theta  = []
         self.xi     = []
