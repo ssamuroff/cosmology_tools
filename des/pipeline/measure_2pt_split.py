@@ -944,7 +944,7 @@ class Measure2Point(PipelineStage):
 
         return theta, xip, xim, xiperr, ximerr
 
-   def calc_pos_shear(self,i,j,l,verbose,num_threads):
+    def calc_pos_shear(self,i,j,l,verbose,num_threads):
 
         mask = self.lens_binning==i
         lenscat_i = treecorr.Catalog(w=self.lensweight[mask], ra=self.lens['ra'][mask], dec=self.lens['dec'][mask], ra_units='deg', dec_units='deg')
