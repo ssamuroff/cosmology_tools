@@ -45,7 +45,7 @@ class Measure2Point(PipelineStage):
 
             filename = self.input_path(file)
             gt = self.samples[sample-1]
-            if (self.samples[0]!='all'):
+            if (self.samples[0]!='all') & (file!="nz_lens"):
                 filename = filename.replace("nofz", "nofz_%s"%gt)
                 if sample>1:
                     shape = getattr(self, "shape%d"%sample)
