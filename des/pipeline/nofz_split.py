@@ -371,7 +371,7 @@ class nofz(PipelineStage):
         print 'Done pznofzfile',time.time()-t0, pz_nofz.dtype.names
         if self.params['lensfile'] != 'None':
             self.lens      = self.load_array(col.lens_dict, 'lensfile')
-            print 'Done lensfile',time.time()-t0,lens.dtype.names
+            print 'Done lensfile',time.time()-t0,self.lens.dtype.names
             self.lens_pz   = self.load_array(col.lens_pz_dict, 'lensfile')
             print 'Done lens_pzfile',time.time()-t0,self.lens_pz.dtype.names
 
