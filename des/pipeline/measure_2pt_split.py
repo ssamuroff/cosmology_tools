@@ -969,9 +969,9 @@ class Measure2Point(PipelineStage):
         mean_e1 = shape['e1'][mask].mean()
         mean_e2 = shape['e2'][mask].mean()
         if self.params['has_sheared']:
-            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1[j])/m1[mask], g2=(shape['e2'][mask]-mean_e2[j])/m2[mask], w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
+            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1)/m1[mask], g2=(shape['e2'][mask]-mean_e2)/m2[mask], w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
         else:
-            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1[j]), g2=(shape['e2'][mask]-mean_e2[j]), w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
+            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1), g2=(shape['e2'][mask]-mean_e2), w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
             biascat_j = treecorr.Catalog(k=np.sqrt(shape['m1'][mask]*shape['m2'][mask]), w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
 
         ng = treecorr.NGCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
