@@ -322,7 +322,7 @@ class nofz(PipelineStage):
         # Now select either early or late type galaxies, as defined by BPZ
         # allow for four possible cuts: the Heymans defaults, and a more stringent version  
         if galaxy_type=='early':
-            mask = [(pz['t_bpz']<1,0),   (pz_1p['t_bpz']<1.0),  (pz_1m['t_bpz']<1.0),  (pz_2p['t_bpz']<1.0),  (pz_2m['t_bpz']<1.0)]
+            mask = [(pz['t_bpz']<1.0),(pz_1p['t_bpz']<1.0),(pz_1m['t_bpz']<1.0),(pz_2p['t_bpz']<1.0),(pz_2m['t_bpz']<1.0)]
         elif galaxy_type=='rearly':
             mask = [(pz['t_bpz']<0.5),   (pz_1p['t_bpz']<0.5),  (pz_1m['t_bpz']<0.5),  (pz_2p['t_bpz']<0.5),  (pz_2m['t_bpz']<0.5)]
         elif galaxy_type=='late':
@@ -331,8 +331,6 @@ class nofz(PipelineStage):
             mask =  [(pz['t_bpz']>=1.5), (pz_1p['t_bpz']>=1.5), (pz_1m['t_bpz']>=1.5), (pz_2p['t_bpz']>=1.5), (pz_2m['t_bpz']>=1.5)]
         elif galaxy_type=='all':
             mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
-
-        import pdb ; pdb.set_trace()
         
         final_mask = []
         for (m1,m2) in zip(mask,mag_mask):
