@@ -331,6 +331,8 @@ class nofz(PipelineStage):
             mask =  [(pz['t_bpz']>=1.5), (pz_1p['t_bpz']>=1.5), (pz_1m['t_bpz']>=1.5), (pz_2p['t_bpz']>=1.5), (pz_2m['t_bpz']>=1.5)]
         elif galaxy_type=='all':
             mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
+
+        import pdb ; pdb.set_trace()
         
         final_mask = []
         for (m1,m2) in zip(mask,mag_mask):
