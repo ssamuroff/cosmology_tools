@@ -45,7 +45,7 @@ class Measure2Point(PipelineStage):
 
             filename = self.input_path(file)
             gt = self.samples[sample-1]
-            if (len(self.samples)>1):
+            if (self.samples[0]!='all'):
                 filename = filename.replace("nofz", "nofz_%s"%gt)
                 if sample>1:
                     shape = getattr(self, "shape%d"%sample)
@@ -70,6 +70,7 @@ class Measure2Point(PipelineStage):
                 else: return binning[:,1]
 
         import glob
+        names = TWO_POINT_NAMES
         if (self.params['2pt_only'] == 'shear-shear')|(self.params['lensfile'] == 'None'):
             names = TWO_POINT_NAMES[:2]
         for n,name in enumerate(names):
@@ -117,9 +118,13 @@ class Measure2Point(PipelineStage):
             self.zbins=self.params['zbins']
 
         nbin = self.zbins
-        ncbin = len(self.samples) 
+        ncbin = len(self.samples)
+        if (self.params['2pt_only']!='all') & (ncbin==1):
+            nc = 1
+        else:
+            nc = 3 
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin)]
+        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(nc)]
         calcs=[]
         for i,j,k,l in all_calcs:
             if ((k==l) and (i<=j)) or  (k!=l):
@@ -129,7 +134,7 @@ class Measure2Point(PipelineStage):
         self.xi     = []
         self.xierr  = []
         self.calc   = []
-
+        print calcs
         if self.comm:
             from .mpi_pool import MPIPool
             pool = MPIPool(self.comm)
@@ -144,6 +149,14 @@ class Measure2Point(PipelineStage):
             return (shape['is_bulge']==1)
         else:
             return (shape['is_bulge']==0)
+
+    def get_colour_cut(self, shape, colour, extension=""):
+        mr = 30 - 2.5 * np.log10(shape["flux_r"+extension])
+        mz = 30 - 2.5 * np.log10(shape["flux_z"+extension])
+        if colour=='red':
+            return (mr-mz) > mr * 0.1154 - 1.327
+        elif colour=='blue':
+            return (mr-mz) < mr* 0.1154 - 1.327
 
     def get_type_split(self, sample, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m):
         if sample=='':
@@ -162,11 +175,18 @@ class Measure2Point(PipelineStage):
             r = 30 - 2.5 * np.log10(shape["flux_r"])
             rp1,rm1 = 30 - 2.5 * np.log10(shape["flux_r_1p"]), 30 - 2.5 * np.log10(shape["flux_r_1m"])
             rp2,rm2 = 30 - 2.5 * np.log10(shape["flux_r_2p"]), 30 - 2.5 * np.log10(shape["flux_r_2m"])
-            median_r = np.median(r[shape["flags"]==0])
+            import weightedstats as ws
+            flags_select = shape["flags"]==0
+            R = (shape["m1"]+shape["m2"])/2
+            median_r = ws.weighted_median(r[flags_select],weights=R[flags_select])
             if (subpop.lower()=="bright"):
+                print "Selecting below the weighted median r-band mag : ", median_r
                 mag_mask = (r<median_r), (rp1<median_r), (rm1<median_r), (rp2<median_r), (rm2<median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
             elif (subpop.lower()=="faint"):
+                print "Selecting above the weighted median r-band mag : ", median_r
                 mag_mask = (r>median_r), (rp1>median_r), (rm1>median_r), (rp2>median_r), (rm2>median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
         else:
             galaxy_type=gt[0]
             mag_mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
@@ -174,8 +194,12 @@ class Measure2Point(PipelineStage):
         # Select either early- or late-type galaxies
         if galaxy_type=='early':
             mask = [(pz['t_bpz']<1), (pz_1p['t_bpz']<1), (pz_1m['t_bpz']<1), (pz_2p['t_bpz']<1), (pz_2m['t_bpz']<1)]
+        if galaxy_type=='rearly':
+            mask = [(pz['t_bpz']<0.5), (pz_1p['t_bpz']<0.5), (pz_1m['t_bpz']<0.5), (pz_2p['t_bpz']<0.5), (pz_2m['t_bpz']<0.5)]
         elif galaxy_type=='late':
             mask =  [(pz['t_bpz']>=1), (pz_1p['t_bpz']>=1), (pz_1m['t_bpz']>=1), (pz_2p['t_bpz']>=1), (pz_2m['t_bpz']>=1)]
+        elif galaxy_type=='rlate':
+            mask =  [(pz['t_bpz']>=2), (pz_1p['t_bpz']>=2), (pz_1m['t_bpz']>=2), (pz_2p['t_bpz']>=2), (pz_2m['t_bpz']>=2)]
         elif galaxy_type=='all':
             mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
         
@@ -341,6 +365,7 @@ class Measure2Point(PipelineStage):
             type_mask = self.get_im3shape_type(shape, self.params['i3s_type'])
             mask = mask & type_mask
 
+
         if (split!='all'):
             type_mask, tmask1p, tmask1m, tmask2p, tmask2m  = self.get_type_split(suffix, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m )
             mask = mask & type_mask
@@ -348,6 +373,15 @@ class Measure2Point(PipelineStage):
             mask_1m = mask & tmask1m
             mask_2p = mask & tmask2p
             mask_2m = mask & tmask2m
+
+        if ('colour_select' in self.params.keys()):
+            colour = self.params['colour_select']
+            colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
+            mask = mask & colour_mask
+            mask_1p = mask & cmask1p
+            mask_1m = mask & cmask1m
+            mask_2p = mask & cmask2p
+            mask_2m = mask & cmask2m
 
         if 'flags' in shape.dtype.names:
             mask = mask & (shape['flags']==0)
@@ -531,6 +565,15 @@ class Measure2Point(PipelineStage):
             mask_1m = mask & tmask1m
             mask_2p = mask & tmask2p
             mask_2m = mask & tmask2m
+
+        if ('colour_select' in self.params.keys()):
+            colour = self.params['colour_select']
+            colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
+            mask = mask & colour_mask
+            mask_1p = mask & cmask1p
+            mask_1m = mask & cmask1m
+            mask_2p = mask & cmask2p
+            mask_2m = mask & cmask2m
 
         if 'flags' in self.shape2.dtype.names:
             mask = mask & (self.shape2['flags']==0)

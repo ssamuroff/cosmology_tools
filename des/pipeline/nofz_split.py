@@ -32,6 +32,8 @@ class nofz(PipelineStage):
         else:
             self.samples = ['all']
 
+        os.system("mkdir -p %s"%os.path.dirname(self.output_path("nz_source").replace('nofz/','nofz_%s/'%self.samples[0])))
+
         print "Colour bins:", self.samples
 
     def __init__(self, param_file):
@@ -58,6 +60,8 @@ class nofz(PipelineStage):
         else:
             self.weight = self.shape['weight']
         filename = self.output_path("weight")
+        if 'colour_bins' in self.params.keys():
+            filename = filename.replace('nofz/','nofz_%s/'%self.samples[0])
         np.save(filename, np.vstack((self.gold['objid'], self.weight)).T)
         # deal with photo-z weights for lenses later...
 
@@ -162,7 +166,12 @@ class nofz(PipelineStage):
         nz_source.sigma_e   = self.sigma_e
         nz_source.area      = self.area
         kernels             = [nz_source]
-        np.savetxt(self.output_path("nz_source_txt"), np.vstack((self.binlow, self.nofz)).T)
+
+        if 'colour_bins' in self.params.keys():
+            filename = self.output_path("nz_source_txt").replace("nofz/","nofz_%s/"%self.samples[0])
+        else:
+            filename = self.output_path("nz_source_txt") 
+        np.savetxt(filename, np.vstack((self.binlow, self.nofz)).T)
 
         if self.params['lensfile'] != 'None':
             nz_lens      = twopoint.NumberDensity(
@@ -248,6 +257,14 @@ class nofz(PipelineStage):
 
         return array
 
+    def get_colour_cut(self, shape, colour, extension=""):
+        mr = 30 - 2.5 * np.log10(shape["flux_r"+extension])
+        mz = 30 - 2.5 * np.log10(shape["flux_z"+extension])
+        if colour=='red':
+            return (mr-mz) > mr * 0.1154 - 1.327
+        elif colour=='blue':
+            return (mr-mz) < mr* 0.1154 - 1.327 
+
     def get_im3shape_type(self,shape,gtype):
         import pdb ; pdb.set_trace()
         if gtype.lower()=='bulge':
@@ -272,11 +289,18 @@ class nofz(PipelineStage):
             r = 30 - 2.5 * np.log10(shape["flux_r"])
             rp1,rm1 = 30 - 2.5 * np.log10(shape["flux_r_1p"]), 30 - 2.5 * np.log10(shape["flux_r_1m"])
             rp2,rm2 = 30 - 2.5 * np.log10(shape["flux_r_2p"]), 30 - 2.5 * np.log10(shape["flux_r_2m"])
-            median_r = np.median(r[shape["flags"]==0])
+            import weightedstats as ws
+            flags_select = shape["flags"]==0
+            R = (shape["m1"]+shape["m2"])/2
+            median_r = ws.weighted_median(r[flags_select],weights=R[flags_select])
             if (subpop.lower()=="bright"):
+                print "Selecting below the weighted median r-band mag : ", median_r
                 mag_mask = (r<median_r), (rp1<median_r), (rm1<median_r), (rp2<median_r), (rm2<median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
             elif (subpop.lower()=="faint"):
+                print "Selecting above the weighted median r-band mag : ", median_r
                 mag_mask = (r>median_r), (rp1>median_r), (rm1>median_r), (rp2>median_r), (rm2>median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
         else:
             galaxy_type=gt[0]
             mag_mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
@@ -284,8 +308,12 @@ class nofz(PipelineStage):
         # Select either early- or late-type galaxies
         if galaxy_type=='early':
             mask = [(pz['t_bpz']<1), (pz_1p['t_bpz']<1), (pz_1m['t_bpz']<1), (pz_2p['t_bpz']<1), (pz_2m['t_bpz']<1)]
+        elif galaxy_type=='rearly':
+            mask = [(pz['t_bpz']<0.5), (pz_1p['t_bpz']<0.5), (pz_1m['t_bpz']<0.5), (pz_2p['t_bpz']<0.5), (pz_2m['t_bpz']<0.5)]
         elif galaxy_type=='late':
             mask =  [(pz['t_bpz']>=1), (pz_1p['t_bpz']>=1), (pz_1m['t_bpz']>=1), (pz_2p['t_bpz']>=1), (pz_2m['t_bpz']>=1)]
+        elif galaxy_type=='rlate':
+            mask =  [(pz['t_bpz']>=1.5), (pz_1p['t_bpz']>=1.5), (pz_1m['t_bpz']>=1.5), (pz_2p['t_bpz']>=1.5), (pz_2m['t_bpz']>=1.5)]
         elif galaxy_type=='all':
             mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
         
@@ -416,7 +444,15 @@ class nofz(PipelineStage):
             mask_1m = mask & tmask1m
             mask_2p = mask & tmask2p
             mask_2m = mask & tmask2m
-
+        if ('colour_select' in self.params.keys()):
+            colour = self.params['colour_select']
+            colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
+            mask = mask & colour_mask
+            mask_1p = mask & cmask1p
+            mask_1m = mask & cmask1m
+            mask_2p = mask & cmask2p
+            mask_2m = mask & cmask2m
+    
         if 'flags' in shape.dtype.names:
             mask = mask & (shape['flags']==0)
             if self.params['has_sheared']:
