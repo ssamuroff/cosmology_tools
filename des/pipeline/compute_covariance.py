@@ -189,6 +189,14 @@ class ComputeCovariance(PipelineStage):
         'ng'                        : 0
         }
 
+        suffix=""
+
+        if 'colour_bins' in self.params.keys():
+            if (len(self.params['colour_bins'].split())>1):
+                suffix = "_merged"
+        else:
+            suffix = ""
+
         if self.params['lensfile'] != 'None':
             cov_dict.update({'clustering_REDSHIFT_FILE' : self.input_path("nz_lens_txt"),
                             'lens_tomobins'             : self.lens_tomobins,
@@ -197,7 +205,7 @@ class ComputeCovariance(PipelineStage):
                             'll'                        : 'true',
                             'lens_tomogbias'            : self.params['lens_gbias']})
         else:
-            cov_dict.update({'clustering_REDSHIFT_FILE' : self.input_path("nz_source_txt"),
+            cov_dict.update({'clustering_REDSHIFT_FILE' : self.input_path("nz_source_txt").replace('.nz','%s.nz'%suffix),
                             'lens_tomobins'             : self.tomobins,
                             'lens_n_gal'                : self.neff,
                             'ls'                        : 'false',
@@ -225,7 +233,7 @@ class ComputeCovariance(PipelineStage):
             f.write('# n_gal,lens_n_gal in gals/arcmin^2\n')
 
             for x in ['area', 'sourcephotoz', 'lensphotoz', 'source_tomobins', 'lens_tomobins', 'sigma_e', 'shear_REDSHIFT_FILE', 'clustering_REDSHIFT_FILE']:
-                if (x=='shear_REDSHIFT_FILE') and ('colour_bins' in self.params.keys()):
+                if (x=='shear_REDSHIFT_FILE') and ('colour_bins' in self.params.keys()) and (len(self.params['colour_bins'].split())>1):
                     f.write(x + ' : ' + self.merge_write_nz() + '\n')
                 else:
                     f.write(x + ' : ' + str(cov_dict[x]) + '\n')

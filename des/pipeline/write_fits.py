@@ -161,8 +161,15 @@ class WriteFits(PipelineStage):
 
         if os.path.exists(self.input_path("cov")): 
             os.remove(self.input_path("cov"))
-        os.system("cat "+self.input_path("covfiles")+" >> "+self.input_path("cov"))
-        covdata = np.loadtxt(self.input_path("cov"))
+        #if self.params['lensfile']!='None':
+        if not os.path.exists(self.input_path("cov").replace('.txt','_select.txt')):
+            os.system("cat "+self.input_path("covfiles")+" >> "+self.input_path("cov"))
+            #else:
+            #    os.system("cat "+self.input_path("covfiles").replace("*","*ssss*")+" >> "+self.input_path("cov"))
+            covdata = np.loadtxt(self.input_path("cov"))
+        else:
+              print "Reading preprocessed covariance file."
+              covdata = np.loadtxt(self.input_path("cov").replace('.txt','_select.txt'))
 
         # Replace theta values with bin numbers.
         theta=np.sort(np.unique(covdata[:,2]))
@@ -240,8 +247,20 @@ class WriteFits(PipelineStage):
                 length=np.append(length,zbins*self.params['tbins'])
             else:  #shear-shear xip or xim
                 zbins=fits.get_kernel(twopt.kernel1).nbin
-                length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+                if zbins==8:
+                    zbins/=2
+                if 'colour_bins' in self.params.keys():
+                    cbins =len(self.params['colour_bins'].split())
+                    if cbins>1:
+                        n = ((zbins * (1+zbins) / 2) * cbins + cbins*(cbins-1)*zbins*zbins) * self.params['tbins'] # cbins auto + cbins^2-cbins cross 
+                        length=np.append( length, n)
+                    else:
+                        length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+                else:
+                    length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+            
             if length[-1]!=len(twopt.bin1):
+                import pdb ; pdb.set_trace()
                 print 'covariance and data vector mismatch in '+name, length[-1], len(twopt.bin1)
                 return
 
@@ -265,10 +284,10 @@ class WriteFits(PipelineStage):
 
             mask = []
             for i in range(length[iname]):
-                mask.append(np.where((twopt_order[:,0] == self.covorder[np.sum(length[:iname])+i,0])
-                    &(twopt_order[:,1] == self.covorder[np.sum(length[:iname])+i,1])
-                    &(twopt_order[:,2] == self.covorder[np.sum(length[:iname])+i,2]))[0][0])
-
+                try: mask.append(np.where((twopt_order[:,0] == self.covorder[np.sum(length[:iname])+i,0])
+                     &(twopt_order[:,1] == self.covorder[np.sum(length[:iname])+i,1])
+                     &(twopt_order[:,2] == self.covorder[np.sum(length[:iname])+i,2]))[0][0])
+                except: print "Missing : %d %d"%(i,iname) ; continue
             twopt.apply_mask(mask)
 
         return

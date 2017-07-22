@@ -11,9 +11,9 @@ CORES_PER_TASK=64
 
 global_measure_2_point = None
 
-def task(ijkl):
-    i,j,k,l=ijkl
-    global_measure_2_point.call_treecorr(i,j,k,l)
+def task(ijklm):
+    i,j,k,l,m=ijklm
+    global_measure_2_point.call_treecorr(i,j,k,l,m)
 
 class Measure2Point(PipelineStage):
     name = "2pt"
@@ -25,7 +25,7 @@ class Measure2Point(PipelineStage):
         "gold_idx"      : ("nofz", "gold_idx.npy")        ,
         "lens_idx"      : ("nofz", "lens_idx.npy")        ,
         "ran_idx"       : ("nofz", "ran_idx.npy")         ,
-
+        "nofz_meta"     : ("nofz", "metadata.yaml")       ,
     }
     outputs = {
         "xip"    : "{rank}_xip.txt",
@@ -45,7 +45,7 @@ class Measure2Point(PipelineStage):
 
             filename = self.input_path(file)
             gt = self.samples[sample-1]
-            if (len(self.samples)>1):
+            if (self.samples[0]!='all') & (file!="nz_lens"):
                 filename = filename.replace("nofz", "nofz_%s"%gt)
                 if sample>1:
                     shape = getattr(self, "shape%d"%sample)
@@ -70,6 +70,7 @@ class Measure2Point(PipelineStage):
                 else: return binning[:,1]
 
         import glob
+        names = TWO_POINT_NAMES
         if (self.params['2pt_only'] == 'shear-shear')|(self.params['lensfile'] == 'None'):
             names = TWO_POINT_NAMES[:2]
         for n,name in enumerate(names):
@@ -82,22 +83,32 @@ class Measure2Point(PipelineStage):
 
         # Load data
         self.get_samples()
+        #self.load_metadata()
+
+        print "Samples to correlate", self.samples
 
         for i,sample in enumerate(self.samples):
-            print i,sample
+            print "-- Processing :", i,sample
             self.load_cat(suffix=i,split=sample)
             if (i>0):
                 gold = getattr(self,"gold%d"%(i+1))
             else:
                 gold = self.gold 
 
-            source_binning = load_bin_weight_files("nz_source",gold['objid'], sample=i+1)
-            weight         = load_bin_weight_files("weight",gold['objid'], sample=i+1)
+            source_binning = load_bin_weight_files("nz_source", gold['objid'], sample=i+1)
+            weight         = load_bin_weight_files("weight", gold['objid'], sample=i+1)
             setattr(self, "source_binning%d"%(i+1), source_binning)
             if i==0:
                 setattr(self, "weight", weight)
             else:
                 setattr(self, "weight%d"%(i+1), weight)
+
+        if self.params['lensfile'] != 'None':
+            self.lens_binning   = load_bin_weight_files("nz_lens",self.lens['objid'])
+            self.lensweight     = self.lens['weight']
+            self.ran_binning    = np.load(self.input_path("randoms"))
+            if len(self.ran_binning)!=len(self.randoms):
+                raise ValueError('bad binning or weight in file '+self.input_path("randoms"))
 
         global global_measure_2_point
         global_measure_2_point = self
@@ -117,19 +128,27 @@ class Measure2Point(PipelineStage):
             self.zbins=self.params['zbins']
 
         nbin = self.zbins
-        ncbin = len(self.samples) 
+        ncbin = len(self.samples)
+        if (self.params['2pt_only']!='all') & (ncbin==1):
+            nc = 1
+        else:
+            nc = 3 
+        if self.params["lensfile"]!="None":
+            ncorr = 3
+        else:
+            ncorr=1
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin)]
+        all_calcs = [(i,j,k,l,m) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
-        for i,j,k,l in all_calcs:
+        for i,j,k,l,m in all_calcs:
             if ((k==l) and (i<=j)) or  (k!=l):
-                calcs.append((i,j,k,l))
+                calcs.append((i,j,k,l,m))
 
         self.theta  = []
         self.xi     = []
         self.xierr  = []
         self.calc   = []
-
+        print calcs
         if self.comm:
             from .mpi_pool import MPIPool
             pool = MPIPool(self.comm)
@@ -144,6 +163,14 @@ class Measure2Point(PipelineStage):
             return (shape['is_bulge']==1)
         else:
             return (shape['is_bulge']==0)
+
+    def get_colour_cut(self, shape, colour, extension=""):
+        mr = 30 - 2.5 * np.log10(shape["flux_r"+extension])
+        mz = 30 - 2.5 * np.log10(shape["flux_z"+extension])
+        if colour=='red':
+            return (mr-mz) > mr * 0.1154 - 1.327
+        elif colour=='blue':
+            return (mr-mz) < mr* 0.1154 - 1.327
 
     def get_type_split(self, sample, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m):
         if sample=='':
@@ -160,13 +187,22 @@ class Measure2Point(PipelineStage):
             galaxy_type = gt[1]
 
             r = 30 - 2.5 * np.log10(shape["flux_r"])
-            rp1,rm1 = 30 - 2.5 * np.log10(shape["flux_r_1p"]), 30 - 2.5 * np.log10(shape["flux_r_1m"])
-            rp2,rm2 = 30 - 2.5 * np.log10(shape["flux_r_2p"]), 30 - 2.5 * np.log10(shape["flux_r_2m"])
-            median_r = np.median(r[shape["flags"]==0])
+            rp1 = 30 - 2.5 * np.log10(shape["flux_r_1p"])
+            rm1 = 30 - 2.5 * np.log10(shape["flux_r_1m"])
+            rp2 = 30 - 2.5 * np.log10(shape["flux_r_2p"])
+            rm2 = 30 - 2.5 * np.log10(shape["flux_r_2m"])
+            import weightedstats as ws
+            flags_select = shape["flags"]==0
+            R = (shape["m1"]+shape["m2"])/2
+            median_r = ws.weighted_median(r[flags_select],weights=R[flags_select])
             if (subpop.lower()=="bright"):
+                print "Selecting below the weighted median r-band mag : ", median_r
                 mag_mask = (r<median_r), (rp1<median_r), (rm1<median_r), (rp2<median_r), (rm2<median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
             elif (subpop.lower()=="faint"):
+                print "Selecting above the weighted median r-band mag : ", median_r
                 mag_mask = (r>median_r), (rp1>median_r), (rm1>median_r), (rp2>median_r), (rm2>median_r)
+                print "%d/%d"%(r[mag_mask[0]].size, r.size)
         else:
             galaxy_type=gt[0]
             mag_mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
@@ -174,8 +210,12 @@ class Measure2Point(PipelineStage):
         # Select either early- or late-type galaxies
         if galaxy_type=='early':
             mask = [(pz['t_bpz']<1), (pz_1p['t_bpz']<1), (pz_1m['t_bpz']<1), (pz_2p['t_bpz']<1), (pz_2m['t_bpz']<1)]
+        if galaxy_type=='rearly':
+            mask = [(pz['t_bpz']<0.5), (pz_1p['t_bpz']<0.5), (pz_1m['t_bpz']<0.5), (pz_2p['t_bpz']<0.5), (pz_2m['t_bpz']<0.5)]
         elif galaxy_type=='late':
             mask =  [(pz['t_bpz']>=1), (pz_1p['t_bpz']>=1), (pz_1m['t_bpz']>=1), (pz_2p['t_bpz']>=1), (pz_2m['t_bpz']>=1)]
+        elif galaxy_type=='rlate':
+            mask =  [(pz['t_bpz']>=2), (pz_1p['t_bpz']>=2), (pz_1m['t_bpz']>=2), (pz_2p['t_bpz']>=2), (pz_2m['t_bpz']>=2)]
         elif galaxy_type=='all':
             mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
         
@@ -259,10 +299,10 @@ class Measure2Point(PipelineStage):
         pz_nofz   = self.load_array(col.pz_stack_dict, 'photozfile_nz')
         print 'Done pznofzfile',time.time()-t0, pz_nofz.dtype.names
         if self.params['lensfile'] != 'None':
-            lens      = self.load_array(col.lens_dict, 'lensfile')
-            print 'Done lensfile',time.time()-t0,lens.dtype.names
-            lens_pz   = self.load_array(col.lens_pz_dict, 'lensfile')
-            print 'Done lens_pzfile',time.time()-t0,lens_pz.dtype.names
+            self.lens      = self.load_array(col.lens_dict, 'lensfile')
+            print 'Done lensfile',time.time()-t0,self.lens.dtype.names
+            self.lens_pz   = self.load_array(col.lens_pz_dict, 'lensfile')
+            print 'Done lens_pzfile',time.time()-t0,self.lens_pz.dtype.names
 
         if 'm1' not in shape.dtype.names:
             shape = append_fields(shape, 'm1', shape['m2'], usemask=False)
@@ -281,10 +321,10 @@ class Measure2Point(PipelineStage):
             print 'flipping e2'
             shape['e2']*=-1
         if self.params['lensfile'] != 'None':
-            if 'pzbin' not in lens_pz.dtype.names:
-                lens_pz = append_fields(lens_pz, 'pzbin', lens_pz['pzstack'], usemask=False)
-            if 'pzstack' not in lens_pz.dtype.names:
-                lens_pz = append_fields(lens_pz, 'pzstack', lens_pz['pzbin'], usemask=False)
+            if 'pzbin' not in self.lens_pz.dtype.names:
+                self.lens_pz = append_fields(self.lens_pz, 'pzbin', self.lens_pz['pzstack'], usemask=False)
+            if 'pzstack' not in self.lens_pz.dtype.names:
+                self.lens_pz = append_fields(self.lens_pz, 'pzstack', self.lens_pz['pzbin'], usemask=False)
 
         if not ((len(gold)==len(shape))
             & (len(gold)==len(pz))
@@ -297,7 +337,7 @@ class Measure2Point(PipelineStage):
                 & (len(gold)==len(pz_2m))):
                 raise ValueError('shape, gold, or photoz length mismatch')        
         if self.params['lensfile'] != 'None':
-            if (len(lens)!=len(lens_pz)):
+            if (len(self.lens)!=len(self.lens_pz)):
                 raise ValueError('lens and lens_pz length mismatch') 
 
         if self.params['lensfile'] != 'None':
@@ -322,8 +362,8 @@ class Measure2Point(PipelineStage):
                 pz_2m   = pz_2m[idx]
             if self.params['lensfile'] != 'None':
                 idx = np.load(self.input_path("lens_idx"))
-                lens    = lens[idx]
-                lens_pz = lens_pz[idx]
+                self.lens    = self.lens[idx]
+                self.lens_pz = self.lens_pz[idx]
                 idx = np.load(self.input_path("ran_idx"))
                 randoms = randoms[idx]
 
@@ -341,13 +381,23 @@ class Measure2Point(PipelineStage):
             type_mask = self.get_im3shape_type(shape, self.params['i3s_type'])
             mask = mask & type_mask
 
+
         if (split!='all'):
             type_mask, tmask1p, tmask1m, tmask2p, tmask2m  = self.get_type_split(suffix, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m )
             mask = mask & type_mask
-            mask_1p = mask & tmask1p
-            mask_1m = mask & tmask1m
-            mask_2p = mask & tmask2p
-            mask_2m = mask & tmask2m
+            mask_1p = mask_1p & tmask1p
+            mask_1m = mask_1m & tmask1m
+            mask_2p = mask_2p & tmask2p
+            mask_2m = mask_2m & tmask2m
+
+        if ('colour_select' in self.params.keys()):
+            colour = self.params['colour_select']
+            colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
+            mask = mask & colour_mask
+            mask_1p = mask_1p & cmask1p
+            mask_1m = mask_1m & cmask1m
+            mask_2p = mask_2p & cmask2p
+            mask_2m = mask_2m & cmask2m
 
         if 'flags' in shape.dtype.names:
             mask = mask & (shape['flags']==0)
@@ -532,6 +582,15 @@ class Measure2Point(PipelineStage):
             mask_2p = mask & tmask2p
             mask_2m = mask & tmask2m
 
+        if ('colour_select' in self.params.keys()):
+            colour = self.params['colour_select']
+            colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
+            mask = mask & colour_mask
+            mask_1p = mask & cmask1p
+            mask_1m = mask & cmask1m
+            mask_2p = mask & cmask2p
+            mask_2m = mask & cmask2m
+
         if 'flags' in self.shape2.dtype.names:
             mask = mask & (self.shape2['flags']==0)
             if self.params['has_sheared']:
@@ -587,6 +646,23 @@ class Measure2Point(PipelineStage):
         self.pz_nofz_2 = None
 
         return
+
+    def load_metadata(self):
+        import yaml
+        filename = self.input_path('nofz_meta')
+        if 'colour_bins' in self.params.keys():
+            for i,sample in enumerate(self.samples):
+                print "Loading metadata for %s"%sample
+                data = yaml.load(open(filename))
+
+                suffix = ""*(i==0) + "%d"%i * (i!=0)
+                filename = self.input_path('nofz_meta').replace("nofz/","nofz_%s"%sample)
+                setattr("mean_e1%s"%suffix, np.array(data['mean_e1']))
+                setattr("mean_e2%s"%suffix, np.array(data['mean_e2']))
+        else:
+            data = yaml.load(open(filename))
+            self.mean_e1 = np.array(data['mean_e1'])
+            self.mean_e2 = np.array(data['mean_e2'])
 
     def load_data(self):
 
@@ -767,7 +843,7 @@ class Measure2Point(PipelineStage):
         return
     
 
-    def call_treecorr(self,i,j,k,l):
+    def call_treecorr(self,i,j,k,l,m):
         """
         This is a wrapper for interaction with treecorr.
         """
@@ -778,7 +854,20 @@ class Measure2Point(PipelineStage):
         # Cori value
         num_threads=CORES_PER_TASK
 
-        theta,xip,xim,xiperr,ximerr = self.calc_shear_shear(i,j,k,l,verbose,num_threads)
+        if m==0:
+            theta,xip,xim,xiperr,ximerr = self.calc_shear_shear(i,j,k,l,verbose,num_threads)
+        else:
+            xip=xim=xiperr=ximerr=None
+
+        if (m==1): # gammat
+            theta,gammat,gammaterr = self.calc_pos_shear(i,j,k,verbose,num_threads)
+        else:
+            gammat=gammaterr=None
+
+        if (m==2): # wtheta
+            theta,wtheta,wthetaerr = self.calc_pos_pos(i,j,verbose,num_threads)
+        else:
+            wtheta=wthetaerr=None
 
         self.theta.append(theta)
         self.xi.append([xip,xim])
@@ -826,24 +915,28 @@ class Measure2Point(PipelineStage):
 
     def calc_shear_shear(self,i,j,k,l,verbose,num_threads):
 
-    	m1j,m2j,maskj = self.get_m(i, sample=l+1)
+    	m1j,m2j,maskj = self.get_m(j, sample=l+1)
     	weightj = getattr(self,"weight"+("2"*l))
         shapej = getattr(self,"shape"+("2"*l))
+        mean_e1j = shapej['e1'][maskj].mean() #getattr(self,"mean_e1"+("2"*l))
+        mean_e2j = shapej['e2'][maskj].mean() #getattr(self,"mean_e2"+("2"*l))
 
         m1i,m2i,maski = self.get_m(i, sample=k+1)
         weighti = getattr(self,"weight"+("2"*k))
         shapei = getattr(self,"shape"+("2"*k))
+        mean_e1i = shapei['e1'][maski].mean() #getattr(self,"mean_e1"+("2"*k))
+        mean_e2i = shapei['e2'][maski].mean() #getattr(self,"mean_e2"+("2"*k))
 
         if self.params['has_sheared']:
-            cat_i = treecorr.Catalog(g1=shapei['e1'][maski]/m1i[maski], g2=shapei['e2'][maski]/m2i[maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
+            cat_i = treecorr.Catalog(g1=(shapei['e1'][maski]-mean_e1i)/m1i[maski], g2=(shapei['e2'][maski]-mean_e2i)/m2i[maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
         else:
-            cat_i = treecorr.Catalog(g1=shapei['e1'][maski], g2=shapei['e2'][maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
+            cat_i = treecorr.Catalog(g1=(shapei['e1'][maski]-mean_e1i), g2=(shapei['e2'][maski]-mean_e2i), w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
             biascat_i = treecorr.Catalog(k=np.sqrt(shapei['m1'][maski]*shapei['m2'][maski]), w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
 
         if self.params['has_sheared']:
-            cat_j = treecorr.Catalog(g1=shapej['e1'][maskj]/m1j[maskj], g2=shapej['e2'][maskj]/m2j[maskj], w=weightj[maskj], ra=shapej['ra'][maskj], dec=shapej['dec'][maskj], ra_units='deg', dec_units='deg')
+            cat_j = treecorr.Catalog(g1=(shapej['e1'][maskj]-mean_e1j)/m1j[maskj], g2=(shapej['e2'][maskj]-mean_e2j)/m2j[maskj], w=weightj[maskj], ra=shapej['ra'][maskj], dec=shapej['dec'][maskj], ra_units='deg', dec_units='deg')
         else:
-            cat_j = treecorr.Catalog(g1=shapej['e1'][maskj], g2=shapej['e2'][maskj], w=weightj[maskj], ra=shapej['ra'][maskj], dec=shapej['dec'][maskj], ra_units='deg', dec_units='deg')
+            cat_j = treecorr.Catalog(g1=(shapej['e1'][maskj]-mean_e1j), g2=(shapej['e2'][maskj]-mean_e2j), w=weightj[maskj], ra=shapej['ra'][maskj], dec=shapej['dec'][maskj], ra_units='deg', dec_units='deg')
             biascat_j = treecorr.Catalog(k=np.sqrt(shapej['m1'][maskj]*shapej['m2'][maskj]), w=weightj[maskj], ra=shapej['ra'][maskj], dec=shapej['dec'][maskj], ra_units='deg', dec_units='deg')
 
         gg = treecorr.GGCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
@@ -861,6 +954,76 @@ class Measure2Point(PipelineStage):
         xiperr = ximerr = np.sqrt(gg.varxi)/norm
 
         return theta, xip, xim, xiperr, ximerr
+
+    def calc_pos_shear(self,i,j,l,verbose,num_threads):
+
+        mask = self.lens_binning==i
+        lenscat_i = treecorr.Catalog(w=self.lensweight[mask], ra=self.lens['ra'][mask], dec=self.lens['dec'][mask], ra_units='deg', dec_units='deg')
+
+        mask = self.ran_binning==i
+        rancat_i  = treecorr.Catalog(w=np.ones(np.sum(mask)), ra=self.randoms['ra'][mask], dec=self.randoms['dec'][mask], ra_units='deg', dec_units='deg')
+
+        m1,m2,mask = self.get_m(j, sample=l+1)
+        weight = getattr(self,"weight"+("2"*l))
+        shape = getattr(self,"shape"+("2"*l))
+        mean_e1 = shape['e1'][mask].mean()
+        mean_e2 = shape['e2'][mask].mean()
+        if self.params['has_sheared']:
+            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1[j])/m1[mask], g2=(shape['e2'][mask]-mean_e2[j])/m2[mask], w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
+        else:
+            cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1[j]), g2=(shape['e2'][mask]-mean_e2[j]), w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
+            biascat_j = treecorr.Catalog(k=np.sqrt(shape['m1'][mask]*shape['m2'][mask]), w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
+
+        ng = treecorr.NGCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        rg = treecorr.NGCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        if self.params['has_sheared']:
+            norm = 1.
+        else:
+            nk = treecorr.NKCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+            nk.process(lenscat_i,biascat_j)
+            norm,tmp=nk.calculateXi()
+        ng.process(lenscat_i,cat_j)
+        rg.process(rancat_i,cat_j)
+        gammat,gammat_im,gammaterr=ng.calculateXi(rg)
+
+        theta=np.exp(ng.meanlogr)
+        if np.sum(norm)==0:
+          norm=1.
+        gammat/=norm
+        gammat_im/=norm
+        gammaterr=np.sqrt(gammaterr/norm)
+
+        return theta, gammat, gammaterr
+
+    def calc_pos_pos(self,i,j,verbose,num_threads):
+
+        mask = self.lens_binning==i
+        lenscat_i = treecorr.Catalog(w=self.lensweight[mask], ra=self.lens['ra'][mask], dec=self.lens['dec'][mask], ra_units='deg', dec_units='deg')
+
+        mask = self.ran_binning==i
+        rancat_i  = treecorr.Catalog(w=np.ones(np.sum(mask)), ra=self.randoms['ra'][mask], dec=self.randoms['dec'][mask], ra_units='deg', dec_units='deg')
+
+        mask = self.lens_binning==j
+        lenscat_j = treecorr.Catalog(w=self.lensweight[mask], ra=self.lens['ra'][mask], dec=self.lens['dec'][mask], ra_units='deg', dec_units='deg')
+
+        mask = self.ran_binning==j
+        rancat_j  = treecorr.Catalog(w=np.ones(np.sum(mask)), ra=self.randoms['ra'][mask], dec=self.randoms['dec'][mask], ra_units='deg', dec_units='deg')
+
+        nn = treecorr.NNCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        rn = treecorr.NNCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        nr = treecorr.NNCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        rr = treecorr.NNCorrelation(nbins=self.params['tbins'], min_sep=self.params['tbounds'][0], max_sep=self.params['tbounds'][1], sep_units='arcmin', bin_slop=self.params['slop'], verbose=verbose,num_threads=num_threads)
+        nn.process(lenscat_i,lenscat_j)
+        rn.process(rancat_i,lenscat_j)
+        nr.process(lenscat_i,rancat_j)
+        rr.process(rancat_i,rancat_j)
+
+        theta=np.exp(nn.meanlogr)
+        wtheta,wthetaerr=nn.calculateXi(rr,dr=nr,rd=rn)
+        wthetaerr=np.sqrt(wthetaerr)
+
+        return theta, wtheta, wthetaerr
+
 
     def write(self):
         """
