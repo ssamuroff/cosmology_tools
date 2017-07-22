@@ -131,7 +131,7 @@ class Measure2Point(PipelineStage):
         else:
             ncorr=1
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
+        all_calcs = [(i,j,k,l,m) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
         for i,j,k,l,m in all_calcs:
             if ((k==l) and (i<=j)) or  (k!=l):
