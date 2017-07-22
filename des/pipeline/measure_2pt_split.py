@@ -312,7 +312,7 @@ class Measure2Point(PipelineStage):
         if self.params['lensfile'] != 'None':
             if 'pzbin' not in self.lens_pz.dtype.names:
                 self.lens_pz = append_fields(self.lens_pz, 'pzbin', self.lens_pz['pzstack'], usemask=False)
-            if 'pzstack' not in lens_pz.dtype.names:
+            if 'pzstack' not in self.lens_pz.dtype.names:
                 self.lens_pz = append_fields(self.lens_pz, 'pzstack', self.lens_pz['pzbin'], usemask=False)
 
         if not ((len(gold)==len(shape))
