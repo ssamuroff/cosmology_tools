@@ -132,27 +132,53 @@ class chain(samp.sampler):
 			plt.savefig("%s/%s.png"%(dirname,param))
 			plt.close()
 
-	def choose_panel_contents(self, i, j, name1, name2, colour="purple", kde=None, plots=None, xlim=[],ylim=[], contours=True):
+	def choose_panel_contents(self, i, j, name1, name2, colour="purple", kde=None, plots=None, contours=True, ls="-", overplot=[], fill=False, alpha=0.2, label="none", include=[True]*20):
 		import tools.plots as pl
-		if i==j:
+		lab=None
+		if (i==j):
 			n1,x1,p1 = self.get_1d_likelihood(name1, kde=kde)
-			plt.plot(x1,p1,lw=1.5,color=colour)
+			if (label!="none") & (i==1):
+				lab = label
+			if (include[i] & include[j]):
+				plt.plot(x1,p1,lw=1.5,color=colour, ls=ls, label=lab)
+			if (len(overplot)>0):
+				if (overplot[0][4][i]) & (overplot[0][4][j]):
+					for over in overplot:
+						if (label!="none") & (i==1):
+							lab = over[3]
+						n1,x1,p1 = over[0].get_1d_likelihood(name1, kde=kde)
+						plt.plot(x1,p1,lw=1.5,color=over[1], ls=over[2], label=lab)
+
+			if (i==1): plt.legend(bbox_to_anchor=(3.1, 2), fontsize=16)
 		else:
 			x = self.samples[name1]
 			y = self.samples[name2]
+
 			if contours:
-				pl.kde_hist([[y,x]], kde=kde, plots=plots, colours=[colour])
+				if (include[i] & include[j]):
+					pl.kde_hist([[y,x]], kde=kde, plots=plots, colours=[colour], linestyles=[ls], fill=[fill], alphas=[alpha])
+				if (len(overplot)>0):
+					if (overplot[0][4][i]) & (overplot[0][4][j]):
+						for over in overplot:
+							x0 = over[0].samples[name1]
+							y0 = over[0].samples[name2]
+							pl.kde_hist([[y0,x0]], kde=kde, plots=plots, colours=[over[1]], linestyles=[over[2]], fill=[fill], alphas=[alpha])
+
 			else:
 				plt.scatter(x, y, marker=".", edgecolor=colour, facecolor=colour)
-
-	def likelihood_cornerplot(self, names, colour="purple", kde=None, plots=None, lims=[], contours=True, blind=True):
+#Need to run the following to import kde and plots
+# sys.path.append('/home/samuroff/cosmosis/')
+# from cosmosis.postprocessing import plots
+# from cosmosis.plotting import kde
+	def likelihood_cornerplot(self, names, colour="purple", kde=None, plots=None, lims=[], contours=True, blind=True, ls="-",fill=False, alpha=0.2, overplot=[], label='none', include=[True]*20):
 		plt.style.use("y1a1")
 		plt.switch_backend("pdf")
 		
+
 		npar = len(names)
 		naxis = npar
 		ipanel = 0
-		print "Will make corner plot of %d parameters"
+		print "Will make corner plot of %d parameters"%npar
 		for i,name1 in enumerate(names):
 			fullname1 = "%s--%s"%(sections[name1], name1)
 			for j, name2 in enumerate(names):
@@ -161,7 +187,7 @@ class chain(samp.sampler):
 				if j>i: continue
 				plt.subplot(naxis,naxis,ipanel, aspect="auto")
 				print i, j, fullname1, fullname2
-				self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, xlim=lims[0], ylim=lims[1], contours=contours)
+				self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, contours=contours, ls=ls, overplot=overplot, fill=fill, alpha=alpha, label=label, include=include)
 
 				plt.yticks(visible=False)
 				plt.xticks(visible=False)
@@ -210,10 +236,12 @@ class chain(samp.sampler):
 		return n, x_axis, like
 
 
-	def save(self, filename, burn, extra=["s8"]):
+	def save(self, filename, burn, thin=None, extra=["s8"]):
 		if "s8" in extra:
 			self.add_column("s8", values="sigma_8*((omega_m/0.3)**0.5)")
 		self.burn(burn)
+		if thin is not None:
+			self.thin(thin)
 		self.write_columns(filename)
 
 	def change_deltaz_prior(self, newprior, oldprior):

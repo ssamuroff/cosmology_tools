@@ -1823,7 +1823,7 @@ def histograms(names, data, outdir="/home/samuroff/shear_pipeline/end-to-end/plo
 
 	if "snr" in names:
 		plt.close()
-		plt.subplot(111, aspect=0.52)
+		plt.subplot(111, aspect=0.5)
 		print "-- SNR"
 		plt.hist(np.log10(data["snr"]), histtype="step", bins=np.linspace(1,2, 60), weights=weights, normed=1, lw=2.5, color="purple") #, label="$hoopoe$")
 		if data2 is not None:
@@ -2269,7 +2269,7 @@ def sky_map(ra, dec, colour="purple", name="/home/samuroff/skymap.png", label=No
 
 def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, colours=None, kde=None,plots=None,npts=10000, factor=4, xlim=None, ylim=None, fill=[False]*10, lines=[True]*10, opaque=[False]*10, alphas=[0.4]*10):
 	import sys
-	#sys.path.append('/home/samuroff/cosmosis/')
+	sys.path.append('/home/samuroff/cosmosis/')
 	#from cosmosis.postprocessing import plots
 	#from cosmosis.postprocessing import lazy_pylab as pylab
 	#from cosmosis.postprocessing import statistics
@@ -2340,6 +2340,65 @@ def kde_hist(datasets, labels=[None]*10, linestyles=["-"]*10, colours=None, kde=
 	plt.ylim(ylim)
 	plt.xlim(xlim)
 
+
+def footprint_sub(ra,dec,rasep,decsep,nside,fig, cmap='none'):
+	plt.close() ; fig = plt.figure(figsize=(6.5,6))
+
+	import skymapper as skm
+
+	bc, ra0, dec0, vertices = skm.getCountAtLocations(ra, dec, nside=nside, return_vertices=True)
+
+	# setup figure
+	import matplotlib.cm as cm
+	if cmap=='none':
+		cmap = cm.YlOrRd
+	ax = fig.add_subplot(111, aspect='equal')
+
+	# setup map: define AEA map optimal for given RA/Dec
+	proj = skm.createConicMap(ax, ra0, dec0, proj_class=skm.AlbersEqualAreaProjection)
+	# add lines and labels for meridians/parallels (separation 5 deg)
+	sep = 5
+	meridians = np.arange(-90, 90+decsep, decsep)
+	parallels = np.arange(0, 360+rasep, rasep)
+	skm.setMeridianPatches(ax, proj, meridians, linestyle='-', lw=0.5, alpha=0.3, zorder=2)
+	skm.setParallelPatches(ax, proj, parallels, linestyle='-', lw=0.5, alpha=0.3, zorder=2)
+	skm.setMeridianLabels(ax, proj, meridians, loc="left", fmt=skm.pmDegFormatter)
+	skm.setParallelLabels(ax, proj, parallels, loc="top")
+
+	# add vertices as polygons
+	vmin, vmax = np.percentile(bc,[10,90])
+	poly = skm.addPolygons(vertices, proj, ax, color=bc, vmin=vmin, vmax=vmax, cmap=cmap, zorder=3, rasterized=True)
+
+	# add colorbar
+	from mpl_toolkits.axes_grid1 import make_axes_locatable
+	divider = make_axes_locatable(ax)
+	cax = divider.append_axes("right", size="2%", pad=0.0)
+	cb = fig.colorbar(poly, cax=cax)
+	cb.set_label('$n_g$ [arcmin$^{-2}$]')
+	cb.solids.set_edgecolor("face")
+
+	skm.addFootprint('DES', proj, ax, zorder=10, edgecolor='#2222B2', facecolor='None', lw=2)
+
+	def add_label(ra_label,dec_label,label):
+		x,y=proj(ra_label,dec_label)
+		ax.text(x,y,label,fontsize=14)
+
+	add_label(45,-64,"SPT")
+	add_label(350,4.0, "Stripe 82")
+	#add_label(50,-26, "D04")
+	#add_label(38.5,-1.5, "D04")
+
+	#Fiddle with axis limit so we can see the whole range
+	xmin,_=proj(100,-30)
+	_,xmax=ax.get_xlim()
+	ax.set_xlim(xmin,xmax)
+	ymin,ymax=ax.get_ylim()
+	r=ymax-ymin
+	ymin-=r/10.
+	ymax+=r/5.
+	ax.set_ylim(ymin,ymax)
+	plt.savefig('/global/cscratch1/sd/sws/y1a1-im3shape-footprint-%s.pdf'%cmap, bbox_inches='tight')
+	return
 
 
 def i3plot(res, image, transform, savedir="/home/samuroff/shear_pipeline/plot_dump/toy_model", name="toy_model_bfellipse.pdf", trim=0, interpolate=False,colorbar=False, clim=None, cmap="jet"):

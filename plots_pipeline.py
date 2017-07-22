@@ -20,7 +20,7 @@ matplotlib.rcParams['ytick.major.size'] = 10.0
 class paper:
 	def __init__(self):
 		print "tool for remaking paper plots"
-		self.config = yaml.load(open("/home/samuroff/calibration/config/calibration_config_no_box_cut.yaml"))
+		self.config = yaml.load(open("/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config/fiducial-y1-unblinded.yaml"))
 
 	def load_data(self, data=False, waxwing=False):
 		if not hasattr(self, "hoopoe"):
@@ -129,7 +129,10 @@ class paper:
 	def fig6(self, generate_data_snr=True,generate_data_r=True, alpha=False, generate_plot=True):
 	
 		if generate_data_snr:
+			# blinded
 			pth="/share/des/disc8/cambridge/bord-fits/combined_cats/matched_hoopoe-waxwing_nocuts.fits"
+			# unblinded
+			pth="/share/des/disc8/y1-unblinded-combined_cats/hoopoe-waxwing-overlap-unblinded.fits"
 			print pth
 			matched_hoopoe =s.shapecat(res=pth)
 			matched_waxwing =s.shapecat(res=pth)
@@ -227,6 +230,7 @@ class paper:
 
 		if generate_data_r:
 			pth="/share/des/disc8/cambridge/bord-fits/combined_cats/matched_hoopoe-waxwing_nocuts.fits"
+			pth="/share/des/disc8/y1-unblinded-combined_cats/hoopoe-waxwing-overlap-unblinded.fits"
 			print pth
 			matched_hoopoe =s.shapecat(res=pth)
 			matched_waxwing =s.shapecat(res=pth)
@@ -304,6 +308,7 @@ class paper:
 			vec_hoopoe_bins_matched = matched_hoopoe1.bias_vs_obs("mean_rgpp_rp", "m", nrbin, binning=bin_edges,error_type="std", logscale=False, colour="purple", return_vals=True, ls="--", xdata=matched_waxwing1.res["mean_rgpp_rp"])
 			vec_waxwing_bins_matched = matched_waxwing1.bias_vs_obs("mean_rgpp_rp", "m", nrbin, binning=bin_edges,error_type="std", logscale=False, colour="purple", return_vals=True, ls="--", xdata=matched_waxwing1.res["mean_rgpp_rp"])
 			vec_hoopoe_objects_matched = matched_hoopoe1.bias_vs_obs("mean_rgpp_rp", "m", nrbin, binning=bin_edges,error_type="std", logscale=False, colour="purple", return_vals=True, ls="--")
+			vec_matched2_nf = matched_waxwing1.bias_vs_obs("mean_rgpp_rp", "m", nrbin, binning=bin_edges,error_type="std", logscale=False, colour="purple", return_vals=True, ls="--")
 
 
 			nbins_alpha=6
@@ -329,7 +334,7 @@ class paper:
 			np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-hoopoe-matched",np.vstack((vec_hoopoe_bins_matched[0], vec_hoopoe_bins_matched[1]["m"], vec_hoopoe_bins_matched[2]["m"])).T)
 			np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-waxwing-matched",np.vstack((vec_waxwing_bins_matched[0], vec_waxwing_bins_matched[1]["m"], vec_waxwing_bins_matched[2]["m"])).T)
 			np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-waxwing-unmatched",np.vstack((vec_waxwing_owncuts[0], vec_waxwing_owncuts[1]["m"], vec_waxwing_owncuts[2]["m"])).T)
-			#np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-waxwing-matched-pergal",np.vstack((vec_matched2_nf[0], vec_matched2_nf[1]["m"], vec_matched2_nf[2]["m"])).T)
+			np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-waxwing-matched-pergal",np.vstack((vec_matched2_nf[0], vec_matched2_nf[1]["m"], vec_matched2_nf[2]["m"])).T)
 			np.savetxt("/home/samuroff/hoopoe_paper/plots/data/fig4/m-vs-rgpp-hoopoe-matched-pergal",np.vstack((vec_hoopoe_objects_matched[0], vec_hoopoe_objects_matched[1]["m"], vec_hoopoe_objects_matched[2]["m"])).T)
 
 	def summary_plot(self):
@@ -338,18 +343,32 @@ class paper:
 		plt.switch_backend("pdf")
 		cases = ["hf", "wf", "m_n1f1_owncuts", "m_n0f0_owncuts", "m_n0f0_hoopoecuts", "m_n1f1_owncuts+dgn", "m_n1f1_bothcuts+dgn", "m_n0f0_bothcuts", "m2_n1f0_owncuts", "m2_n1f1_owncuts", "m2_n1f1_f0cuts"]
 
+#		lookup={
+#		"hf":[-0.15134869469909246, 0.001831402995716225, "$hoopoe$, own cuts"],
+#		"wf":[-0.099733818389343892, 0.0049929106165088272, "$waxwing$, own cuts"],
+#		"m_n1f1_owncuts":[-0.14605422357680206, 0.0050273319928490897, "Matched $hoopoe$, own cuts"],
+#		"m_n1f1_owncuts+dgn":[-0.11333853344766834, 0.0063829154847302736, r"Matched $hoopoe$, own cuts \& $d_{gn}>20$ pix"],
+#		"m_n1f1_bothcuts+dgn":[-0.10544, 0.005697, r"Matched $hoopoe$, both cuts \& $d_{gn}>20$ pix"],
+#		"m_n0f0_owncuts":[-0.099374117849417298, 0.0052202293676924597, "Matched $waxwing$, own cuts"],
+#		"m_n0f0_hoopoecuts":[-0.089707741757402717, 0.0051494746527769777, "Matched $waxwing$, $hoopoe$ cuts"],
+#		"m_n0f0_bothcuts":[-0.103985, 0.0058428, "Matched $waxwing$, both cuts \& $d_{gn}>20$ pix"],
+#		"m2_n1f0_owncuts":[-0.13806,0.005216, "No sub-detection, own cuts" ],
+#		"m2_n1f1_owncuts":[-0.1539,0.005842, "Matched $hoopoe$, own cuts" ],
+#		"m2_n1f1_f0cuts":[-0.1341,0.00753, "$hoopoe$, cuts from no sub-detection" ]
+#		}
+
 		lookup={
-		"hf":[-0.15134869469909246, 0.001831402995716225, "$hoopoe$, own cuts"],
-		"wf":[-0.099733818389343892, 0.0049929106165088272, "$waxwing$, own cuts"],
-		"m_n1f1_owncuts":[-0.14605422357680206, 0.0050273319928490897, "Matched $hoopoe$, own cuts"],
-		"m_n1f1_owncuts+dgn":[-0.11333853344766834, 0.0063829154847302736, r"Matched $hoopoe$, own cuts \& $d_{gn}>20$ pix"],
-		"m_n1f1_bothcuts+dgn":[-0.10544, 0.005697, r"Matched $hoopoe$, both cuts \& $d_{gn}>20$ pix"],
-		"m_n0f0_owncuts":[-0.099374117849417298, 0.0052202293676924597, "Matched $waxwing$, own cuts"],
-		"m_n0f0_hoopoecuts":[-0.089707741757402717, 0.0051494746527769777, "Matched $waxwing$, $hoopoe$ cuts"],
-		"m_n0f0_bothcuts":[-0.103985, 0.0058428, "Matched $waxwing$, both cuts \& $d_{gn}>20$ pix"],
-		"m2_n1f0_owncuts":[-0.13806,0.005216, "No sub-detection, own cuts" ],
-		"m2_n1f1_owncuts":[-0.1539,0.005842, "Matched $hoopoe$, own cuts" ],
-		"m2_n1f1_f0cuts":[-0.1341,0.00753, "$hoopoe$, cuts from no sub-detection" ]
+		"hf":[-0.11902291590209725, 0.0017383162244452117, "$hoopoe$, own cuts"],
+		"wf":[-0.064, 0.006, "$waxwing$, own cuts"],
+		"m_n1f1_owncuts":[-0.113, 0.007, "Matched $hoopoe$, own cuts"],
+		"m_n1f1_owncuts+dgn":[-0.078, 0.008, r"Matched $hoopoe$, own cuts & $d_{gn}>20$ pix"],
+		"m_n1f1_bothcuts+dgn":[-0.070, 0.007, r"Matched $hoopoe$, both cuts & $d_{gn}>20$ pix"],
+		"m_n0f0_owncuts":[-0.064, 0.006, "Matched $waxwing$, own cuts"],
+		"m_n0f0_hoopoecuts":[-0.055, 0.007, r"Matched $waxwing$, $hoopoe$ cuts"],
+		"m_n0f0_bothcuts":[-0.068, 0.007, r"Matched $waxwing$, both cuts & $d_{gn}>20$ pix"],
+		"m2_n1f0_owncuts":[-0.104, 0.008, "No sub-detection, own cuts" ],
+		"m2_n1f1_owncuts":[-0.120, 0.006, "Matched $hoopoe$, own cuts" ],
+		"m2_n1f1_f0cuts":[-0.101, 0.009, "$hoopoe$, cuts from no sub-detection" ]
 		}
 
 		colours=["purple", "steelblue", "forestgreen", "pink", "darkred", "orange", "k", "darkviolet"]
@@ -358,7 +377,7 @@ class paper:
 		fig = plt.figure(1)
 
 		plt.ylim(100*(1+len(cases)),0.0)
-		plt.xlim(-0.2,-0.084)
+		plt.xlim(-0.175,-0.045)
 		ax = plt.gca()
 		ax.yaxis.set_visible(False)
 
@@ -366,8 +385,12 @@ class paper:
 		for i, (y0,name) in enumerate(zip(y,cases)):
 			line = lookup[name]
 			print i, line
-			plt.errorbar(line[0], y0, xerr=line[1], color=fontcolours[i], fmt="x", elinewidth=1.5)
-			plt.text(-0.1985, y0, line[2], fontsize=8.4, color=fontcolours[i])
+			if i==0:
+				pt="*" ; fc="none" ; sz=9 ; ec="k"
+			else:
+				pt="x" ; fc=fontcolours[i] ; sz=6 ; ec=fontcolours[i]
+			plt.errorbar(line[0], y0, xerr=line[1], color=fontcolours[i], mec=ec, fmt=pt, markerfacecolor=fc, elinewidth=1.5, markersize=sz)
+			plt.text(-0.174, y0, line[2], fontsize=8.4, color=fontcolours[i])
 			if i==0:
 				plt.axvline(line[0], color=colours[i])
 				plt.axvspan(line[0]-line[1], line[0]+line[1], color="purple", alpha=0.2)
@@ -375,105 +398,213 @@ class paper:
 		plt.xlabel("Multiplicative Bias $m \equiv (m_1+m_2)/2$")
 		plt.subplots_adjust(top=0.98,bottom=0.138)
 
-		plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/m_summary_plot.pdf")
+		plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/m_summary_plot-unblinded.pdf")
 
 
-import tools.diagnostics as di
-import tools.plots as pl
-import fitsio as fi
-import pylab as plt
-import os, yaml, argparse
-import tools.shapes as s
-import tools.nbc as cal
-import tools.arrays as arr
-from tools.im3shape import calibrate_all_tomographic as ct
-from tools.im3shape import calibrate_all as ca
-import copy
-from tools.im3shape.calibration import calibrate_y1 as cy1
-config = yaml.load(open("/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config/fiducial-y1-unblinded.yaml"))
-hoopoe, weights, y1v2 = cy1.setup(True, False, config)
+#import tools.diagnostics as di
+#import tools.plots as pl
+#import fitsio as fi
+#import pylab as plt
+#import os, yaml, argparse
+#import tools.shapes as s
+#import tools.nbc as cal
+#import tools.arrays as arr
+#from tools.im3shape import calibrate_all_tomographic as ct
+#from tools.im3shape import calibrate_all as ca
+#import copy
+#from tools.im3shape.calibration import calibrate_y1 as cy1
+#config = yaml.load(open("/home/samuroff/local/python/lib/python2.7/site-packages/tools/im3shape/calibration/config/fiducial-y1-unblinded.yaml"))
+#hoopoe, weights, y1v2 = cy1.setup(True, False, config)
+#
+#
+## exposure map
+#
+#plt.style.use("y1a1")
+#plt.switch_backend("pdf")
+#col=hoopoe.map_depth(thin=3)
+#sky_map(hoopoe.res["ra"][::3],hoopoe.res["dec"][::3],colour=col["n_exposure"])
+#
+#
+## Toy model shear resiudal
+#
+#dv=np.genfromtxt("/home/samuroff/shear_residual-toymodel-median_vals-dgn6.txt",names=True)
+#
+#dv0=np.genfromtxt("/home/samuroff/shear_residual-toymodel-median_vals-dgn6-noneigh.txt",names=True)
+#
+#plt.close()
+#import matplotlib
+#matplotlib.rcParams['font.family']='serif'
+#matplotlib.rcParams['font.size']=18
+#matplotlib.rcParams['legend.fontsize']=18
+#
+#
+#plt.close()
+#fig, ax1 = plt.subplots()
+##ax2 = fig.add_axes([0.27, 0.205, 0.265, 0.265])
+##ax3 = fig.add_axes([0.72, 0.7, 0.25, 0.25])
+#ax1.plot(dv["g"], dv["dg"],"o", color="purple",mec="purple")
+#ax1.plot(dv0["g"], dv0["dg"],":", color="purple")
+#ax1.axhline(0, color="k")
+#ax1.axvline(0, color="k")
+#ax1.set_ylim(-0.09,0.09)
+#ax1.set_xlim(-0.31,0.31)
+#ax1.set_yticks([-0.09,-0.06,-0.03,0,0.03,0.06,0.09])
+#ax1.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.45, lw=1, color="midnightblue", alpha=0.8)
+#ax1.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.5, lw=1, color="midnightblue", alpha=0.8)
+#ax1.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.4, lw=1, color="midnightblue", alpha=0.8)
+#ax1.set_xlabel(r"Input Shear $g^{tr}$", fontsize=22)
+#ax1.set_ylabel(r"Shear Residual $\tilde{g}-g^{tr}$", fontsize=22)
 
+#ax2.plot(dv["g"], dv["dg"],".", color="purple")
+#ax2.plot(dv0["g"], dv0["dg"],":", color="purple")
+#ax2.axhline(0, color="k")
+#ax2.axvline(0, color="k")
+#ax2.set_ylim(-0.04,0.04)
+#ax2.set_xlim(-0.08,0.08)
+#ax2.set_yticks([-0.04,-0.02,0.00,0.02,0.04])
+#ax2.set_xticks([-0.08, -0.04,0.00,0.04,0.08])
+#ax2.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.45, lw=1, color="k", alpha=0.8)
+#ax2.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.5, lw=1, color="k", alpha=0.8)
+#ax2.plot([-0.6,0.6], np.array([-0.6,0.6])*-0.4, lw=1, color="k", alpha=0.8)
+#ax2.tick_params(labelsize=13)
 
-# exposure map
+plt.subplots_adjust(left=0.2, right=0.98, top=0.97,bottom=0.15)
 
-plt.style.use("y1a1")
-plt.switch_backend("pdf")
-col=hoopoe.map_depth(thin=3)
-sky_map(hoopoe.res["ra"][::3],hoopoe.res["dec"][::3],colour=col["n_exposure"])
-
-
-
-# toy model et vs dgn
-
-plt.style.use("y1a1")
-plt.switch_backend("pdf")
+plt.savefig("/home/samuroff/g-vs-dg-toy_model_medians.pdf")
 plt.close()
-import matplotlib
-matplotlib.rcParams['font.family']='serif'
-matplotlib.rcParams['legend.fontsize']=22
-matplotlib.rcParams['font.size']=18
 
-r,g1,g2 = np.loadtxt("/home/samuroff/etangent-vs-dgn-toy_model_medians-round_neighbour.txt").T
-r,g1n,g2n = np.loadtxt("/home/samuroff/etangent-vs-dgn-toy_model_medians-sheared_neighbour.txt").T
-
-
-plt.plot(r, -1*np.array(g1), color="purple", label=r"$\tilde{g}_1$ (round neighbour)", lw=2.5, ls="-")
-plt.plot(r, -1*np.array(g2), color="purple", label=r"$\tilde{g}_2$ (round neighbour)", lw=2.5, ls="-.")
-plt.plot(r, -1*np.array(g1n), color="k", label=r"$\tilde{g}_1$ ($g^{tr}_{2,n}=0.1$)", lw=2.5, ls=":")
-plt.plot(r, -1*np.array(g2n), color="k", label=r"$\tilde{g}_2$ ($g^{tr}_{2,n}=0.1$)", lw=2.5, ls="--")
-plt.axhline(0, color="k")
-plt.xlim(0.,32)
-plt.ylim(-0.45,0.04)
-plt.legend(loc="lower right")
-plt.xlabel("Neighbour Distance $d_{gn}$ / pixels", fontsize=22)
-plt.ylabel(r"Tangential or Cross Shear", fontsize=22)
-#$- \tilde{g}_i (d_{gn}| g^{tr}=0, \theta=0) $")
-plt.subplots_adjust(left=0.16, right=0.98, bottom=0.15, top=0.98)
-plt.savefig("/home/samuroff/dgn-vs-etangent-toy_model_medians.pdf")
-
-
-# gm and mm correlation functions
-plt.close()
-plt.style.use("y1a1")
-plt.switch_backend("pdf")
-import matplotlib
-matplotlib.rcParams["legend.fontsize"]=22
-
-m0 =  0.15126887361063673
-xmm, mm = np.loadtxt("/home/samuroff/hoopoe_paper/paper/data/2pt_m/2pt-mm-binslop_0.100.txt").T
-xgm, gm = np.loadtxt("/home/samuroff/hoopoe_paper/paper/data/2pt_m/2pt-gm-binslop_0.100.txt").T
-plt.close()
-plt.plot(xmm, (mm-m0*m0)*1e3, "o", color="purple", mec="none", label=r"$\left < m m \right > - \bar{m}^2$")
-plt.plot(xgm, gm*1e3, "^", color="steelblue", mec="none", label=r"$\left < \delta_g m \right >$")
-plt.plot(np.logspace(0,3,400), 1e3*curve(np.logspace(0,3,400), bf_mm[0], bf_mm[1]), ":", color="purple")
-plt.plot(np.logspace(0,3,400), 1e3*line(np.logspace(0,3,400), bf_gm[0], bf_gm[1]), ":", color="steelblue")
-plt.axvline(0.75/6*60*np.sqrt(2),color="k", ls="--")
-plt.axhline(0, color="k")
-plt.axvspan(1,3.6, color="blue", alpha=0.1)
-plt.axvspan(250,500, color="blue", alpha=0.1)
-plt.xlim(2,250)
-plt.legend()
-plt.xlabel(r"Angular Scale $\theta$ / arcseconds",fontsize=22)
-plt.ylabel(r"$\xi_{a b}(\theta)$ / $\times10^{-3}$", fontsize=22)
-plt.ylim(-4.5,4.5)
-plt.xscale("log")
-plt.subplots_adjust(bottom=0.13)
-plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/xi-mm-gm-6x6-fit-v2.pdf")
-
-plt.close()
-plt.plot(xgg, gg*1e3, "<", color="deeppink", mec="none", label=r"$\left < \delta_g \delta_g \right >$")
-plt.plot(np.logspace(0,3,400), 1e3*curve(np.logspace(0,3,400), bf_gg[0], bf_gg[1]), ":", color="deeppink")
-plt.axvline(0.75/6*60*np.sqrt(2),color="k", ls="--")
-plt.axhline(0, color="k")
-plt.axvspan(1,3.6, color="blue", alpha=0.1)
-plt.axvspan(250,500, color="blue", alpha=0.1)
-plt.xlim(2,250)
-plt.legend()
-plt.xlabel(r"Angular Scale $\theta$ / arcseconds",fontsize=22)
-plt.ylabel(r"$\xi_{a b}(\theta)$ / $\times10^{-3}$", fontsize=22)
-plt.xscale("log")
-plt.subplots_adjust(bottom=0.13)
-plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/xi-delta_g-delta_g-6x6-fit.pdf")
+#
+#
+## cartoon ellipses
+#
+#
+#from tools.im3shape import basic as i3s
+#import tools.shapes as s
+#m=s.meds_wrapper("/share/des/disc8/cambridge/meds/DES2111+0043-r-sim-ohioA6-meds-y1a1-beta.fits.fz")
+#g_r0={}
+#r=np.linspace(0,35,60)
+#reload(pl)
+#
+#
+#params={
+#    "Rc":2.1,
+#    "fc":945,
+#    "fn":475,
+#    "Rn":1.47,
+#    "Rp":0.8}
+#
+#plt.close() 
+#plt.style.use("y1a1")
+#plt.switch_backend("pdf")
+#plt.gca(aspect="equal", adjustable="box")
+#gal0,psf0=i3s.setup_simple(boxsize=32*3,shear=(-0.4,0.0), psf_size=params["Rp"],  size=params["Rc"]*1.5*3, neighbour_ellipticity=(0.0,0.0), neighbour_flux=params["fn"], flux=params["fc"]*3, neighbour_size=0.5, neighbour=[np.inf,np.inf], opt=m.options)
+#dt=np.pi/8.
+#np.cos(dt)
+#dgn=6*3
+#dx,dy=3*np.cos(dt),3*np.sin(dt)
+#xy=np.meshgrid(np.arange(-32*3/2,32*3/2,1),np.arange(-32*3/2,32*3/2,1) )
+#CS = plt.contour(xy[0]-0.5,xy[1]-0.5,gal0,levels=np.linspace(0.115,13,10), colors="purple")
+#plt.scatter([dgn],[0], marker="x", s=90, color="steelblue")
+#plt.scatter([0],[dgn], marker="x", s=90, color="steelblue")
+#plt.scatter([dgn/np.sqrt(2)],[dgn/np.sqrt(2)], marker="x", s=90, color="steelblue")
+#plt.arrow(0,dgn,-3,0, color="steelblue", head_width=0.65, head_length=0.75, lw=1.5)
+#plt.arrow(dgn/np.sqrt(2),dgn/np.sqrt(2), -3/2,3/2, color="steelblue", head_width=0.65, head_length=0.75, lw=1.5)
+#plt.arrow(dgn,0,0,3, color="steelblue", head_width=0.65, head_length=0.75, lw=1.5)
+#plt.text(dgn+1,0, "A", fontsize=26)
+#plt.text(dgn/np.sqrt(2)+1, dgn/np.sqrt(2)+1, "B", fontsize=26)
+#plt.text(0, dgn+1, "C", fontsize=26)
+#plt.scatter([0],[0],marker="+", color="k", s=200,lw=2)
+#plt.xlim(-31,30)
+#plt.ylim(-31,30)
+#plt.xticks(visible=False)
+#plt.yticks(visible=False)
+#
+#plt.savefig("tmp12.pdf")
+#
+#
+#
+## toy model et vs dgn
+#
+#plt.style.use("y1a1")
+#plt.switch_backend("pdf")
+#plt.close()
+#import matplotlib
+#matplotlib.rcParams['font.family']='serif'
+#matplotlib.rcParams['legend.fontsize']=22
+#matplotlib.rcParams['font.size']=18
+#
+#r,g1,g2 = np.loadtxt("/home/samuroff/etangent-vs-dgn-toy_model_medians-round_neighbour.txt").T
+#r,g1n,g2n = np.loadtxt("/home/samuroff/etangent-vs-dgn-toy_model_medians-sheared_neighbour.txt").T
+#
+#
+#plt.plot(r, -1*np.array(g1), color="purple", label=r"$\tilde{g}_1$ (round neighbour)", lw=2.5, ls="-")
+#plt.plot(r, -1*np.array(g2), color="purple", label=r"$\tilde{g}_2$ (round neighbour)", lw=2.5, ls="-.")
+#plt.plot(r, -1*np.array(g1n), color="k", label=r"$\tilde{g}_1$ ($g^{tr}_{2,n}=0.1$)", lw=2.5, ls=":")
+#plt.plot(r, -1*np.array(g2n), color="k", label=r"$\tilde{g}_2$ ($g^{tr}_{2,n}=0.1$)", lw=2.5, ls="--")
+#plt.axhline(0, color="k")
+#plt.xlim(0.,32)
+#plt.ylim(-0.45,0.04)
+#plt.legend(loc="lower right")
+#plt.xlabel("Neighbour Distance $d_{gn}$ / pixels", fontsize=22)
+#plt.ylabel(r"Tangential or Cross Shear", fontsize=22)
+##$- \tilde{g}_i (d_{gn}| g^{tr}=0, \theta=0) $")
+#plt.subplots_adjust(left=0.16, right=0.98, bottom=0.15, top=0.98)
+#plt.savefig("/home/samuroff/dgn-vs-etangent-toy_model_medians.pdf")
+#
+#
+#
+#def line(x,a,b):
+#    return np.log10(x)*a+b
+#
+#def curve(x,a,b):
+#    return b/(x**a)
+#
+## gm and mm correlation functions
+#plt.close()
+#plt.style.use("y1a1")
+#plt.switch_backend("pdf")
+#import matplotlib
+#matplotlib.rcParams["legend.fontsize"]=22
+#
+#m0 =  0.15126887361063673
+#xmm, mm = np.loadtxt("/home/samuroff/hoopoe_paper/paper/data/2pt_m/2pt-mm-binslop_0.100.txt").T
+#xgm, gm = np.loadtxt("/home/samuroff/hoopoe_paper/paper/data/2pt_m/2pt-gm-binslop_0.100.txt").T
+#
+#bf_mm,cov_mm = sp.optimize.curve_fit(curve, xmm, mm-m0*m0, p0=[1,0.02])
+#bf_gm,cov_gm = sp.optimize.curve_fit(line, xgm, gm)
+#
+#plt.close()
+#plt.plot(xmm, (mm-m0*m0)*1e3, "o", color="purple", mec="none", label=r"$\left < m m \right > - \bar{m}^2$")
+#plt.plot(xgm, gm*1e3, "^", color="steelblue", mec="none", label=r"$\left < \delta_g m \right >$")
+#plt.plot(np.logspace(0,3,400), 1e3*curve(np.logspace(0,3,400), bf_mm[0], bf_mm[1]), ":", color="purple", lw=2.5)
+#plt.plot(np.logspace(0,3,400), 1e3*line(np.logspace(0,3,400), bf_gm[0], bf_gm[1]), ":", color="steelblue", lw=2.5)
+#plt.axvline(0.75/6*60*np.sqrt(2),color="k", ls="--")
+#plt.axhline(0, color="k")
+#plt.axvspan(1,3.6, color="blue", alpha=0.1)
+#plt.axvspan(250,500, color="blue", alpha=0.1)
+#plt.xlim(2,250)
+#plt.legend(numpoints=3)
+#plt.xlabel(r"Angular Scale $\theta$ / arcseconds",fontsize=22)
+#plt.ylabel(r"$\xi_{a b}(\theta)$ / $\times10^{-3}$", fontsize=22)
+#plt.ylim(-4.5,4.5)
+#plt.xscale("log")
+#plt.subplots_adjust(bottom=0.13)
+#plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/xi-mm-gm-6x6-fit-v2.pdf")
+#
+#plt.close()
+#plt.plot(xgg, gg*1e3, "<", color="deeppink", mec="none", label=r"$\left < \delta_g \delta_g \right >$")
+#plt.plot(np.logspace(0,3,400), 1e3*curve(np.logspace(0,3,400), bf_gg[0], bf_gg[1]), ":", color="deeppink")
+#plt.axvline(0.75/6*60*np.sqrt(2),color="k", ls="--")
+#plt.axhline(0, color="k")
+#plt.axvspan(1,3.6, color="blue", alpha=0.1)
+#plt.axvspan(250,500, color="blue", alpha=0.1)
+#plt.xlim(2,250)
+#plt.legend()
+#plt.xlabel(r"Angular Scale $\theta$ / arcseconds",fontsize=22)
+#plt.ylabel(r"$\xi_{a b}(\theta)$ / $\times10^{-3}$", fontsize=22)
+#plt.xscale("log")
+#plt.subplots_adjust(bottom=0.13)
+#plt.savefig("/home/samuroff/shear_pipeline/plot_dump/hoopoe/xi-delta_g-delta_g-6x6-fit.pdf")
 
 
 

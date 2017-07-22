@@ -44,6 +44,8 @@ class shapecat(i3s_plots):
 		if res_arr is not None:
 			self.res=res_arr
 
+		self.blinded = True
+
 		print "Initialised."
 
 	def load_from_array(self, array, name="res"):
@@ -114,12 +116,14 @@ class shapecat(i3s_plots):
 		self.res["e1"] = ur["e1"]
 		self.res["e2"] = ur["e2"]
 
+		self.blinded = False
+
 		if return_old:
 			return r["e1"],r["e2"]
 
 		else:
 			return None
-
+			
 	def get_correlation(self, names=["e1", "e1"], slop=0.1, tbounds=[2,300], tbins=20):
 		"""Get a 2pt function for this dataset.
 		   names : quantities to correlate

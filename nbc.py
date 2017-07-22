@@ -36,6 +36,21 @@ class nbc(plots.im3shape_results_plots, sh.shapecat):
 		else:
 			print "Please specify either from_disc=True or from_memory=True"
 
+	def preserve_calibration_col(self,filename):
+		print "Storing nbc column %s"%filename
+		os.system("rm %s"%filename)
+
+		out = fi.FITS(filename, "rw")
+		cols = np.zeros(self.res.size, dtype=[("coadd_objects_id", int), ("m",">f8"), ("c1",">f8"), ("c2",">f8")] )
+		for col in cols.dtype.names:
+			cols[col] = self.res[col]
+
+		out.write(cols)
+		out[-1].write_key("EXTNAME","i3s_calibration_col")
+		out.close()
+
+		return 0
+
 	def get_split_data(self, cat, weights=None, method="random"):
 		self.res = cat.res
 		# Fix this so the random split for a given input is always the same

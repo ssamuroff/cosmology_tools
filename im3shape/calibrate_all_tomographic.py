@@ -12,7 +12,7 @@ plt.switch_backend("agg")
 
 
 def setup(calculate, catalogue, config, y1v2=None):
-	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp", "coadd_objects_id", "is_bulge", "bulge_flux", "disc_flux", "mean_psf_e1_sky", "mean_psf_e2_sky", "mean_psf_fwhm", "info_flag"]
+	im3shape_columns = ["e1", "e2", "mean_hsm_psf_e1_sky", "mean_hsm_psf_e2_sky", "mean_hsm_psf_sigma", "snr", "mean_rgpp_rp","mean_mask_fraction", "radius", "coadd_objects_id", "is_bulge", "bulge_flux", "disc_flux", "info_flag", "mag_auto_r"]
 	truth_columns = ['DES_id', 'cosmos_ident', 'cosmos_photoz', 'sextractor_pixel_offset', 'true_g1', 'true_g2', 'intrinsic_e1', 'intrinsic_e2', 'ra', 'dec', 'hlr', 'mag', 'flux']
 
 	# Load the y1 data

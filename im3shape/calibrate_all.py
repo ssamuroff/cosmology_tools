@@ -79,6 +79,16 @@ def main(args):
 		else:
 			print "Using tophat redshift bins"
 
+		if (config["selection"]["weights_file"] is not None):
+			import astropy.table as tb
+			wts = fi.FITS(config["selection"]["weights_file"])[-1].read()
+			col_to_replace = "mean_unmasked_flux_frac"
+			print "Renaming column '%s' as 'weight'"%col_to_replace
+			tab = tb.Table(hoopoe.res)
+			tab.rename_column(col_to_replace,"weight")
+			tab["weight"] = wts["weight"]
+			hoopoe.res = np.array(tab)
+
 		print "Final selection : %d galaxies"%hoopoe.res["coadd_objects_id"].size
 		print "Final selection : %d unique COSMOS IDs"%np.unique(hoopoe.truth["cosmos_ident"]).size
 
@@ -418,11 +428,11 @@ def diagnostics(y1v2, hoopoe, histograms=True, split_method="random", weights=No
 			plt.close()
 
 
-def get_weights(y1v2, hoopoe, sbins=9, rbins=9, config=None):
+def get_weights(y1v2, hoopoe, sbins=9, rbins=9, config=None, catalogue="data"):
 	os.system("mkdir -p %s/weights/"%config["output_dir"])
 	import pdb ; pdb.set_trace()
-	weights_grid = di.im3shape_weights_grid(y1v2.res, bins_from_table=False, filename="%s/weights/im3shape_weights_grid_v5_extra.fits"%config["output_dir"], sbins=sbins, rbins=rbins, simdat=hoopoe.res, binning="log")
-	di.interpolate_weights_grid(weights_grid, y1v2.res, smoothing=2.5, outdir="%s/weights/"%config["output_dir"], outfile="hoopoe_weights_column-v4_extra.fits")
+	weights_grid = di.im3shape_weights_grid(y1v2.res, bins_from_table=False, filename="%s/weights/%sim3shape_weights_grid_v5_extra.fits"%(config["output_dir"],catalogue), sbins=sbins, rbins=rbins, simdat=hoopoe.res, binning="log")
+	di.interpolate_weights_grid(weights_grid, y1v2.res, smoothing=2.5, outdir="%s/weights/"%config["output_dir"], outfile="%s-hoopoe_weights_column-v4_extra.fits"%catalogue)
 
 
 
