@@ -25,7 +25,7 @@ class Measure2Point(PipelineStage):
         "gold_idx"      : ("nofz", "gold_idx.npy")        ,
         "lens_idx"      : ("nofz", "lens_idx.npy")        ,
         "ran_idx"       : ("nofz", "ran_idx.npy")         ,
-
+        "nofz_meta"     : ("nofz", "metadata.yaml")       ,
     }
     outputs = {
         "xip"    : "{rank}_xip.txt",
