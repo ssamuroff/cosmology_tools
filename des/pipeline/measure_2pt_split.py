@@ -369,19 +369,19 @@ class Measure2Point(PipelineStage):
         if (split!='all'):
             type_mask, tmask1p, tmask1m, tmask2p, tmask2m  = self.get_type_split(suffix, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m )
             mask = mask & type_mask
-            mask_1p = mask & tmask1p
-            mask_1m = mask & tmask1m
-            mask_2p = mask & tmask2p
-            mask_2m = mask & tmask2m
+            mask_1p = mask_1p & tmask1p
+            mask_1m = mask_1m & tmask1m
+            mask_2p = mask_2p & tmask2p
+            mask_2m = mask_2m & tmask2m
 
         if ('colour_select' in self.params.keys()):
             colour = self.params['colour_select']
             colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
             mask = mask & colour_mask
-            mask_1p = mask & cmask1p
-            mask_1m = mask & cmask1m
-            mask_2p = mask & cmask2p
-            mask_2m = mask & cmask2m
+            mask_1p = mask_1p & cmask1p
+            mask_1m = mask_1m & cmask1m
+            mask_2p = mask_2p & cmask2p
+            mask_2m = mask_2m & cmask2m
 
         if 'flags' in shape.dtype.names:
             mask = mask & (shape['flags']==0)

@@ -49,7 +49,9 @@ class nofz(PipelineStage):
             print "you've specifed more than one sample. Will compute p(z) for the first one."
             print self.samples[0]
 
-        self.load_cat(suffix=0, split=self.samples[0])
+        for isamp, sample_name in enumerate(self.samples):
+            print "Will load %s as catalogue number %s"%(sample_name,isamp)
+            self.load_cat(suffix=isamp, split=sample_name)
 
         if 'pzbin_col' in self.gold.dtype.names:
             print 'ignoring any specified bins, since a bin column has been supplied in gold file'
@@ -60,9 +62,12 @@ class nofz(PipelineStage):
         else:
             self.weight = self.shape['weight']
         filename = self.output_path("weight")
+
+        # SWS: put the different colour samples in different folders 
         if 'colour_bins' in self.params.keys():
             filename = filename.replace('nofz/','nofz_%s/'%self.samples[0])
         np.save(filename, np.vstack((self.gold['objid'], self.weight)).T)
+
         # deal with photo-z weights for lenses later...
 
         # Setup binning
@@ -277,8 +282,11 @@ class nofz(PipelineStage):
             sample = 0
         else:
             sample = int(sample)-1
+        # SWS: The way I've coded this, the colour_bins param defines different samples
+        # The sample name has two parts separated by an underscore
+        # The first part is either 'early' or 'late'
+        # The second defines a magnitude cut: 'bright' or 'faint' (if this isn't defined, assume no magnitude cut) 
         gt = self.samples[sample].split("_")
-
         print "Cutting to galaxy type",gt
 
         # If we need to split into bright/faint subsets, then include this in the mask first
@@ -287,31 +295,38 @@ class nofz(PipelineStage):
             galaxy_type = gt[1]
 
             r = 30 - 2.5 * np.log10(shape["flux_r"])
-            rp1,rm1 = 30 - 2.5 * np.log10(shape["flux_r_1p"]), 30 - 2.5 * np.log10(shape["flux_r_1m"])
-            rp2,rm2 = 30 - 2.5 * np.log10(shape["flux_r_2p"]), 30 - 2.5 * np.log10(shape["flux_r_2m"])
+            rp1 = 30 - 2.5 * np.log10(shape["flux_r_1p"])
+            rm1 = 30 - 2.5 * np.log10(shape["flux_r_1m"])
+            rp2= 30 - 2.5 * np.log10(shape["flux_r_2p"])
+            rm2 = 30 - 2.5 * np.log10(shape["flux_r_2m"])
+
+            # Get the weighted mean and split about this value
             import weightedstats as ws
             flags_select = shape["flags"]==0
             R = (shape["m1"]+shape["m2"])/2
             median_r = ws.weighted_median(r[flags_select],weights=R[flags_select])
+
             if (subpop.lower()=="bright"):
                 print "Selecting below the weighted median r-band mag : ", median_r
                 mag_mask = (r<median_r), (rp1<median_r), (rm1<median_r), (rp2<median_r), (rm2<median_r)
                 print "%d/%d"%(r[mag_mask[0]].size, r.size)
+
             elif (subpop.lower()=="faint"):
                 print "Selecting above the weighted median r-band mag : ", median_r
                 mag_mask = (r>median_r), (rp1>median_r), (rm1>median_r), (rp2>median_r), (rm2>median_r)
                 print "%d/%d"%(r[mag_mask[0]].size, r.size)
         else:
-            galaxy_type=gt[0]
+            galaxy_type = gt[0]
             mag_mask = [np.ones(pz["t_bpz"].size).astype(bool)]*5
 
-        # Select either early- or late-type galaxies
+        # Now select either early or late type galaxies, as defined by BPZ
+        # allow for four possible cuts: the Heymans defaults, and a more stringent version  
         if galaxy_type=='early':
-            mask = [(pz['t_bpz']<1), (pz_1p['t_bpz']<1), (pz_1m['t_bpz']<1), (pz_2p['t_bpz']<1), (pz_2m['t_bpz']<1)]
+            mask = [(pz['t_bpz']<1,0),   (pz_1p['t_bpz']<1.0),  (pz_1m['t_bpz']<1.0),  (pz_2p['t_bpz']<1.0),  (pz_2m['t_bpz']<1.0)]
         elif galaxy_type=='rearly':
-            mask = [(pz['t_bpz']<0.5), (pz_1p['t_bpz']<0.5), (pz_1m['t_bpz']<0.5), (pz_2p['t_bpz']<0.5), (pz_2m['t_bpz']<0.5)]
+            mask = [(pz['t_bpz']<0.5),   (pz_1p['t_bpz']<0.5),  (pz_1m['t_bpz']<0.5),  (pz_2p['t_bpz']<0.5),  (pz_2m['t_bpz']<0.5)]
         elif galaxy_type=='late':
-            mask =  [(pz['t_bpz']>=1), (pz_1p['t_bpz']>=1), (pz_1m['t_bpz']>=1), (pz_2p['t_bpz']>=1), (pz_2m['t_bpz']>=1)]
+            mask =  [(pz['t_bpz']>=1.0), (pz_1p['t_bpz']>=1.0), (pz_1m['t_bpz']>=1.0), (pz_2p['t_bpz']>=1.0), (pz_2m['t_bpz']>=1.0)]
         elif galaxy_type=='rlate':
             mask =  [(pz['t_bpz']>=1.5), (pz_1p['t_bpz']>=1.5), (pz_1m['t_bpz']>=1.5), (pz_2p['t_bpz']>=1.5), (pz_2m['t_bpz']>=1.5)]
         elif galaxy_type=='all':
@@ -433,25 +448,31 @@ class nofz(PipelineStage):
                 mask_2p = (pz_2p['pzbin'] > self.params['zlims'][0]) & (pz_2p['pzbin'] <= self.params['zlims'][1])
                 mask_2m = (pz_2m['pzbin'] > self.params['zlims'][0]) & (pz_2m['pzbin'] <= self.params['zlims'][1])
 
+        #SWS: If we're doing a colour or galaxy type split, then incorporate it into the flags here
+
+        # im3shape bulge/disc
         if 'i3s_type' in self.params.keys():
             type_mask = self.get_im3shape_type(shape, self.params['i3s_type'])
             mask = mask & type_mask
 
+        # BPZ SED type
         if (split!='all'):
             type_mask, tmask1p, tmask1m, tmask2p, tmask2m  = self.get_type_split(suffix, shape, pz, pz_1p, pz_1m, pz_2p, pz_2m )
             mask = mask & type_mask
-            mask_1p = mask & tmask1p
-            mask_1m = mask & tmask1m
-            mask_2p = mask & tmask2p
-            mask_2m = mask & tmask2m
+            mask_1p = mask_1p & tmask1p
+            mask_1m = mask_1m & tmask1m
+            mask_2p = mask_2p & tmask2p
+            mask_2m = mask_2m & tmask2m
+
+        # mcal colour
         if ('colour_select' in self.params.keys()):
             colour = self.params['colour_select']
             colour_mask, cmask1p, cmask1m, cmask2p, cmask2m  = self.get_colour_cut(shape, colour), self.get_colour_cut(shape, colour, extension="_1p"), self.get_colour_cut(shape, colour, extension="_1m"), self.get_colour_cut(shape, colour, extension="_2p"), self.get_colour_cut(shape, colour, extension="_2m")
             mask = mask & colour_mask
-            mask_1p = mask & cmask1p
-            mask_1m = mask & cmask1m
-            mask_2p = mask & cmask2p
-            mask_2m = mask & cmask2m
+            mask_1p = mask_1p & cmask1p
+            mask_1m = mask_1m & cmask1m
+            mask_2p = mask_2p & cmask2p
+            mask_2m = mask_2m & cmask2m
     
         if 'flags' in shape.dtype.names:
             mask = mask & (shape['flags']==0)
