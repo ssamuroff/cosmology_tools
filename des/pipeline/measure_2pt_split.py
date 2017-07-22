@@ -955,8 +955,8 @@ class Measure2Point(PipelineStage):
         m1,m2,mask = self.get_m(j, sample=l+1)
         weight = getattr(self,"weight"+("2"*l))
         shape = getattr(self,"shape"+("2"*l))
-        mean_e1 = getattr(self,"mean_e1"+("2"*l))
-        mean_e2 = getattr(self,"mean_e2"+("2"*l))
+        mean_e1 = shape['e1'][mask].mean()
+        mean_e2 = shape['e2'][mask].mean()
         if self.params['has_sheared']:
             cat_j = treecorr.Catalog(g1=(shape['e1'][mask]-mean_e1[j])/m1[mask], g2=(shape['e2'][mask]-mean_e2[j])/m2[mask], w=weight[mask], ra=shape['ra'][mask], dec=shape['dec'][mask], ra_units='deg', dec_units='deg')
         else:
