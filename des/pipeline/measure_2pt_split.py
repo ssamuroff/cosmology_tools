@@ -83,7 +83,7 @@ class Measure2Point(PipelineStage):
 
         # Load data
         self.get_samples()
-        self.load_metadata()
+        #self.load_metadata()
 
         print "Samples to correlate", self.samples
 
@@ -907,14 +907,14 @@ class Measure2Point(PipelineStage):
     	m1j,m2j,maskj = self.get_m(j, sample=l+1)
     	weightj = getattr(self,"weight"+("2"*l))
         shapej = getattr(self,"shape"+("2"*l))
-        mean_e1j = getattr(self,"mean_e1"+("2"*l))
-        mean_e2j = getattr(self,"mean_e2"+("2"*l))
+        mean_e1j = shapej['e1'][maskj].mean() #getattr(self,"mean_e1"+("2"*l))
+        mean_e2j = shapej['e2'][maskj].mean() #getattr(self,"mean_e2"+("2"*l))
 
         m1i,m2i,maski = self.get_m(i, sample=k+1)
         weighti = getattr(self,"weight"+("2"*k))
         shapei = getattr(self,"shape"+("2"*k))
-        mean_e1i = getattr(self,"mean_e1"+("2"*k))
-        mean_e2i = getattr(self,"mean_e2"+("2"*k))
+        mean_e1i = shapei['e1'][maski].mean() #getattr(self,"mean_e1"+("2"*k))
+        mean_e2i = shapei['e2'][maski].mean() #getattr(self,"mean_e2"+("2"*k))
 
         if self.params['has_sheared']:
             cat_i = treecorr.Catalog(g1=(shapei['e1'][maski]-mean_e1i)/m1i[maski], g2=(shapei['e2'][maski]-mean_e2i)/m2i[maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
