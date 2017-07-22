@@ -103,6 +103,13 @@ class Measure2Point(PipelineStage):
             else:
                 setattr(self, "weight%d"%(i+1), weight)
 
+        if self.params['lensfile'] != 'None':
+            self.lens_binning   = load_bin_weight_files("nz_lens",self.lens['objid'])
+            self.lensweight     = self.lens['weight']
+            self.ran_binning    = np.load(self.input_path("randoms"))
+            if len(self.ran_binning)!=len(self.randoms):
+                raise ValueError('bad binning or weight in file '+self.input_path("randoms"))
+
         global global_measure_2_point
         global_measure_2_point = self
 
