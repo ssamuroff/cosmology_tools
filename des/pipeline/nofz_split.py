@@ -370,10 +370,10 @@ class nofz(PipelineStage):
         pz_nofz   = self.load_array(col.pz_stack_dict, 'photozfile_nz')
         print 'Done pznofzfile',time.time()-t0, pz_nofz.dtype.names
         if self.params['lensfile'] != 'None':
-            lens      = self.load_array(col.lens_dict, 'lensfile')
+            self.lens      = self.load_array(col.lens_dict, 'lensfile')
             print 'Done lensfile',time.time()-t0,lens.dtype.names
-            lens_pz   = self.load_array(col.lens_pz_dict, 'lensfile')
-            print 'Done lens_pzfile',time.time()-t0,lens_pz.dtype.names
+            self.lens_pz   = self.load_array(col.lens_pz_dict, 'lensfile')
+            print 'Done lens_pzfile',time.time()-t0,self.lens_pz.dtype.names
 
         if 'm1' not in shape.dtype.names:
             shape = append_fields(shape, 'm1', shape['m2'], usemask=False)
@@ -392,10 +392,10 @@ class nofz(PipelineStage):
             print 'flipping e2'
             shape['e2']*=-1
         if self.params['lensfile'] != 'None':
-            if 'pzbin' not in lens_pz.dtype.names:
-                lens_pz = append_fields(lens_pz, 'pzbin', lens_pz['pzstack'], usemask=False)
-            if 'pzstack' not in lens_pz.dtype.names:
-                lens_pz = append_fields(lens_pz, 'pzstack', lens_pz['pzbin'], usemask=False)
+            if 'pzbin' not in self.lens_pz.dtype.names:
+                self.lens_pz = append_fields(self.lens_pz, 'pzbin', self.lens_pz['pzstack'], usemask=False)
+            if 'pzstack' not in self.lens_pz.dtype.names:
+                self.lens_pz = append_fields(self.lens_pz, 'pzstack', self.lens_pz['pzbin'], usemask=False)
 
         if not ((len(gold)==len(shape))
             & (len(gold)==len(pz))
@@ -408,7 +408,7 @@ class nofz(PipelineStage):
                 & (len(gold)==len(pz_2m))):
                 raise ValueError('shape, gold, or photoz length mismatch')        
         if self.params['lensfile'] != 'None':
-            if (len(lens)!=len(lens_pz)):
+            if (len(self.lens)!=len(self.lens_pz)):
                 raise ValueError('lens and lens_pz length mismatch') 
 
         if self.params['lensfile'] != 'None':
@@ -433,8 +433,8 @@ class nofz(PipelineStage):
                 pz_2m   = pz_2m[idx]
             if self.params['lensfile'] != 'None':
                 idx = np.load(self.input_path("lens_idx"))
-                lens    = lens[idx]
-                lens_pz = lens_pz[idx]
+                self.lens    = self.lens[idx]
+                self.lens_pz = self.lens_pz[idx]
                 idx = np.load(self.input_path("ran_idx"))
                 randoms = randoms[idx]
 
@@ -518,6 +518,7 @@ class nofz(PipelineStage):
         else:
             full_mask  = mask
             setattr(self, "mask%s"%suffix, mask[full_mask])
+
         setattr(self, "gold%s"%suffix, gold[full_mask])
         setattr(self, "shape%s"%suffix, shape[full_mask])
         setattr(self, "pz%s"%suffix, pz[full_mask])
