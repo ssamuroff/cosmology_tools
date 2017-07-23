@@ -1041,9 +1041,11 @@ class Measure2Point(PipelineStage):
             
             filename = self.output_path(name).format(rank=rank)
             f = None 
+
+            import pdb ; pdb.set_trace()
             
-            for (theta,xi_data,ijkl) in zip(self.theta, self.xi, self.calc):
-                i,j,k,l = ijkl
+            for (theta,xi_data,ijklm) in zip(self.theta, self.xi, self.calc):
+                i,j,k,l,m = ijklm
                 if xi_data[n] is None:
                     continue
                 if f is None:
