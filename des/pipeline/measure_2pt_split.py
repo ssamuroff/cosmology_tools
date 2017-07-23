@@ -141,8 +141,13 @@ class Measure2Point(PipelineStage):
         all_calcs = [(i,j,k,l,m) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
         for i,j,k,l,m in all_calcs:
-            if ((k==l) and (i<=j)) or  (k!=l):
+            if (((k==l) and (i<=j)) or  (k!=l)) & (m==0):
                 calcs.append((i,j,k,l,m))
+            if self.params['lensfile'] != 'None':
+                if (m==1)&(i<self.lens_zbins)&(j<self.zbins)&(self.params['2pt_only'].lower() in [None,'pos-shear','all']):
+                    calcs.append((i,j,k,l,m))
+                if (m==2)&(i<=j)&(j<self.lens_zbins)&(self.params['2pt_only'].lower() in [None,'pos-pos','all']):
+                    calcs.append((i,j,k,l,m))
 
         self.theta  = []
         self.xi     = []
