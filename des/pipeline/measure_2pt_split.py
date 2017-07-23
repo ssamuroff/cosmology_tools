@@ -127,6 +127,12 @@ class Measure2Point(PipelineStage):
         else:
             self.zbins=self.params['zbins']
 
+        if self.params['lensfile'] != 'None':
+            if hasattr(self.params['lens_zbins'], "__len__"):
+                self.lens_zbins=len(self.params['lens_zbins'])-1
+            else:
+                self.lens_zbins=self.params['lens_zbins']
+
         nbin = self.zbins
         ncbin = len(self.samples)
         if (self.params['2pt_only']!='all') & (ncbin==1):
