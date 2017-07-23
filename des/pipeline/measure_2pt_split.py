@@ -872,7 +872,7 @@ class Measure2Point(PipelineStage):
 
         self.theta.append(theta)
         self.xi.append([xip,xim, gammat, wtheta])
-        self.xierr.append([xiperr,ximerr, gammaterr wthetaerr])
+        self.xierr.append([xiperr,ximerr, gammaterr, wthetaerr])
         self.calc.append((i,j,k,l,m))
 
         return 0
