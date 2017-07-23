@@ -847,7 +847,8 @@ class Measure2Point(PipelineStage):
         """
         This is a wrapper for interaction with treecorr.
         """
-        print "Running 2pt analysis on redshift pair {},{}, colour pair {},{}".format(i, j, k, l)
+        names={0:'xipm',1:'gammat',2:'wtheta'}
+        print "Running 2pt analysis on redshift pair {},{}, colour pair {},{}, correlation {}".format(i, j, k, l, names[m])
         #
         
         verbose=0
