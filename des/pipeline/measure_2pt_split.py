@@ -871,9 +871,9 @@ class Measure2Point(PipelineStage):
             wtheta=wthetaerr=None
 
         self.theta.append(theta)
-        self.xi.append([xip,xim])
-        self.xierr.append([xiperr,ximerr])
-        self.calc.append((i,j,k,l))
+        self.xi.append([xip,xim, gammat, wtheta])
+        self.xierr.append([xiperr,ximerr, gammaterr wthetaerr])
+        self.calc.append((i,j,k,l,m))
 
         return 0
 
@@ -1038,11 +1038,15 @@ class Measure2Point(PipelineStage):
         for n,name in enumerate(TWO_POINT_NAMES):
             if (n<2)&(self.params['2pt_only'].lower() not in [None,'shear-shear','all']):
                 continue
+            if (n<2)&(self.params['2pt_only'].lower() not in [None,'shear-shear','all']):
+                continue
+            if (n==2)&((self.params['2pt_only'].lower() not in [None,'pos-shear','all'])|(self.params['lensfile'] == 'None')):
+                continue
+            if (n==3)&((self.params['2pt_only'].lower() not in [None,'pos-pos','all'])|(self.params['lensfile'] == 'None')):
+                continue
             
             filename = self.output_path(name).format(rank=rank)
             f = None 
-
-            import pdb ; pdb.set_trace()
             
             for (theta,xi_data,ijklm) in zip(self.theta, self.xi, self.calc):
                 i,j,k,l,m = ijklm
