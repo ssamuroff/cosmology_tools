@@ -151,7 +151,7 @@ class Measure2Point(PipelineStage):
         all_calcs = [(i,j,k,l,m) for i in xrange(nbin2) for j in xrange(nbin2) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
         for i,j,k,l,m in all_calcs:
-            if (m==0):
+            if (m==0) and (self.params['2pt_only'].lower() in [None,'shear-shear','all']):
                 if (i>nbin-1) or (j>nbin-1):
                     continue
                 if (((k==l) and (i<=j)) or  (k!=l)):
