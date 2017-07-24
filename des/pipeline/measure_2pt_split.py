@@ -152,7 +152,7 @@ class Measure2Point(PipelineStage):
         calcs=[]
         for i,j,k,l,m in all_calcs:
             if (m==0):
-                if (i>nbin) or (j>nbin):
+                if (i>nbin-1) or (j>nbin-1):
                     continue
                 if (((k==l) and (i<=j)) or  (k!=l)):
                     calcs.append((i,j,k,l,m))
