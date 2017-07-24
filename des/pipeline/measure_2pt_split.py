@@ -143,12 +143,19 @@ class Measure2Point(PipelineStage):
             ncorr = 3
         else:
             ncorr=1
+        if self.params['lensfile'] != 'None':
+            nbin2 = self.lens_zbins
+        else:
+            nbin2 = nbin
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l,m) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
+        all_calcs = [(i,j,k,l,m) for i in xrange(nbin2) for j in xrange(nbin2) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
         for i,j,k,l,m in all_calcs:
-            if (((k==l) and (i<=j)) or  (k!=l)) & (m==0):
-                calcs.append((i,j,k,l,m))
+            if (m==0):
+                if (i>nbin) or (j>nbin):
+                    continue
+                if (((k==l) and (i<=j)) or  (k!=l)):
+                    calcs.append((i,j,k,l,m))
             if self.params['lensfile'] != 'None':
                 if (m==1)&(i<self.lens_zbins)&(j<self.zbins)&(self.params['2pt_only'].lower() in [None,'pos-shear','all']):
                     calcs.append((i,j,k,l,m))
