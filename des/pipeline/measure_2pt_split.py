@@ -946,6 +946,8 @@ class Measure2Point(PipelineStage):
         mean_e1i = shapei['e1'][maski].mean() #getattr(self,"mean_e1"+("2"*k))
         mean_e2i = shapei['e2'][maski].mean() #getattr(self,"mean_e2"+("2"*k))
 
+        import pdb ; pdb.set_trace()
+
         if self.params['has_sheared']:
             cat_i = treecorr.Catalog(g1=(shapei['e1'][maski]-mean_e1i)/m1i[maski], g2=(shapei['e2'][maski]-mean_e2i)/m2i[maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
         else:
