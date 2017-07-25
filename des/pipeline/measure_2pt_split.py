@@ -453,16 +453,16 @@ class Measure2Point(PipelineStage):
 
         if self.params['has_sheared']:
             full_mask     = mask & mask_1p & mask_1m & mask_2p & mask_2m
-            setattr(self, "mask%s"%suffix, mask)
-            setattr(self, "mask_1p%s"%suffix, mask_1p)
-            setattr(self, "mask_1m%s"%suffix, mask_1m)
-            setattr(self, "mask_2p%s"%suffix, mask_2p)
-            setattr(self, "mask_2m%s"%suffix, mask_2m)
+            setattr(self, "mask%s"%suffix, mask[full_mask])
+            setattr(self, "mask_1p%s"%suffix, mask_1p[full_mask])
+            setattr(self, "mask_1m%s"%suffix, mask_1m[full_mask])
+            setattr(self, "mask_2p%s"%suffix, mask_2p[full_mask])
+            setattr(self, "mask_2m%s"%suffix, mask_2m[full_mask])
         else:
             full_mask  = mask
-            setattr(self, "mask%s"%suffix, mask)
-        setattr(self, "gold%s"%suffix, gold)
-        setattr(self, "shape%s"%suffix, shape)
+            setattr(self, "mask%s"%suffix, mask[full_mask])
+        setattr(self, "gold%s"%suffix, gold[full_mask])
+        setattr(self, "shape%s"%suffix, shape[full_mask])
         if self.params['lensfile']!='None': setattr(self, "randoms%s"%suffix,randoms)
 
         setattr(self,"pz%s"%suffix, None)
