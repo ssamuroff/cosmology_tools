@@ -269,11 +269,11 @@ def colour_cut(shapes, pz):
 	# Now loop over tomographic bins
 	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
-		lin = (a[b] * r[select] + c0[b])
-		colour_select_r = ((r[select]-z[select])>lin)
-		mask[select][colour_select_r] = 1
-		colour_select_b = ((r[select]-z[select])<lin)
-		mask[select][colour_select_b] = 2
+		lin = (a[b] * r + c0[b])
+		colour_select_r = ((r-z)>lin)
+		mask[select & colour_select_r] = 1
+		colour_select_b = ((r-z)<lin)
+		mask[select & colour_select_b] = 2
 
 	return mask
 
