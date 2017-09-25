@@ -264,15 +264,14 @@ def colour_cut(shapes, pz):
 	r = 30 - 2.5 * np.log10(shapes["flux_r"])
 	z = 30 - 2.5 * np.log10(shapes["flux_z"])
 
-	mask = {'red' : np.zeros(shapes.size)-9999., 
-	        'blue' : np.zeros(shapes.size)-9999.}
+	mask = np.zeros(shapes.size)-9999
 
 	# Now loop over tomographic bins
 	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
 		lin = (a[b] * r[select] + c0[b])
-		mask['red'][select] = ((r[select]-z[select])>lin)
-		mask['blue'][select] = ((r[select]-z[select])<lin)
+		mask[select][((r[select]-z[select])>lin)] = 1
+		mask['blue'][select][((r[select]-z[select])<lin)]=2
 
 	return mask
 
