@@ -260,8 +260,9 @@ def colour_cut(shapes, pz):
 	c0=[-0.1,-1.7,0.15,1.6]
 	bins=[0.2,0.43,0.63,0.9,1.3]
 
-	# Extract r mag
+	# Extract mags
 	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+	z = 30 - 2.5 * np.log10(shapes["flux_z"])
 
 	mask = {'red' : np.zeros(shapes.size)-9999., 
 	        'blue' : np.zeros(shapes.size)-9999.}
