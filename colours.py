@@ -253,3 +253,45 @@ class y1shear:
 			filename = "/global/cscratch1/sd/sws/mof_colour_space_division-%s-colouredby_%s.%s"%(title,colour_by[1],extension)
 			print filename
 			plt.savefig(filename) 
+
+def colour_cut(shapes, pz):
+	# Hardcoded numbers
+	a= [0.037,0.12,0.05,0.0]
+	c0=[-0.1,-1.7,0.15,1.6]
+	bins=[0.2,0.43,0.63,0.9,1.3]
+
+	# Extract r mag
+	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+
+	mask = {'red' : np.zeros(shapes.size)-9999., 
+	        'blue' : np.zeros(shapes.size)-9999.}
+
+	# Now loop over tomographic bins
+	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+		select = (pz['pzbin']>lower) & (pz['pzbin']<upper)
+		lin = (a[b] * r[select] + c0[b])
+		mask['red'][select] = ((r[select]-z[select])>lin)
+		mask['blue'][select] = ((r[select]-z[select])<lin)
+
+	return mask
+
+def colour_diagram(x0, y0, ls="-", colour="k", pdf=True, title="", ylim=[0,0.7], xlim=[0,0.4], split_param=[0.24,0.085]):
+    #Count the galaxies in grid cells
+    print "Counting..."
+    counts,xbins,ybins, = np.histogram2d(x0, y0, bins=80, range=[xlim,ylim], normed=1 )
+    y=(ybins[:-1]+ybins[1:])/2
+    x=(xbins[:-1]+xbins[1:])/2
+    xx,yy=np.meshgrid(x,y)
+    print "Making histograms..."
+    C = plt.contour(xx,yy,counts.T, 8, colors=colour,linestyles=ls, linewidth=.5)
+    plt.xlabel("$r-$band Flux $f_r$", fontsize=22)
+    plt.ylabel("$r-z$", fontsize=22)
+    plt.xlim(xbins.min(),xbins.max())
+    plt.ylim(ybins.min(),ybins.max())
+    plt.title(title, fontsize=22)
+    #green valley division
+    if len(split_param)>0:
+        xl = np.linspace(xlim[0],xlim[1],100)
+        lin = split_param[0]*xl+split_param[1]
+        plt.plot(xl,lin, color="forestgreen", ls="--", lw=2.5)
+    return 0 
