@@ -270,8 +270,10 @@ def colour_cut(shapes, pz):
 	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
 		lin = (a[b] * r[select] + c0[b])
-		mask[select][((r[select]-z[select])>lin)] = 1
-		mask['blue'][select][((r[select]-z[select])<lin)]=2
+		colour_select_r = ((r[select]-z[select])>lin)
+		mask[select][colour_select_r] = 1
+		colour_select_b = ((r[select]-z[select])<lin)
+		mask[select][colour_select_b] = 2
 
 	return mask
 
