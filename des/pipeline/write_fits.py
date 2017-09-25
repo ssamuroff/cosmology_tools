@@ -247,17 +247,33 @@ class WriteFits(PipelineStage):
                 length=np.append(length,zbins*self.params['tbins'])
             else:  #shear-shear xip or xim
                 zbins=fits.get_kernel(twopt.kernel1).nbin
-                if zbins==8:
-                    zbins/=2
-                if 'colour_bins' in self.params.keys():
-                    cbins =len(self.params['colour_bins'].split())
-                    if cbins>1:
-                        n = ((zbins * (1+zbins) / 2) * cbins + cbins*(cbins-1)*zbins*zbins) * self.params['tbins'] # cbins auto + cbins^2-cbins cross 
-                        length=np.append( length, n)
-                    else:
-                        length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
-                else:
-                    length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+                length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+            if length[-1]!=len(twopt.bin1):
+                print 'covariance and data vector mismatch in '+name, length[-1], len(twopt.bin1)
+                return
+#        length=np.array([])
+#        for name in names:
+#            twopt=fits.get_spectrum(name)
+#            if twopt.name==TWO_POINT_NAMES[2]: # gammat
+#                gglbins=np.loadtxt(self.input_path("ggl_bins"))
+#                zbins=np.sum(gglbins[:,2])
+#                length=np.append(length,zbins*self.params['tbins'])
+#            elif twopt.name==TWO_POINT_NAMES[3]: # wtheta
+#                zbins=fits.get_kernel(twopt.kernel1).nbin
+#                length=np.append(length,zbins*self.params['tbins'])
+#            else:  #shear-shear xip or xim
+#                zbins=fits.get_kernel(twopt.kernel1).nbin
+#                if zbins==8:
+#                    zbins/=2
+#                if 'colour_bins' in self.params.keys():
+#                    cbins =len(self.params['colour_bins'].split())
+#                    if cbins>1:
+#                        n = ((zbins * (1+zbins) / 2) * cbins + cbins*(cbins-1)*zbins*zbins) * self.params['tbins'] # cbins auto + cbins^2-cbins cross 
+#                        length=np.append( length, n)
+#                    else:
+#                        length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
+#                else:
+#                    length=np.append(length,(zbins*(zbins+1)/2)*self.params['tbins'])
             
             if length[-1]!=len(twopt.bin1):
                 import pdb ; pdb.set_trace()

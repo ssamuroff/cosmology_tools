@@ -143,12 +143,19 @@ class Measure2Point(PipelineStage):
             ncorr = 3
         else:
             ncorr=1
+        if self.params['lensfile'] != 'None':
+            nbin2 = self.lens_zbins
+        else:
+            nbin2 = nbin
         print "Will compute +/- correlations in %d redshift bins and %d colour bins (%d correlation)"%(nbin,ncbin, nbin*(nbin+1) * ncbin * ncbin   )
-        all_calcs = [(i,j,k,l,m) for i in xrange(nbin) for j in xrange(nbin) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
+        all_calcs = [(i,j,k,l,m) for i in xrange(nbin2) for j in xrange(nbin2) for k in xrange(ncbin) for l in xrange(ncbin) for m in xrange(ncorr)]
         calcs=[]
         for i,j,k,l,m in all_calcs:
-            if (((k==l) and (i<=j)) or  (k!=l)) & (m==0):
-                calcs.append((i,j,k,l,m))
+            if (m==0) and (self.params['2pt_only'].lower() in [None,'shear-shear','all']):
+                if (i>nbin-1) or (j>nbin-1):
+                    continue
+                if (((k==l) and (i<=j)) or  (k!=l)):
+                    calcs.append((i,j,k,l,m))
             if self.params['lensfile'] != 'None':
                 if (m==1)&(i<self.lens_zbins)&(j<self.zbins)&(self.params['2pt_only'].lower() in [None,'pos-shear','all']):
                     calcs.append((i,j,k,l,m))
@@ -937,8 +944,7 @@ class Measure2Point(PipelineStage):
         weighti = getattr(self,"weight"+("2"*k))
         shapei = getattr(self,"shape"+("2"*k))
         mean_e1i = shapei['e1'][maski].mean() #getattr(self,"mean_e1"+("2"*k))
-        mean_e2i = shapei['e2'][maski].mean() #getattr(self,"mean_e2"+("2"*k))
-
+        mean_e2i = shapei['e2'][maski].mean() #getattr(self,"mean_e2"+("2"*k
         if self.params['has_sheared']:
             cat_i = treecorr.Catalog(g1=(shapei['e1'][maski]-mean_e1i)/m1i[maski], g2=(shapei['e2'][maski]-mean_e2i)/m2i[maski], w=weighti[maski], ra=shapei['ra'][maski], dec=shapei['dec'][maski], ra_units='deg', dec_units='deg')
         else:
