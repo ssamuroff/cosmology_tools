@@ -311,7 +311,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 		lab = "All Galaxies"
 	else:
 		lab = None
-	H, edges = np.histogram(C, bins=70)
+	H, edges = np.histogram(C, bins=70, range=[-5,5])
 	x = (edges[:-1]+edges[1:])/2
 	plt.plot(x, H/N, color='purple', lw=2, label=lab)
 
@@ -328,11 +328,11 @@ def hist1d(C, pz, type_split=True, labels=True):
 		else:
 			labe = None
 			labl = None
-		He,edgese = np.histogram(C[early], bins=70)
+		He,edgese = np.histogram(C[early], bins=70, range=[-5,5])
 		xe = (edgese[:-1]+edgese[1:])/2
 
 		Nl =float (C[late].size )
-		Hl,edgesl = np.histogram(C[late], bins=70)
+		Hl,edgesl = np.histogram(C[late], bins=70, range=[-5,5])
 		xl = (edgesl[:-1]+edgesl[1:])/2
 
 		plt.fill_between(xe, He/Ne, color='red', alpha=0.3, label=labe, linestyle=":")
