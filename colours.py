@@ -335,9 +335,9 @@ def hist1d(C, pz, type_split=True, labels=True):
 		Hl,edgesl = np.histogram(C[late], bins=120, range=(-4,4))
 		xl = (edgesl[:-1]+edgesl[1:])/2
 
-		plt.fill_between(xe, He/Ne, color='red', alpha=0.3, linestyle=":")
+		plt.fill_between(xe, He, color='red', alpha=0.3, linestyle=":")
 		plt.plot(xe, He, color='red', label=labe, linestyle=":")
-		plt.fill_between(xl, Hl/Nl, color='royalblue', alpha=0.3, linestyle="--")
+		plt.fill_between(xl, Hl, color='royalblue', alpha=0.3, linestyle="--")
 		plt.plot(xl, Hl, color='royalblue', label=labl, linestyle="--")
 
 	# Tweak the axes
