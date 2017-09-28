@@ -306,7 +306,7 @@ def colour_diagram(x0, y0, ls="-", colour="k", pdf=True, title="", ylim=[0,0.7],
     return 0
 
 def hist1d(C, pz, type_split=True, labels=True):
-	N = C.size
+	N = float(C.size)
 	if labels:
 		lab = "All Galaxies"
 	else:
@@ -321,8 +321,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 		early = (pz['template_type']<1)
 
 		# Get the normalisations
-		Ne = C[early].size
-		ne = Ne/N
+		Ne = float(C[early].size)
 		if labels:
 			labe = "Early-type"
 			labl = "Late-type"
@@ -332,14 +331,12 @@ def hist1d(C, pz, type_split=True, labels=True):
 		He,edgese = np.histogram(C[early], bins=70)
 		xe = (edgese[:-1]+edgese[1:])/2
 
-		Nl = C[late].size 
-		nl = Nl/N
+		Nl =float (C[late].size )
 		Hl,edgesl = np.histogram(C[late], bins=70)
 		xl = (edgesl[:-1]+edgesl[1:])/2
 
-		# Now make the main part of the figure
-		plt.fill_between(xe, He/ne, color='red', alpha=0.3, label=labe, linestyle=":")
-		plt.fill_between(xl, Hl/nl, color='royalblue', alpha=0.3, label=labl, linestyle="--")
+		plt.fill_between(xe, He/Ne, color='red', alpha=0.3, label=labe, linestyle=":")
+		plt.fill_between(xl, Hl/Nl, color='royalblue', alpha=0.3, label=labl, linestyle="--")
 
 	# Tweak the axes
 	if labels:
