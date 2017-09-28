@@ -344,7 +344,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 	if labels:
 		plt.legend(loc="upper left")
 	plt.yticks(visible=False)
-	plt.xlim(-1,3)
+	
 	print "Done"
 	return None
 
