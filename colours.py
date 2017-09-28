@@ -311,9 +311,9 @@ def hist1d(C, pz, type_split=True, labels=True):
 		lab = "All Galaxies"
 	else:
 		lab = None
-	H, edges = np.histogram(C, bins=70, label=lab)
+	H, edges = np.histogram(C, bins=70)
 	x = (edges[:-1]+edges[1:])/2
-	plt.plot(x, H/N, color='purple', lw=2)
+	plt.plot(x, H/N, color='purple', lw=2, label=lab)
 	if type_split:
 		#Define a split by BPZ template
 		late = (pz['template_type']>1)
