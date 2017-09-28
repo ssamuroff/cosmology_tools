@@ -305,13 +305,13 @@ def colour_diagram(x0, y0, ls="-", colour="k", pdf=True, title="", ylim=[0,0.7],
         plt.plot(xl,lin, color="forestgreen", ls="--", lw=2.5)
     return 0
 
-def hist1d(C, pz, type_split=True, labels=True):
+def hist1d(C, pz, type_split=True, labels=True, xlim=(-4,4)):
 	N = float(C.size)
 	if labels:
 		lab = "All Galaxies"
 	else:
 		lab = None
-	H, edges = np.histogram(C, bins=120, range=(-4,4))
+	H, edges = np.histogram(C, bins=120, range=xlim)
 	x = (edges[:-1]+edges[1:])/2
 	plt.plot(x, H, color='purple', lw=2, label=lab)
 
@@ -328,11 +328,11 @@ def hist1d(C, pz, type_split=True, labels=True):
 		else:
 			labe = None
 			labl = None
-		He,edgese = np.histogram(C[early], bins=120, range=(-4,4))
+		He,edgese = np.histogram(C[early], bins=120, range=xlim)
 		xe = (edgese[:-1]+edgese[1:])/2
 
 		Nl =float (C[late].size )
-		Hl,edgesl = np.histogram(C[late], bins=120, range=(-4,4))
+		Hl,edgesl = np.histogram(C[late], bins=120, range=xlim)
 		xl = (edgesl[:-1]+edgesl[1:])/2
 
 		plt.fill_between(xe, He, color='red', alpha=0.3, linestyle=":")
@@ -344,6 +344,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 	if labels:
 		plt.legend(loc="upper left")
 	plt.yticks(visible=False)
+	plt.xlim(xlim[0],xlim[1])
 	
 	print "Done"
 	return None
