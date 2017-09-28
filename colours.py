@@ -311,7 +311,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 		lab = "All Galaxies"
 	else:
 		lab = None
-	H, edges = np.histogram(C, bins=100, range=(-4,4))
+	H, edges = np.histogram(C, bins=120, range=(-4,4))
 	x = (edges[:-1]+edges[1:])/2
 	plt.plot(x, H/N, color='purple', lw=2, label=lab)
 
@@ -328,20 +328,23 @@ def hist1d(C, pz, type_split=True, labels=True):
 		else:
 			labe = None
 			labl = None
-		He,edgese = np.histogram(C[early], bins=100, range=(-4,4))
+		He,edgese = np.histogram(C[early], bins=120, range=(-4,4))
 		xe = (edgese[:-1]+edgese[1:])/2
 
 		Nl =float (C[late].size )
-		Hl,edgesl = np.histogram(C[late], bins=100, range=(-4,4))
+		Hl,edgesl = np.histogram(C[late], bins=120, range=(-4,4))
 		xl = (edgesl[:-1]+edgesl[1:])/2
 
-		plt.fill_between(xe, He/Ne, color='red', alpha=0.3, label=labe, linestyle=":")
-		plt.fill_between(xl, Hl/Nl, color='royalblue', alpha=0.3, label=labl, linestyle="--")
+		plt.fill_between(xe, He/Ne, color='red', alpha=0.3, linestyle=":")
+		plt.plot(xe, He/Ne, color='red', label=labe, linestyle=":")
+		plt.fill_between(xl, Hl/Nl, color='royalblue', alpha=0.3, linestyle="--")
+		plt.plot(xl, Hl/Nl, color='royalblue', label=labl, linestyle="--")
 
 	# Tweak the axes
 	if labels:
 		plt.legend(loc="upper left")
 	plt.yticks(visible=False)
+	plt.xlim(-1,3)
 	print "Done"
 	return None
 
