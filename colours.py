@@ -314,6 +314,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 	H, edges = np.histogram(C, bins=70)
 	x = (edges[:-1]+edges[1:])/2
 	plt.plot(x, H/N, color='purple', lw=2, label=lab)
+	
 	if type_split:
 		#Define a split by BPZ template
 		late = (pz['template_type']>1)
@@ -339,6 +340,7 @@ def hist1d(C, pz, type_split=True, labels=True):
 		# Now make the main part of the figure
 		plt.fill_between(xe, He/ne, color='red', alpha=0.3, label=labe, ls=":")
 		plt.fill_between(xl, Hl/nl, color='royalblue', alpha=0.3, label=labl, ls="--")
+
 	# Tweak the axes
 	if labels:
 		plt.legend(loc="upper left")
