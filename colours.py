@@ -254,6 +254,13 @@ class y1shear:
 			print filename
 			plt.savefig(filename) 
 
+def type_cut(pz):
+    mask = np.zeros(pz.size)-9999
+    mask[(pz['template_type']<1)]=1
+    mask[(pz['template_type']>1)]=2
+    return mask
+
+
 def colour_cut(shapes, pz):
 	# Hardcoded numbers
 	a= [0.037,0.12,0.05,0.0]
@@ -296,4 +303,50 @@ def colour_diagram(x0, y0, ls="-", colour="k", pdf=True, title="", ylim=[0,0.7],
         xl = np.linspace(xlim[0],xlim[1],100)
         lin = split_param[0]*xl+split_param[1]
         plt.plot(xl,lin, color="forestgreen", ls="--", lw=2.5)
-    return 0 
+    return 0
+
+def hist1d(C, pz, type_split=True, labels=True):
+	N = C.size
+	if labels:
+		lab = "All Galaxies"
+	else:
+		lab = None
+	H, edges = np.histogram(C, bins=70, label=lab)
+	x = (edges[:-1]+edges[1:])/2
+	plt.plot(x, H/N, color='purple', lw=2)
+	if type_split:
+		#Define a split by BPZ template
+		late = (pz['template_type']>1)
+		early = (pz['template_type']<1)
+
+		# Get the normalisations
+		Ne = C[early].size
+		ne = Ne/N
+		if labels:
+			labe = "Early-type"
+			labl = "Late-type"
+		else:
+			labe = None
+			labl = None
+		He,edgese = np.histogram(C[early], bins=70)
+		xe = (edgese[:-1]+edgese[1:])/2
+
+		Nl = C[late].size 
+		nl = Nl/N
+		Hl,edgesl = np.histogram(C[late], bins=70)
+		xl = (edgesl[:-1]+edgesl[1:])/2
+
+		# Now make the main part of the figure
+		plt.fill_between(xe, He/ne, color='red', alpha=0.3, label=labe, ls=":")
+		plt.fill_between(xl, Hl/nl, color='royalblue', alpha=0.3, label=labl, ls="--")
+	# Tweak the axes
+	if labels:
+		plt.legend(loc="upper left")
+	plt.yticks(visible=False)
+	print "Done"
+	return None
+
+
+
+
+
