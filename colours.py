@@ -379,10 +379,11 @@ def colour_panels(shapes, pz):
 		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='royalblue' )
 		if (b==3):
 			plt.xlabel("$i-z$", fontsize=14)
+			plt.xticks([0,0.4,0.8,1.2])
 		else:
 			plt.xlabel("")
 			plt.xticks(visible=False)
-		plt.xticks(fontsize=12)
+		plt.xticks(fontsize=14)
 		plt.ylabel("$r-i$", fontsize=14)
 
 	return mask
