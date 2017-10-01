@@ -372,7 +372,7 @@ def colour_panels(shapes, pz):
 		mask[select & colour_select_r] = 1
 		colour_select_b = ((r-z)<lin)
 		mask[select & colour_select_b] = 2
-		plt.subplot(int("%d%d%d"%(4,1,b+1)))
+		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect='equal', adjustable='box-forced')
 		y = r-i
 		x = i-z
 		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='red' )
