@@ -351,5 +351,39 @@ def hist1d(C, pz, type_split=True, labels=True, xlim=(-4,4)):
 
 
 
+def colour_panels(shapes, pz):
+	# Hardcoded numbers
+	a= [0.037,0.12,0.05,0.0]
+	c0=[-0.1,-1.7,0.15,1.6]
+	bins=[0.2,0.43,0.63,0.9,1.3]
+
+	# Extract mags
+	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+	i = 30 - 2.5 * np.log10(shapes["flux_i"])
+	z = 30 - 2.5 * np.log10(shapes["flux_z"])
+
+	mask = np.zeros(shapes.size)-9999
+
+	# Now loop over tomographic bins
+	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
+		lin = (a[b] * r + c0[b])
+		colour_select_r = ((r-z)>lin)
+		mask[select & colour_select_r] = 1
+		colour_select_b = ((r-z)<lin)
+		mask[select & colour_select_b] = 2
+		plt.subplot(int("%d%d%d"%(4,1,b+1)))
+		y = r-i
+		x = i-z
+		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[0,2.], split_param=[0,np.inf], colour='red' )
+		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[0,2.], split_param=[0,np.inf], colour='royalblue' )
+		if (b==3):
+			plt.xlabel("$i-z$", fontsize=18)
+		else:
+			plt.xlabel("")
+			plt.xticks(visible=False)
+		plt.ylabel("$r-i$")
+
+	return mask
 
 
