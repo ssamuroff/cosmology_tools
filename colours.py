@@ -369,7 +369,7 @@ def colour_panels(shapes, pz):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
 		type_select_r = (pz['template_type']<1)
 		mask[select & type_select_r] = 1
-		type_select_r = (pz['template_type']>1)
+		type_select_b = (pz['template_type']>1)
 		mask[select & type_select_b] = 2
 		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.35)
 		y = r-i
@@ -410,7 +410,7 @@ def colour_mag_panels(shapes, pz):
 		
 		type_select_r = (pz['template_type']<1)
 		mask[select & type_select_r] = 1
-		type_select_r = (pz['template_type']>1)
+		type_select_b = (pz['template_type']>1)
 		mask[select & type_select_b] = 2
 		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=1.18)
 		y = r-z
