@@ -413,7 +413,7 @@ def colour_mag_panels(shapes, pz):
 		mask[select & colour_select_r] = 1
 		colour_select_b = ((r-z)<lin)
 		mask[select & colour_select_b] = 2
-		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.6)
+		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.2)
 		y = r-z
 		x = r
 		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[18,25.5], split_param=[a[b],c0[b]], colour='royalblue' )
