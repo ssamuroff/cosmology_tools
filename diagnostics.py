@@ -1969,7 +1969,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="snr", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], xtransform='linear', binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
+def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="snr", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], xtransform='linear', binning="equal_number", silent=False, visual=False, histograms=True, legend=True, return_vals=False, correct_response=True):
 
     g1 = xdata[xdata_name]
     sel = (g1>xlim[0]) & (g1<xlim[1]) & np.isfinite(g1) 
@@ -2084,7 +2084,6 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         ax1.errorbar(x,y22, variance_y22, fmt="D", color="forestgreen", mec="forestgreen")
         ax1.plot(x,x*m11+c11, lw=2.5, color="plum", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
         ax1.plot(x,x*m22+c22, lw=2.5, color="forestgreen", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
-        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$", fontsize=22)
         ax1.set_ylabel("Ellipticity $e_{i}$", fontsize=22)
         ax1.set_xlim(xlim[0],xlim[1])
         ax1.set_ylim(-0.005,0.005)
@@ -2095,7 +2094,8 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
             ax2.set_xlim(xlim[0], xlim[1])
             plt.setp(ax2.get_yticklabels(), visible=False)
             ax2.hist(g1, alpha=0.2, bins=50, color="plum", histtype="stepfilled", normed=1)
-        ax1.legend(loc="upper left")
+        if legend:
+            ax1.legend(loc="upper left")
 
         #plt.tight_layout()
         plt.subplots_adjust(top=0.95, bottom=0.12, left=0.15)
