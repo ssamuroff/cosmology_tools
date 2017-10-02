@@ -384,6 +384,7 @@ def colour_panels(shapes, pz):
 			plt.xlabel("")
 			plt.xticks(visible=False)
 		plt.xticks(fontsize=12)
+		plt.yticks(fontsize=12)
 		plt.ylabel("$r-i$", fontsize=12)
 
 	return mask
