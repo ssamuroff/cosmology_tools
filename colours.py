@@ -367,11 +367,10 @@ def colour_panels(shapes, pz):
 	# Now loop over tomographic bins
 	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
-		lin = (a[b] * r + c0[b])
-		colour_select_r = ((r-z)>lin)
-		mask[select & colour_select_r] = 1
-		colour_select_b = ((r-z)<lin)
-		mask[select & colour_select_b] = 2
+		type_select_r = (pz['template_type']<1)
+		mask[select & type_select_r] = 1
+		type_select_r = (pz['template_type']>1)
+		mask[select & type_select_b] = 2
 		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.35)
 		y = r-i
 		x = i-z
@@ -408,11 +407,11 @@ def colour_mag_panels(shapes, pz):
 	# Now loop over tomographic bins
 	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
 		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
-		lin = (a[b] * r + c0[b])
-		colour_select_r = ((r-z)>lin)
-		mask[select & colour_select_r] = 1
-		colour_select_b = ((r-z)<lin)
-		mask[select & colour_select_b] = 2
+		
+		type_select_r = (pz['template_type']<1)
+		mask[select & type_select_r] = 1
+		type_select_r = (pz['template_type']>1)
+		mask[select & type_select_b] = 2
 		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=1.18)
 		y = r-z
 		x = r
