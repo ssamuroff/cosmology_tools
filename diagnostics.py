@@ -1969,7 +1969,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
@@ -1983,6 +1983,12 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
 
+    if correct_response:
+        R1 = catalogue['R11']
+        R2 = catalogue['R22']
+    else:
+        R1 = np.ones(catalogue.size)
+        R2 = np.ones(catalogue.size)
 
     if weights is not None:
         print "Will use weights provided"
@@ -2031,10 +2037,10 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
         sel1 = (g1>lower) & (g1<upper)
         sel2 = (g2>lower) & (g2<upper)
 
-        y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1])) / np.sum(w[sel1]*(1+m[sel1])))
+        y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1]) / R1.mean() ) / np.sum(w[sel1]*(1+m[sel1])))
         variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
-        y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2])) / np.sum(w[sel2]*(1+m[sel2])))
+        y22.append(np.sum(w[sel2]*(e2[sel2]-c2[sel2]) / R2.mean()) / np.sum(w[sel2]*(1+m[sel2])))
         if not (np.isfinite(np.array(y22)).all()):
             import pdb ; pdb.set_trace()
         variance_y22.append( compute_im3shape_weight(e2[sel2]-g2[sel2], verbose=False) / (e2[sel2].size**0.5) )
