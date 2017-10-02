@@ -1969,7 +1969,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="snr", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
+def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="snr", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], xtransform='linear', binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
 
     g1 = xdata[xdata_name]
     sel = (g1>xlim[0]) & (g1<xlim[1]) & np.isfinite(g1) 
@@ -1977,6 +1977,8 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
         sel = sel & mask_nans
     g1 = g1[sel]
+    if xtransform=='log':
+        g1 = np.log10(g1)
 
     e1 = catalogue["%s1"%ellipticity_name][sel]
     e2 = catalogue["%s2"%ellipticity_name][sel]
