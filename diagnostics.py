@@ -1969,6 +1969,151 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
+def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="snr", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
+
+    g1 = xdata[xdata_name]
+    sel = (g1>xlim[0]) & (g1<xlim[1]) & np.isfinite(g1) 
+    if apply_calibration and (external_calibration_col is None):
+        mask_nans = np.isfinite(catalogue["m"]) & np.isfinite(catalogue["c1"]) & np.isfinite(catalogue["c2"]) 
+        sel = sel & mask_nans
+    g1 = g1[sel]
+
+    e1 = catalogue["%s1"%ellipticity_name][sel]
+    e2 = catalogue["%s2"%ellipticity_name][sel]
+
+    if correct_response:
+        R1 = catalogue['R11']
+        R2 = catalogue['R22']
+    else:
+        R1 = np.ones(catalogue.size)
+        R2 = np.ones(catalogue.size)
+
+    if weights is not None:
+        print "Will use weights provided"
+        w = weights[sel]
+    else:
+        w = np.ones_like(e1)
+    if use_catalogue_weights:
+        w = w*  catalogue["weight"][sel]
+
+    if apply_calibration:
+        if external_calibration_col is None:
+            m = catalogue["m"][sel]
+            c1 = catalogue["c1"][sel]
+            c2 = catalogue["c2"][sel]
+            print "Applying calibration columns"
+        else:
+            m = external_calibration_col["m"][sel]
+            c1 = external_calibration_col["c1"][sel]
+            c2 = external_calibration_col["c2"][sel]
+            print "Applying external calibration columns"
+    else:
+        m = np.zeros_like(e1)
+        c1 = np.zeros_like(e1)
+        c2 = np.zeros_like(e1)
+
+    if  ("weight" not in catalogue.dtype.names) and (use_weights):
+        print "Warning: you set use_weights=True, but there is no weights column."
+        print "using unweighted values."
+
+    if isinstance(binning,str):
+        if binning=="equal_number":
+            bins = find_bin_edges(g1, nbins)
+        if binning=="uniform":
+            bins = np.linspace(g1.min(),g1.max(), nbins+1)
+    else:
+        bins = binning
+
+    x = (bins[1:]+bins[:-1])/2.0
+
+    y11,y22=[],[]
+    variance_y11,variance_y22=[],[]
+    
+    for i, bounds in enumerate(zip(bins[:-1],bins[1:])):
+        lower = bounds[0]
+        upper = bounds[1]
+        sel1 = (g1>lower) & (g1<upper)
+
+        y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1]) / R1.mean() ) / np.sum(w[sel1]*(1+m[sel1])))
+        variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+
+        y22.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1]) / R2.mean()) / np.sum(w[sel1]*(1+m[sel1])))
+        if not (np.isfinite(np.array(y22)).all()):
+            import pdb ; pdb.set_trace()
+        variance_y22.append( compute_im3shape_weight(e2[sel1], verbose=False) / (e2[sel1].size**0.5) )
+ 
+
+    d1 = np.array(y11)
+    d2 = np.array(y22)
+
+    # Four linear fits to do here
+
+    # m11, c11
+    p11, cov11 = optimise.curve_fit(fline, x, d1, sigma=np.array(variance_y11), p0=[0.15,1e-5])
+    if not np.isfinite(cov11).all():
+        p11,cov11 = stabilised_fit(x, d1, variance_y11)
+    m11,c11 = p11
+
+    # m22, c22
+    p22, cov22 = optimise.curve_fit(fline, x, d2, sigma=np.array(variance_y22), p0=[0.15,1e-5])
+    if not np.isfinite(cov22).all():
+        p22,cov22 = stabilised_fit(x, d2, variance_y22)
+    m22,c22 = p22
+
+    # m12, c12
+    p12, cov12 =  optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.15,1e-5])
+    if not np.isfinite(cov12).all():
+        p12,cov12 = stabilised_fit(x, y12, variance_y12)
+    m12,c12 = p12
+
+    # m21, c21
+    p21, cov21 =  optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.15,1e-5])
+    if not np.isfinite(cov21).all():
+        p21,cov21 = stabilised_fit(x, y21, variance_y21)
+    m21,c21 = p21
+
+    if not silent:
+        print 'alpha11=%f +- %f'%(m11,cov11[0,0]**0.5)
+        print 'alpha22=%f +- %f'%(m22,cov22[0,0]**0.5)
+        print 'alpha12=%f +- %f'%(m12,cov12[0,0]**0.5)
+        print 'alpha21=%f +- %f'%(m21,cov21[0,0]**0.5)
+        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
+        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
+        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
+        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
+
+    m = (m11+m22)/2
+    c = (c11+c22)/2
+    error_m = np.sqrt(cov11[0,0] + cov22[0,0])
+    error_c = np.sqrt(cov11[1,1] + cov22[1,1])
+
+    if visual:
+        import pylab as plt
+        fig, ax1 = plt.subplots()
+        plt.subplots_adjust(wspace=0, hspace=0, top=0.85, bottom=0.06)
+        ax1.errorbar(x,y11, variance_y11, fmt="o", color="plum", mec="plum")
+        ax1.errorbar(x,y22, variance_y22, fmt="D", color="forestgreen", mec="forestgreen")
+        ax1.plot(x,x*m11+c11, lw=2.5, color="plum", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
+        ax1.plot(x,x*m22+c22, lw=2.5, color="forestgreen", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
+        ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$", fontsize=22)
+        ax1.set_ylabel("Ellipticity $e_{i}$", fontsize=22)
+        ax1.set_xlim(xlim[0],xlim[1])
+        ax1.set_ylim(-0.005,0.005)
+        ax1.axhline(0,color="k", lw=2.)
+
+        if histograms:
+            ax2 = ax1.twinx()
+            ax2.set_xlim(xlim[0], xlim[1])
+            plt.setp(ax2.get_yticklabels(), visible=False)
+            ax2.hist(g1, alpha=0.2, bins=50, color="plum", histtype="stepfilled", normed=1)
+        ax1.legend(loc="upper left")
+
+        #plt.tight_layout()
+        plt.subplots_adjust(top=0.95, bottom=0.12, left=0.15)
+
+
+    return 0
+
 def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
 
     g1 = xdata[xdata_name%1]
