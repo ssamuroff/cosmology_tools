@@ -1969,7 +1969,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
     return p
 
-def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, return_vals=False):
+def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
@@ -2096,21 +2096,22 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
         import pylab as plt
         fig, ax1 = plt.subplots()
         plt.subplots_adjust(wspace=0, hspace=0, top=0.85, bottom=0.06)
-        ax1.errorbar(x,y11, variance_y11, fmt="o", color="blue")
-        ax1.errorbar(x,y22, variance_y22, fmt="D", color="darkred")
-        ax1.plot(x,x*m11+c11, lw=2.5, color="blue", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
-        ax1.plot(x,x*m22+c22, lw=2.5, color="darkred", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
+        ax1.errorbar(x,y11, variance_y11, fmt="o", color="plum")
+        ax1.errorbar(x,y22, variance_y22, fmt="D", color="green")
+        ax1.plot(x,x*m11+c11, lw=2.5, color="plum", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
+        ax1.plot(x,x*m22+c22, lw=2.5, color="green", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
         ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$", fontsize=22)
         ax1.set_ylabel("Ellipticity $e_{i}$", fontsize=22)
         ax1.set_xlim(xlim[0],xlim[1])
         ax1.set_ylim(-0.005,0.005)
         ax1.axhline(0,color="k", lw=2.)
 
-        ax2 = ax1.twinx()
-        ax2.set_xlim(xlim[0], xlim[1])
-        plt.setp(ax2.get_yticklabels(), visible=False)
-        ax2.hist(g1, alpha=0.2, bins=50, color="blue", histtype="stepfilled", normed=1)
-        ax2.hist(g2, alpha=0.2, bins=50, color="darkred", histtype="stepfilled", normed=1)
+        if histograms:
+            ax2 = ax1.twinx()
+            ax2.set_xlim(xlim[0], xlim[1])
+            plt.setp(ax2.get_yticklabels(), visible=False)
+            ax2.hist(g1, alpha=0.2, bins=50, color="plum", histtype="stepfilled", normed=1)
+            ax2.hist(g2, alpha=0.2, bins=50, color="green", histtype="stepfilled", normed=1)
         ax1.legend(loc="upper left")
 
         #plt.tight_layout()
