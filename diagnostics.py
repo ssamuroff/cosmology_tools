@@ -2074,6 +2074,8 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
     error_m = np.sqrt(cov11[0,0] + cov22[0,0])
     error_c = np.sqrt(cov11[1,1] + cov22[1,1])
 
+    ax1=None
+
     if visual:
         import pylab as plt
         fig, ax1 = plt.subplots()
@@ -2099,7 +2101,7 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         plt.subplots_adjust(top=0.95, bottom=0.12, left=0.15)
 
 
-    return 0
+    return ax1
 
 def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
 
