@@ -416,7 +416,7 @@ def colour_mag_panels(shapes, pz):
 		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.6)
 		y = r-z
 		x = r
-		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[18,25.5], split_param=[0,np.inf], colour='royalblue' )
+		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[18,25.5], split_param=[a[b],c0[b]], colour='royalblue' )
 		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[18,25.5], split_param=[0,np.inf], colour='red' )
 		if (b==3):
 			plt.xlabel("$r$-band Magnitude", fontsize=12)
