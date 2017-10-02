@@ -2037,7 +2037,7 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         sel1 = (g1>lower) & (g1<upper)
 
         y11.append(np.sum(w[sel1]*(e1[sel1]-c1[sel1]) / R1.mean() ) / np.sum(w[sel1]*(1+m[sel1])))
-        variance_y11.append( compute_im3shape_weight(e1[sel1]-g1[sel1], verbose=False) / (e1[sel1].size**0.5) )
+        variance_y11.append( compute_im3shape_weight(e1[sel1], verbose=False) / (e1[sel1].size**0.5) )
 
         y22.append(np.sum(w[sel1]*(e2[sel1]-c2[sel1]) / R2.mean()) / np.sum(w[sel1]*(1+m[sel1])))
         if not (np.isfinite(np.array(y22)).all()):
