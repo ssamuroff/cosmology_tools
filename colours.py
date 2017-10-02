@@ -383,9 +383,12 @@ def colour_panels(shapes, pz):
 		else:
 			plt.xlabel("")
 			plt.xticks(visible=False)
+
 		plt.xticks(fontsize=12)
 		plt.yticks(fontsize=12)
 		plt.ylabel("$r-i$", fontsize=12)
+
+		plt.annotate("$(%d)$"%(b+1),xy=(0,1.7),fontsize=12)
 
 	return mask
 
