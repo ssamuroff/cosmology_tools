@@ -388,7 +388,7 @@ def colour_panels(shapes, pz):
 		plt.yticks(fontsize=12)
 		plt.ylabel("$r-i$", fontsize=12)
 
-		plt.annotate("$(%d)$"%(b+1),xy=(0,1.7),fontsize=12)
+		plt.annotate("$(%d)$"%(b+1),xy=(-0.5,2),fontsize=14)
 
 	return mask
 
