@@ -2102,8 +2102,8 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
         import pylab as plt
         fig, ax1 = plt.subplots()
         plt.subplots_adjust(wspace=0, hspace=0, top=0.85, bottom=0.06)
-        ax1.errorbar(x,y11, variance_y11, fmt="o", color="plum")
-        ax1.errorbar(x,y22, variance_y22, fmt="D", color="forestgreen")
+        ax1.errorbar(x,y11, variance_y11, fmt="o", color="plum", mec="plum")
+        ax1.errorbar(x,y22, variance_y22, fmt="D", color="forestgreen", mec="forestgreen")
         ax1.plot(x,x*m11+c11, lw=2.5, color="plum", label=r"$\alpha_{11} = %1.4f +- %1.4f$"%(m11,cov11[0,0]**0.5))
         ax1.plot(x,x*m22+c22, lw=2.5, color="forestgreen", label=r"$\alpha_{22} = %1.4f +- %1.4f$"%(m22,cov22[0,0]**0.5))
         ax1.set_xlabel("PSF Ellipticicty $e^{PSF}_{i}$", fontsize=22)
@@ -2121,7 +2121,7 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
         ax1.legend(loc="upper left")
 
         #plt.tight_layout()
-        plt.subplots_adjust(top=0.95, bottom=0.12, left=0.13)
+        plt.subplots_adjust(top=0.95, bottom=0.12, left=0.15)
 
 
     biases_dict = {"alpha":(m,error_m), "c":(c,error_c), "alpha11":(m11,cov11[0,0]**0.5), "c11":(c11,cov11[1,1]**0.5), "alpha22":(m22,cov22[0,0]**0.5), "c22":(c22,cov22[1,1]**0.5), "alpha12":(m12,cov12[0,0]**0.5), "c12":(c12,cov12[1,1]**0.5), "alpha21":(m21,cov21[0,0]**0.5), "c21":(c21,cov21[1,1]**0.5)}
