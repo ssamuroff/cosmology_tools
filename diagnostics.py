@@ -2060,27 +2060,12 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         p22,cov22 = stabilised_fit(x, d2, variance_y22)
     m22,c22 = p22
 
-    # m12, c12
-    p12, cov12 =  optimise.curve_fit(fline, x, y12, sigma=np.array(variance_y12), p0=[0.15,1e-5])
-    if not np.isfinite(cov12).all():
-        p12,cov12 = stabilised_fit(x, y12, variance_y12)
-    m12,c12 = p12
-
-    # m21, c21
-    p21, cov21 =  optimise.curve_fit(fline, x, y21, sigma=np.array(variance_y21), p0=[0.15,1e-5])
-    if not np.isfinite(cov21).all():
-        p21,cov21 = stabilised_fit(x, y21, variance_y21)
-    m21,c21 = p21
 
     if not silent:
         print 'alpha11=%f +- %f'%(m11,cov11[0,0]**0.5)
         print 'alpha22=%f +- %f'%(m22,cov22[0,0]**0.5)
-        print 'alpha12=%f +- %f'%(m12,cov12[0,0]**0.5)
-        print 'alpha21=%f +- %f'%(m21,cov21[0,0]**0.5)
         print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
         print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
-        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
-        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
 
     m = (m11+m22)/2
     c = (c11+c22)/2
