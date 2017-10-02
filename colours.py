@@ -372,11 +372,11 @@ def colour_panels(shapes, pz):
 		mask[select & colour_select_r] = 1
 		colour_select_b = ((r-z)<lin)
 		mask[select & colour_select_b] = 2
-		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.4)
+		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.35)
 		y = r-i
 		x = i-z
-		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='red' )
 		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='royalblue' )
+		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='red' )
 		if (b==3):
 			plt.xlabel("$i-z$", fontsize=12)
 			plt.xticks([0,0.4,0.8,1.2])
