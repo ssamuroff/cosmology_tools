@@ -1895,8 +1895,8 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
     """Return a 2d weight grid which will force one distribution to look like another."""
 
     print "Constructing histograms."
-    n_uw, x_uw , y_uw= np.histogram2d(unweighted[0], unweighted[1], bins=nbins, normed=False, range=(xlim,ylim))
-    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False, range=(xlim,ylim))
+    n_uw, x_uw , y_uw= np.histogram2d(unweighted[0], unweighted[1], bins=nbins, normed=False,)
+    n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False)
 
 
     if xlim[1] is not None:
