@@ -35,13 +35,19 @@ class dr1:
 		if config=='':
 			config='%s/seconfig-nersc'%self.base
 
-		template = "sex %s/deepCoadd/HSC-%c/9813/%s/calexp-HSC-%c-9813-%s.fits.gz'[1]' -c %s"%(self.base, band.upper(), pointing, band.upper(), pointing, config)
+		os.system('cp %s tmp.fits.gz'%full_path)
+		os.system('gunzip tmp.fits.gz')
+
+		template = "sex tmp.fits'[1]' -c %s"%(config)
 
 		if weights:
-			template += " -WEIGHT_IMAGE %s'[3]'"%filename
+			template += " -WEIGHT_IMAGE tmp.fits'[3]'"%filename
 
 		print "running: ", template
 		os.system(template)
+
+		os.system('rm tmp.fits.gz')
+		os.system('rm tmp.fits')
 
 		print 'Done'
 
