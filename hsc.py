@@ -2,7 +2,7 @@ import numpy as np
 import fitsio as fi
 import os
 
-pointings_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
+patches_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
 
 class dr1:
 	def __init__(self, data=''):
@@ -26,10 +26,10 @@ class dr1:
 		self.data[filename]['coadd'] = fi.FITS(filename)
 		return 0
 
-	def detect(self, band='r', pointing='8,7', config='', weights=True):
+	def detect(self, band='r', patch='8,7', config='', weights=True):
 		# Work out the paths and make a copy of the coadd
-		path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),pointing)
-		full_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, band.upper(), pointing)
+		path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),patch)
+		full_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, band.upper(), patch)
 		filename = os.path.basename(full_path)
 
 		print full_path
@@ -54,18 +54,18 @@ class dr1:
 		os.system('rm tmp.fits.gz')
 		os.system('rm tmp.fits')
 
-		os.system('mv cat.fits %s/calexp-HSC-%c-9813-%s_cat.fits'%(path, band.upper(), pointing))
-		os.system('mv seg.fits %s/calexp-HSC-%c-9813-%s_seg.fits'%(path, band.upper(), pointing))
+		os.system('mv cat.fits %s/calexp-HSC-%c-9813-%s_cat.fits'%(path, band.upper(), patch))
+		os.system('mv seg.fits %s/calexp-HSC-%c-9813-%s_seg.fits'%(path, band.upper(), patch))
 
 		print 'Done'
 
-	def bulk_detect(self, bands=['r','i','z'], pointings=[]):
-		if len(pointings)<1:
-			pointings = pointings_all
+	def bulk_detect(self, bands=['r','i','z'], patch=[]):
+		if len(patch)<1:
+			patch = patches_all
 
 		for b in bands:
-			for p in pointings:
-				self.detect(band=b, pointing=p)
+			for p in patch:
+				self.detect(band=b, patch=p)
 
 		print "Done all pointings requested"
 		return None
