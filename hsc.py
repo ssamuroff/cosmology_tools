@@ -25,7 +25,7 @@ class dr1:
 		self.data[filename]['coadd'] = fi.FITS(filename)
 		return 0
 
-	def detect(self, band='r', pointing='(8,7)', config='', weights=True):
+	def detect(self, band='r', pointing='8,7', config='', weights=True):
 		path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),pointing)
 		full_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, band.upper(), pointing)
 		filename = os.path.basename(full_path)
@@ -35,10 +35,10 @@ class dr1:
 		if config=='':
 			config='%s/seconfig-nersc'%self.base
 
-		template = 'sex %s/deepCoadd/HSC-%c/9813/%s/calexp-HSC-%c-9813-%s.fits.gz -c %s'%(self.base, band.upper(), pointing, band.upper(), pointing, config)
+		template = 'sex %s/deepCoadd/HSC-%c/9813/%s/calexp-HSC-%c-9813-%s.fits.gz'[1]' -c %s'%(self.base, band.upper(), pointing, band.upper(), pointing, config)
 
 		if weights:
-			template += "-WEIGHT_IMAGE %s'[1]'"%filename
+			template += "-WEIGHT_IMAGE %s'[3]'"%filename
 
 		print "running: ", template
 		os.system(template)
