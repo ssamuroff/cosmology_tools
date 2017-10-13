@@ -13,7 +13,7 @@ class dr1:
 		print 'will obtain data from %s'%self.base
 
 		self.data = {}
-		return 0
+		return None
 	def load_coadd(self, band='r', pointing='(8,7)'):
 		path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),pointing)
 		full_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, band.upper(), pointing)
