@@ -41,7 +41,7 @@ class dr1:
 		template = "sex tmp.fits'[1]' -c %s"%(config)
 
 		if weights:
-			template += " -WEIGHT_IMAGE tmp.fits'[3]'"%filename
+			template += " -WEIGHT_IMAGE tmp.fits'[3]'"
 
 		print "running: ", template
 		os.system(template)
