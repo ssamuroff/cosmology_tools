@@ -35,7 +35,7 @@ class dr1:
 		if config=='':
 			config='%s/seconfig-nersc'%self.base
 
-		template = 'sex %s/deepCoadd/HSC-%c/9813/%s/calexp-HSC-%c-9813-%s.fits.gz'[1]' -c %s'%(self.base, band.upper(), pointing, band.upper(), pointing, config)
+		template = "sex %s/deepCoadd/HSC-%c/9813/%s/calexp-HSC-%c-9813-%s.fits.gz'[1]' -c %s"%(self.base, band.upper(), pointing, band.upper(), pointing, config)
 
 		if weights:
 			template += "-WEIGHT_IMAGE %s'[3]'"%filename
