@@ -40,7 +40,7 @@ class dr1:
 		if weights:
 			template += "-WEIGHT_IMAGE %s'[1]'"%filename
 
-		print template
+		print "running: ", template
 		os.system(template)
 
 		print 'Done'
