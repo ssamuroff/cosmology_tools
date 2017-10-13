@@ -59,7 +59,7 @@ class dr1:
 
 		print 'Done'
 
-	def bulk_detect(self, bands='r', pointings=[]):
+	def bulk_detect(self, bands=['r','i','z'], pointings=[]):
 		if len(pointings)<1:
 			pointings = pointings_all
 
