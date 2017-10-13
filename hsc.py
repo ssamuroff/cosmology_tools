@@ -26,6 +26,7 @@ class dr1:
 		return 0
 
 	def detect(self, band='r', pointing='8,7', config='', weights=True):
+		# Work out the paths and make a copy of the coadd
 		path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),pointing)
 		full_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, band.upper(), pointing)
 		filename = os.path.basename(full_path)
@@ -38,16 +39,22 @@ class dr1:
 		os.system('cp %s tmp.fits.gz'%full_path)
 		os.system('gunzip tmp.fits.gz')
 
+		# Construct the command
 		template = "sex tmp.fits'[1]' -c %s"%(config)
 
 		if weights:
 			template += " -WEIGHT_IMAGE tmp.fits'[3]'"
 
+		# Run the command
 		print "running: ", template
 		os.system(template)
 
+		# Now clean up
 		os.system('rm tmp.fits.gz')
 		os.system('rm tmp.fits')
+
+		os.system('mv cat.fits %s/calexp-HSC-%c-9813-%s_cat.fits'%(path, band.upper(), pointing))
+		os.system('mv seg.fits %s/calexp-HSC-%c-9813-%s_seg.fits'%(path, band.upper(), pointing))
 
 		print 'Done'
 
