@@ -59,16 +59,42 @@ class dr1:
 
 		print 'Done'
 
-	def bulk_detect(self, bands=['r','i','z'], patch=[]):
+	def bulk_detect(self, bands=['r','i','z'], patches=[]):
 		if len(patch)<1:
-			patch = patches_all
+			patches = patches_all
 
 		for b in bands:
-			for p in patch:
+			for p in patches:
 				self.detect(band=b, patch=p)
 
 		print "Done all pointings requested"
 		return None
+
+	def collect_stamps(self, bands=['r','i','z'], patches=[]):
+
+		if len(patch)<1:
+			patches = patches_all
+
+		for b in bands:
+			for p in patches:
+
+				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),patch)
+				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, band.upper(), patch)
+				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, band.upper(), patch)
+				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.fz'%(path, band.upper(), patch)
+				filename = os.path.basename(full_path)
+
+				print full_path
+
+				import pdb ; pdb.set_trace()
+
+				coadd=fi.FITS('')
+
+
+
+
+
+
 
 
 
