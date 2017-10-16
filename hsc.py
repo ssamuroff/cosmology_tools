@@ -97,7 +97,7 @@ class dr1:
 
 				image_pixels = []
 				seg_pixels = []
-				object_data=np.zeros(boxsizes.size, dtype=[('number', int),('start_row', int)])
+				object_data=np.zeros(boxsizes.size, dtype=[('number', int),('start_row', int), ('box_size', int)])
 				pixel_count = 0
 
 				for i,row in enumerate(cat_data):
@@ -122,6 +122,7 @@ class dr1:
 				    seg_pixels.append(seg_stamp.flatten())
 				    object_data['number'][i] = seg_stamp[boxsize/2,boxsize/2]
 				    object_data['start_row'][i] = pixel_count
+				    object_data['box_size'][i] = boxsize
 
 				    if mask & np.unique(seg_stamp).size>2:
 				    	import pdb ; pdb.set_trace()
@@ -174,6 +175,18 @@ def get_boxsizes(cat_data):
             continue
 
     return boxsize  
+
+
+def get_cutout(i, pixels, info):
+	i0 = info["start_row"][i]
+	b = info["box_size"][i]
+
+	i1 = i0 + b*b
+
+	stamp = pixels[i0:i1].reshape((b,b))
+
+	return stamp
+
 
 
 
