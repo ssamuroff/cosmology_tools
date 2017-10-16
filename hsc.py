@@ -127,6 +127,8 @@ class dr1:
 				    	null_y_min = np.zeros((delta_y_min, boxsize))
 				    	null_y_max = np.zeros((delta_y_max, boxsize))
 
+				    	import pdb ; pdb.set_trace()
+
 				    	stamp = np.hstack((null_x_min, stamp))
 				    	stamp = np.hstack((stamp, null_x_max))
 				    	stamp = np.vstack((null_y_min, stamp))
