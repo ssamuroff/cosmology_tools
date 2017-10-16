@@ -129,7 +129,7 @@ class dr1:
 				    	dy0 = abs(min(y0-0, 0))
 				    	dx0 = abs(min(x0-0, 0))
 				    	dy1 = abs(min(coadd_data.shape[0]-y1, 0))
-				    	dx1 = abs(min(coadd_data.shape[0]-x1, 0))
+				    	dx1 = abs(min(coadd_data.shape[1]-x1, 0))
 
 				    	import pdb ; pdb.set_trace()
 
