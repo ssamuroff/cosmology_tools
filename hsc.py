@@ -131,7 +131,6 @@ class dr1:
 				    	dy1 = abs(min(coadd_data.shape[0]-y1, 0))
 				    	dx1 = abs(min(coadd_data.shape[1]-x1, 0))
 
-				    	import pdb ; pdb.set_trace()
 
 				    	final[dy0:boxsize-dy1, dx0:boxsize-dx1]=stamp
 				    	seg_final[dy0:boxsize-dy1, dx0:boxsize-dx1]=seg_stamp
