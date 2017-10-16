@@ -82,9 +82,9 @@ class dr1:
 				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, b.upper(), p)
 				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, b.upper(), p)
 				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.fz'%(path, b.upper(), p)
-				filename = os.path.basename(full_path)
+				filename = os.path.basename(cat_path)
 
-				print full_path
+				print cat_path
 
 				import pdb ; pdb.set_trace()
 
