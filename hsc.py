@@ -129,9 +129,9 @@ class dr1:
 				meds = fi.FITS(meds_path, 'rw')
 
 				import pdb ; pdb.set_trace()
-				meds.write(image_pixels)
+				meds.write(np.concatenate(image_pixels))
 				meds[-1].write_key('EXTNAME','image_cutouts')
-				meds.write(seg_pixels)
+				meds.write(np.concatenate(seg_pixels))
 				meds[-1].write_key('EXTNAME','seg_cutouts')
 				meds.write(object_data)
 				meds[-1].write_key('EXTNAME','object_data')
