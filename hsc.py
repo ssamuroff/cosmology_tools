@@ -127,16 +127,19 @@ class dr1:
 				    	null_y_min = np.zeros((delta_y_min, boxsize))
 				    	null_y_max = np.zeros((delta_y_max, boxsize))
 
-				    	import pdb ; pdb.set_trace()
 
-				    	stamp = np.hstack((null_x_min, stamp))
-				    	stamp = np.hstack((stamp, null_x_max))
-				    	stamp = np.vstack((null_y_min, stamp))
-				    	stamp = np.vstack((stamp, null_y_max))
-				    	seg_stamp = np.hstack((null_x_min, seg_stamp))
-				    	seg_stamp = np.hstack((seg_stamp, null_x_max))
-				    	seg_stamp = np.vstack((null_y_min, seg_stamp))
-				    	seg_stamp = np.vstack((seg_stamp, null_y_max))	    	
+
+				    	try:
+				    		stamp = np.hstack((null_x_min, stamp))
+				    		stamp = np.hstack((stamp, null_x_max))
+				    		stamp = np.vstack((null_y_min, stamp))
+				    		stamp = np.vstack((stamp, null_y_max))
+				    		seg_stamp = np.hstack((null_x_min, seg_stamp))
+				    		seg_stamp = np.hstack((seg_stamp, null_x_max))
+				    		seg_stamp = np.vstack((null_y_min, seg_stamp))
+				    		seg_stamp = np.vstack((seg_stamp, null_y_max))	
+				    	except:
+				    		import pdb ; pdb.set_trace()    	
 
 				    image_pixels.append(stamp.flatten())
 				    seg_pixels.append(seg_stamp.flatten())
