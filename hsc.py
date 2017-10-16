@@ -128,7 +128,6 @@ class dr1:
 				os.system('rm %s'%meds_path)
 				meds = fi.FITS(meds_path, 'rw')
 
-				import pdb ; pdb.set_trace()
 				meds.write(np.concatenate(image_pixels))
 				meds[-1].write_key('EXTNAME','image_cutouts')
 				meds.write(np.concatenate(seg_pixels))
