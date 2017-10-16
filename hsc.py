@@ -127,7 +127,8 @@ class dr1:
 				    	null_y_min = np.zeros((delta_y_min, boxsize))
 				    	null_y_max = np.zeros((delta_y_max, boxsize))
 
-
+				    	if (stamp.shape[0]==0) or (stamp.shape[1]==0):
+				    		continue  
 
 				    	try:
 				    		stamp = np.hstack((null_x_min, stamp))
