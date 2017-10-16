@@ -165,10 +165,10 @@ def get_boxsizes(cat_data):
     allowed_boxsizes=allowed_boxsizes[(allowed_boxsizes>=min_boxsize) & (allowed_boxsizes<=max_boxsize) ]
 
     for i, bs in enumerate(boxsize):
-    if bs not in allowed_boxsizes:
-        boxsize[i] = allowed_boxsizes[allowed_boxsizes>bs][0] 
-    else:
-        continue
+        if bs not in allowed_boxsizes:
+            boxsize[i] = allowed_boxsizes[allowed_boxsizes>bs][0] 
+        else:
+            continue
 
     return boxsize  
 
