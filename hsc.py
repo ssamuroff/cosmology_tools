@@ -115,6 +115,9 @@ class dr1:
 				    stamp = coadd_data[y0:y1,x0:x1]
 				    seg_stamp = seg_data[y0:y1,x0:x1]
 
+				    if not np.sqrt(stamp.size)==boxsize:
+				    	continue
+
 				    image_pixels.append(stamp.flatten())
 				    seg_pixels.append(seg_stamp.flatten())
 				    object_data['number'][i] = seg_stamp[boxsize/2,boxsize/2]
