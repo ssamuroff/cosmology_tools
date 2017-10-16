@@ -71,35 +71,6 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
-	def get_boxsizes(cat_data):
-		sig=2*cat_data['FLUX_RADIUS']/2.3548
-		epsilon= 1- cat_data['B_WORLD']/cat_data['A_WORLD']
-		boxsize = 2*5*sig*(1+epsilon)
-
-		min_boxsize, max_boxsize = 32, 256
-
-		isarray = True
-		boxsize = (boxsize+0.5).astype(int)
-
-        # Replace any entries with infinite or overly large or small boxes
-        np.putmask(boxsize, np.invert(np.isfinite(boxsize)), 32)
-        np.putmask(boxsize, boxsize<min_boxsize, min_boxsize)
-        np.putmask(boxsize, boxsize>max_boxsize, max_boxsize)
-
-        # Round up to a factor of 2**N or 3*2**N
-        allowed_boxsizes = 2**np.arange(0,1 + np.log(max_boxsize)/np.log(2),1 )
-        allowed_boxsizes = np.concatenate((allowed_boxsizes, 3*allowed_boxsizes))
-        allowed_boxsizes.sort()
-        allowed_boxsizes=allowed_boxsizes[(allowed_boxsizes>=min_boxsize) & (allowed_boxsizes<=max_boxsize) ]
-
-        for i, bs in enumerate(boxsize):
-        	if bs not in allowed_boxsizes:
-        		boxsize[i] = allowed_boxsizes[allowed_boxsizes>bs][0] 
-        	else:
-        		continue
-
-    return boxsize  
-
 
 	def collect_stamps(self, bands=['r','i','z'], patches=[], mask=False):
 
@@ -172,8 +143,34 @@ class dr1:
 
 
 
+def get_boxsizes(cat_data):
+    sig=2*cat_data['FLUX_RADIUS']/2.3548
+    epsilon= 1- cat_data['B_WORLD']/cat_data['A_WORLD']
+    boxsize = 2*5*sig*(1+epsilon)
 
+    min_boxsize, max_boxsize = 32, 256
 
+    isarray = True
+    boxsize = (boxsize+0.5).astype(int)
+
+    # Replace any entries with infinite or overly large or small boxes
+    np.putmask(boxsize, np.invert(np.isfinite(boxsize)), 32)
+    np.putmask(boxsize, boxsize<min_boxsize, min_boxsize)
+    np.putmask(boxsize, boxsize>max_boxsize, max_boxsize)
+
+    # Round up to a factor of 2**N or 3*2**N
+    allowed_boxsizes = 2**np.arange(0,1 + np.log(max_boxsize)/np.log(2),1 )
+    allowed_boxsizes = np.concatenate((allowed_boxsizes, 3*allowed_boxsizes))
+    allowed_boxsizes.sort()
+    allowed_boxsizes=allowed_boxsizes[(allowed_boxsizes>=min_boxsize) & (allowed_boxsizes<=max_boxsize) ]
+
+    for i, bs in enumerate(boxsize):
+    if bs not in allowed_boxsizes:
+        boxsize[i] = allowed_boxsizes[allowed_boxsizes>bs][0] 
+    else:
+        continue
+
+    return boxsize  
 
 
 
