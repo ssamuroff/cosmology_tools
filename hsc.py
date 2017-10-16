@@ -78,10 +78,10 @@ class dr1:
 		for b in bands:
 			for p in patches:
 
-				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,band.upper(),patch)
-				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, band.upper(), patch)
-				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, band.upper(), patch)
-				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.fz'%(path, band.upper(), patch)
+				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,b.upper(),patch)
+				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, b.upper(), patch)
+				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, b.upper(), patch)
+				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.fz'%(path, b.upper(), patch)
 				filename = os.path.basename(full_path)
 
 				print full_path
