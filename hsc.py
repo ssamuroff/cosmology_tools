@@ -120,31 +120,30 @@ class dr1:
 				    	im = galsim.ImageD(coadd_data)
 				    	bounds = galsim.BoundsI(xmin=x0,xmax=x1,ymin=y0,ymax=y1)
 
-				    	bounds, delta_x_min, delta_x_max, delta_y_min, delta_y_max = get_zeropadding(im, bounds)
-
 				    	if (stamp.shape[0]==0) or (stamp.shape[1]==0):
 				    		continue  
 
 				    	try:
-				    		null_x_min = np.zeros(( boxsize-delta_y_min-delta_y_max, delta_x_min))
-				    		null_x_max = np.zeros((boxsize-delta_y_min-delta_y_max, delta_x_max))
-				    		null_y_min = np.zeros((delta_y_min, boxsize))
-				    		null_y_max = np.zeros((delta_y_max, boxsize))
+				    		final = np.zeros((boxsize,boxsize))
+				    		seg_final = np.zeros((boxsize,boxsize))
+				    		dy0 = abs(min(y0-0, 0))
+				    		dx0 = abs(min(x0-0, 0))
+				    		dy1 = abs(min(coadd_data.shape[0]-y1, 0))
+				    		dx1 = abs(min(coadd_data.shape[0]-x1, 0))
 
-				    		stamp = np.hstack((null_x_min, stamp))
-				    		stamp = np.hstack((stamp, null_x_max))
-				    		stamp = np.vstack((null_y_min, stamp))
-				    		stamp = np.vstack((stamp, null_y_max))
-				    		seg_stamp = np.hstack((null_x_min, seg_stamp))
-				    		seg_stamp = np.hstack((seg_stamp, null_x_max))
-				    		seg_stamp = np.vstack((null_y_min, seg_stamp))
-				    		seg_stamp = np.vstack((seg_stamp, null_y_max))	
+				    		final[dy0:boxsize-dy1, dx0:boxsize-dx1]=stamp
+				    		seg_final[dy0:boxsize-dy1, dx0:boxsize-dx1]=seg_stamp
+
 				    	except:
-				    		import pdb ; pdb.set_trace()    	
+				    		import pdb ; pdb.set_trace()
 
-				    image_pixels.append(stamp.flatten())
-				    seg_pixels.append(seg_stamp.flatten())
-				    object_data['number'][i] = seg_stamp[boxsize/2,boxsize/2]
+				    else:
+				        final = stamp
+				        seg_final = seg_stamp	
+
+				    image_pixels.append(final.flatten())
+				    seg_pixels.append(seg_final.flatten())
+				    object_data['number'][i] = seg_final[boxsize/2,boxsize/2]
 				    object_data['start_row'][i] = pixel_count
 				    object_data['box_size'][i] = boxsize
 
