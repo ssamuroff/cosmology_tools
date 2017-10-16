@@ -116,7 +116,24 @@ class dr1:
 				    seg_stamp = seg_data[y0:y1,x0:x1]
 
 				    if not np.sqrt(stamp.size)==boxsize:
-				    	continue
+				    	im = galsim.ImageD(coadd_data)
+				    	bounds = galsim.BoundsI(xmin=x0,xmax=x1,ymin=y0,ymax=y1)
+
+				    	bounds, delta_x_min, delta_x_max, delta_y_min, delta_y_max = get_zeropadding(im, bounds)
+
+				    	null_x_min = np.zeros(( boxsize-delta_y_min-delta_y_max, delta_x_min))
+				    	null_x_max = np.zeros((boxsize-delta_y_min-delta_y_max, delta_x_max))
+				    	null_y_min = np.zeros((delta_y_min, boxsize))
+				    	null_y_max = np.zeros((delta_y_max, boxsize))
+
+				    	stamp = np.hstack((null_x_min, stamp))
+				    	stamp = np.hstack((stamp, null_x_max))
+				    	stamp = np.vstack((null_y_min, stamp))
+				    	stamp = np.vstack((stamp, null_y_max))
+				    	seg_stamp = np.hstack((null_x_min, seg_stamp))
+				    	seg_stamp = np.hstack((seg_stamp, null_x_max))
+				    	seg_stamp = np.vstack((null_y_min, seg_stamp))
+				    	seg_stamp = np.vstack((seg_stamp, null_y_max))	    	
 
 				    image_pixels.append(stamp.flatten())
 				    seg_pixels.append(seg_stamp.flatten())
@@ -175,6 +192,30 @@ def get_boxsizes(cat_data):
             continue
 
     return boxsize  
+
+
+def get_zeropadding(im, bounds):
+
+            # Number of pixels on each axis outside the image bounds
+            delta_x_min, delta_x_max, delta_y_min, delta_y_max = 0,0,0,0   
+         
+            if (bounds.ymin< im.bounds.ymin):
+                delta_y_min = im.bounds.ymin - bounds.ymin
+                bounds = galsim.BoundsI(ymin=im.bounds.ymin, ymax=bounds.ymax, xmin=bounds.xmin,xmax=bounds.xmax)
+            if (bounds.ymax > im.bounds.ymax):
+                delta_y_max = bounds.ymax - im.bounds.ymax
+                bounds = galsim.BoundsI(ymin=bounds.ymin, ymax=im.bounds.ymax, xmin=bounds.xmin,xmax=bounds.xmax)
+            if (bounds.xmin< im.bounds.xmin):
+                delta_x_min = im.bounds.xmin - bounds.xmin
+                bounds = galsim.BoundsI(ymin=bounds.ymin, ymax=bounds.ymax, xmin=im.bounds.xmin,xmax=bounds.xmax)
+            if (bounds.xmax > im.bounds.xmax):
+                delta_x_max = bounds.xmax - im.bounds.xmax
+                bounds = galsim.BoundsI(ymin=bounds.ymin, ymax=bounds.ymax, xmin=bounds.xmin,xmax=im.bounds.xmax)
+
+            if (bounds.ymin< im.bounds.ymin) or (bounds.ymax > im.bounds.ymax) or (bounds.xmin< im.bounds.xmin) or (bounds.xmax > im.bounds.xmax):
+                print 'Stamp bounds are not fully contained by the image bounds'
+
+            return bounds, delta_x_min, delta_x_max, delta_y_min, delta_y_max         
 
 
 def get_cutout(i, pixels, info):
