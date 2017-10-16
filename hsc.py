@@ -125,7 +125,10 @@ class dr1:
 
 				meds_path = '%s/calexp-HSC-%c-9813-%s_meds.fits'%(path, b.upper(), p)
 				print "Writing cutouts to %s"%meds_path
+				os.system('rm %s'%meds_path)
 				meds = fi.FITS(meds_path, 'rw')
+
+				import pdb ; pdb.set_trace()
 				meds.write(image_pixels)
 				meds[-1].write_key('EXTNAME','image_cutouts')
 				meds.write(seg_pixels)
