@@ -123,19 +123,16 @@ class dr1:
 				    	if (stamp.shape[0]==0) or (stamp.shape[1]==0):
 				    		continue  
 
-				    	try:
-				    		final = np.zeros((boxsize,boxsize))
-				    		seg_final = np.zeros((boxsize,boxsize))
-				    		dy0 = abs(min(y0-0, 0))
-				    		dx0 = abs(min(x0-0, 0))
-				    		dy1 = abs(min(coadd_data.shape[0]-y1, 0))
-				    		dx1 = abs(min(coadd_data.shape[0]-x1, 0))
 
-				    		final[dy0:boxsize-dy1, dx0:boxsize-dx1]=stamp
-				    		seg_final[dy0:boxsize-dy1, dx0:boxsize-dx1]=seg_stamp
+				    	final = np.zeros((boxsize,boxsize))
+				    	seg_final = np.zeros((boxsize,boxsize))
+				    	dy0 = abs(min(y0-0, 0))
+				    	dx0 = abs(min(x0-0, 0))
+				    	dy1 = abs(min(coadd_data.shape[0]-y1, 0))
+				    	dx1 = abs(min(coadd_data.shape[0]-x1, 0))
 
-				    	except:
-				    		import pdb ; pdb.set_trace()
+				    	final[dy0:boxsize-dy1, dx0:boxsize-dx1]=stamp
+				    	seg_final[dy0:boxsize-dy1, dx0:boxsize-dx1]=seg_stamp
 
 				    else:
 				        final = stamp
