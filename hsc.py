@@ -60,7 +60,7 @@ class dr1:
 		print 'Done'
 
 	def bulk_detect(self, bands=['r','i','z'], patches=[]):
-		if len(patch)<1:
+		if len(patches)<1:
 			patches = patches_all
 
 		for b in bands:
@@ -72,7 +72,7 @@ class dr1:
 
 	def collect_stamps(self, bands=['r','i','z'], patches=[]):
 
-		if len(patch)<1:
+		if len(patches)<1:
 			patches = patches_all
 
 		for b in bands:
