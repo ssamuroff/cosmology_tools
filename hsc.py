@@ -88,8 +88,6 @@ class dr1:
 
 				print cat_path
 
-				import pdb ; pdb.set_trace()
-
 				coadd_data = fi.FITS(coadd_path)['IMAGE'][:,:]
 				seg_data = fi.FITS(seg_path)[0][:,:]
 				cat_data = fi.FITS(cat_path)[1].read()
@@ -127,7 +125,7 @@ class dr1:
 
 				meds_path = '%s/calexp-HSC-%c-9813-%s_meds.fits'%(path, b.upper(), p)
 				print "Writing cutouts to %s"%meds_path
-				meds = fi.FITS(meds_path)
+				meds = fi.FITS(meds_path, 'rw')
 				meds.write(image_pixels)
 				meds[-1].write_key('EXTNAME','image_cutouts')
 				meds.write(seg_pixels)
