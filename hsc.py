@@ -122,15 +122,15 @@ class dr1:
 
 				    	bounds, delta_x_min, delta_x_max, delta_y_min, delta_y_max = get_zeropadding(im, bounds)
 
-				    	null_x_min = np.zeros(( boxsize-delta_y_min-delta_y_max, delta_x_min))
-				    	null_x_max = np.zeros((boxsize-delta_y_min-delta_y_max, delta_x_max))
-				    	null_y_min = np.zeros((delta_y_min, boxsize))
-				    	null_y_max = np.zeros((delta_y_max, boxsize))
-
 				    	if (stamp.shape[0]==0) or (stamp.shape[1]==0):
 				    		continue  
 
 				    	try:
+				    		null_x_min = np.zeros(( boxsize-delta_y_min-delta_y_max, delta_x_min))
+				    		null_x_max = np.zeros((boxsize-delta_y_min-delta_y_max, delta_x_max))
+				    		null_y_min = np.zeros((delta_y_min, boxsize))
+				    		null_y_max = np.zeros((delta_y_max, boxsize))
+
 				    		stamp = np.hstack((null_x_min, stamp))
 				    		stamp = np.hstack((stamp, null_x_max))
 				    		stamp = np.vstack((null_y_min, stamp))
