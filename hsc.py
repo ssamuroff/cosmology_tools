@@ -169,6 +169,8 @@ class dr1:
 				    igal+=1
 				    ihdu+=1
 
+				import pdb ; pdb.set_trace()
+
 				for name in outdat_all.dtype.names:
 					outdat_all[name][start:start+outdat[name].size] = outdat[name]
 					start+=outdat[name].size
