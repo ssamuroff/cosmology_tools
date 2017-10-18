@@ -172,6 +172,8 @@ class dr1:
 				    		final0 = copy.deepcopy(final)
 				    		final0[masked_pixels]=noise_stamp[masked_pixels]
 
+				    	import pdb ; pdb.set_trace()
+
 				    outfile.write(final)
 
 				    outdat['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
