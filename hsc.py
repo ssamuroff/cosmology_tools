@@ -92,7 +92,7 @@ class dr1:
 			os.system('rm %s'%out_path2)
 			outfile2 = fi.FITS(out_path2, 'rw')
 
-			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 			start=0
 
 			for ip,p in enumerate(patches):
@@ -116,7 +116,7 @@ class dr1:
 
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images_%s.fits'%(path, b.upper(), p, suffix)
 
-				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
@@ -161,6 +161,11 @@ class dr1:
 				        final = stamp
 				        seg_final = seg_stamp	
 
+				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
+				    sig_edge = np.std(edge_pixels)
+
+				    if sig_edge>1.5:
+				    	cat_data['EDGE_FLAGS']=1
 
 				    if (np.unique(seg_final).size>2):
 				    	
@@ -168,7 +173,7 @@ class dr1:
 				    		unmasked_pixels = np.argwhere(seg_final==0)
 				    		
 				    		sig = np.std(final[:5,])
-				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig
+				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig_egde
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
@@ -183,6 +188,8 @@ class dr1:
 				    outdat['GAL_HDU'][i] = ihdu
 				    if number!=0:
 				    	outdat['FLAGS'] = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
+				    else:
+				    	outdat['FLAGS'] = 100
 
 				    igal+=1
 				    ihdu+=1
