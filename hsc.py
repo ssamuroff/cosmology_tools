@@ -138,8 +138,6 @@ class dr1:
 				    stamp = coadd_data[y0:y1,x0:x1]
 				    seg_stamp = seg_data[y0:y1,x0:x1]
 
-				    number = seg_final[boxsize/2,boxsize/2]
-
 				    if not np.sqrt(stamp.size)==boxsize:
 				    	im = galsim.ImageD(coadd_data)
 				    	bounds = galsim.BoundsI(xmin=x0,xmax=x1,ymin=y0,ymax=y1)
@@ -175,6 +173,7 @@ class dr1:
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
+				    number = seg_final[boxsize/2,boxsize/2]
 				    outfile.write(final)
 
 				    outdat['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
