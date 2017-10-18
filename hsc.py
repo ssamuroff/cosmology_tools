@@ -184,7 +184,8 @@ class dr1:
 				    number = seg_final[boxsize/2,boxsize/2]
 				    if flags:
 				    	if number!=0:
-				    		if cat_data['FLAGS'][cat_data['NUMBER']==number][0]!=0:
+				    		flag = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
+				    		if (flag==4) or (flag==8) or (flag==16) or (flag==32) or (flag==64) or (flag==128):
 				    			continue
 				    	else:
 				    		continue
