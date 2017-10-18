@@ -106,6 +106,8 @@ class dr1:
 				pixel_count = 0
 
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images.fits'%(path, b.upper(), p)
+
+				outdat = np.zeros(boxsizes.size, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
@@ -158,18 +160,18 @@ class dr1:
 
 				    outfile.write(final)
 
-				    outdat_all['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
-				    outdat_all['RA'][i] = row['ALPHAWIN_J2000']
-				    outdat_all['DEC'][i] = row['DELTAWIN_J2000']
-				    outdat_all['GAL_FILENAME'][i] = out_path
-				    outdat_all['GAL_HDU'][i] = ihdu
+				    outdat['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
+				    outdat['RA'][i] = row['ALPHAWIN_J2000']
+				    outdat['DEC'][i] = row['DELTAWIN_J2000']
+				    outdat['GAL_FILENAME'][i] = out_path
+				    outdat['GAL_HDU'][i] = ihdu
 
 				    igal+=1
 				    ihdu+=1
 
 				for name in outdat_all.dtype.names:
-					outdat_all[name][start:start+outdat_all[name].size] = outdat_all[name]
-					start+=outdat_all[name].size
+					outdat_all[name][start:start+outdat[name].size] = outdat[name]
+					start+=outdat[name].size
 
 				outfile.close()
 
