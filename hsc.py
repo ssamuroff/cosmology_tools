@@ -110,8 +110,6 @@ class dr1:
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
 				outfile = fi.FITS(out_path, 'rw')
-	
-				outdat = np.zeros(boxsizes.size, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 
 				ihdu=0
 
@@ -160,18 +158,18 @@ class dr1:
 
 				    outfile.write(final)
 
-				    outdat2['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
-				    outdat2['RA'][i] = row['ALPHAWIN_J2000']
-				    outdat2['DEC'][i] = row['DELTAWIN_J2000']
-				    outdat2['GAL_FILENAME'][i] = out_path
-				    outdat2['GAL_HDU'][i] = ihdu
+				    outdat_all['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
+				    outdat_all['RA'][i] = row['ALPHAWIN_J2000']
+				    outdat_all['DEC'][i] = row['DELTAWIN_J2000']
+				    outdat_all['GAL_FILENAME'][i] = out_path
+				    outdat_all['GAL_HDU'][i] = ihdu
 
 				    igal+=1
 				    ihdu+=1
 
-				for name in outdat2.dtype.names:
-					outdat_all[name][start:start+outdat2[name].size] = outdat2[name]
-					start+=outdat2[name].size
+				for name in outdat_all.dtype.names:
+					outdat_all[name][start:start+outdat_all[name].size] = outdat_all[name]
+					start+=outdat_all[name].size
 
 				outfile.close()
 
