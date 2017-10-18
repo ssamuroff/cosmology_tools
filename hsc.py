@@ -92,7 +92,7 @@ class dr1:
 			os.system('rm %s'%out_path2)
 			outfile2 = fi.FITS(out_path2, 'rw')
 
-			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAG", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 			start=0
 
 			for ip,p in enumerate(patches):
@@ -106,6 +106,7 @@ class dr1:
 				print cat_path
 
 				coadd_data = fi.FITS(coadd_path)['IMAGE'][:,:]
+				mask_data = fi.FITS(coadd_path)['MASK'][:,:]
 				seg_data = fi.FITS(seg_path)[0][:,:]
 				cat_data = fi.FITS(cat_path)[1].read()
 
@@ -115,7 +116,7 @@ class dr1:
 
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images_%s.fits'%(path, b.upper(), p, suffix)
 
-				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAG", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
@@ -137,6 +138,7 @@ class dr1:
 				    stamp = coadd_data[y0:y1,x0:x1]
 				    seg_stamp = seg_data[y0:y1,x0:x1]
 
+				    number = seg_final[boxsize/2,boxsize/2]
 
 				    if not np.sqrt(stamp.size)==boxsize:
 				    	im = galsim.ImageD(coadd_data)
@@ -163,17 +165,15 @@ class dr1:
 
 
 				    if (np.unique(seg_final).size>2):
-				    	outdat['FLAG']=1
+				    	
 				    	if mask:
 				    		unmasked_pixels = np.argwhere(seg_final==0)
 				    		
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
-				    		final0 = copy.deepcopy(final)
-				    		final0[masked_pixels]=noise_stamp[masked_pixels]
-
-				    	import pdb ; pdb.set_trace()
+				    		
+				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
 				    outfile.write(final)
 
@@ -182,6 +182,7 @@ class dr1:
 				    outdat['DEC'][i] = row['DELTAWIN_J2000']
 				    outdat['GAL_FILENAME'][i] = out_path
 				    outdat['GAL_HDU'][i] = ihdu
+				    outdat['FLAGS'] = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
 
 				    igal+=1
 				    ihdu+=1
