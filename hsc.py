@@ -85,7 +85,7 @@ class dr1:
 			os.system('rm %s'%out_path2)
 			outfile2 = fi.FITS(out_path2, 'rw')
 
-			outdat_all = np.empty(9000000, dtype=[('IDENT', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAG", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 			start=0
 
 			for ip,p in enumerate(patches):
@@ -108,7 +108,7 @@ class dr1:
 
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images.fits'%(path, b.upper(), p)
 
-				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAG", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
@@ -156,6 +156,7 @@ class dr1:
 
 
 				    if mask & np.unique(seg_stamp).size>2:
+				    	outdat['FLAG']=1
 				    	import pdb ; pdb.set_trace()
 
 				    outfile.write(final)
