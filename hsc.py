@@ -72,6 +72,114 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
+	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False):
+
+		if len(patches)<1:
+			patches = patches_all
+
+		igal=0
+
+		for b in bands:
+
+			out_path2 = '%s/calexp-HSC-%c-9813_galsim_catalogue.fits'%(path, b.upper())
+			outfile2 = fi.FITS(out_path2, 'rw')
+
+			outdat_all = np.empty(50000, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			start=0
+
+			for ip,p in enumerate(patches):
+
+				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,b.upper(),p)
+				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, b.upper(), p)
+				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, b.upper(), p)
+				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, b.upper(), p)
+				filename = os.path.basename(cat_path)
+
+				print cat_path
+
+				coadd_data = fi.FITS(coadd_path)['IMAGE'][:,:]
+				seg_data = fi.FITS(seg_path)[0][:,:]
+				cat_data = fi.FITS(cat_path)[1].read()
+
+
+				boxsizes = get_boxsizes(cat_data)
+				pixel_count = 0
+
+				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images.fits'%(path, b.upper(), p)
+				
+				print "Writing cutouts to %s"%out_path
+				os.system('rm %s'%out_path)
+				outfile = fi.FITS(out_path, 'rw')
+	
+				outdat = np.zeros(boxsizes.size, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+
+				ihdu=0
+
+				for i,row in enumerate(cat_data):
+				    x = int(math.floor(row['XWIN_IMAGE']+0.5))
+				    y = int(math.floor(row['YWIN_IMAGE']+0.5))
+
+				    boxsize = boxsizes[i]
+				    pixel_count+=boxsize*boxsize
+
+				    x0 = x-boxsize/2
+				    y0 = y-boxsize/2
+				    x1 = x+boxsize/2
+				    y1 = y+boxsize/2
+
+				    stamp = coadd_data[y0:y1,x0:x1]
+				    seg_stamp = seg_data[y0:y1,x0:x1]
+
+
+				    if not np.sqrt(stamp.size)==boxsize:
+				    	im = galsim.ImageD(coadd_data)
+				    	bounds = galsim.BoundsI(xmin=x0,xmax=x1,ymin=y0,ymax=y1)
+
+				    	if (stamp.shape[0]==0) or (stamp.shape[1]==0):
+				    		continue  
+
+
+				    	final = np.zeros((boxsize,boxsize))
+				    	seg_final = np.zeros((boxsize,boxsize))
+				    	dy0 = abs(min(y0-0, 0))
+				    	dx0 = abs(min(x0-0, 0))
+				    	dy1 = abs(min(coadd_data.shape[0]-y1, 0))
+				    	dx1 = abs(min(coadd_data.shape[1]-x1, 0))
+
+
+				    	final[dy0:boxsize-dy1, dx0:boxsize-dx1]=stamp
+				    	seg_final[dy0:boxsize-dy1, dx0:boxsize-dx1]=seg_stamp
+
+				    else:
+				        final = stamp
+				        seg_final = seg_stamp	
+
+
+				    if mask & np.unique(seg_stamp).size>2:
+				    	import pdb ; pdb.set_trace()
+
+				    outfile.write(final)
+
+				    outdat2['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
+				    outdat2['RA'][i] = row['ALPHAWIN_J2000']
+				    outdat2['DEC'][i] = row['DELTAWIN_J2000']
+				    outdat2['GAL_FILENAME'][i] = out_path
+				    outdat2['GAL_HDU'][i] = ihdu
+
+				    igal+=1
+				    ihdu+=1
+
+				for name in outdat2.dtype.names:
+					outdat_all[name][start:start+outdat2[name].size] = outdat2[name]
+					start+=outdat2[name].size
+
+				outfile.close()
+
+			outfile2.write(outdat_all)
+			outfile2.close()
+
+		print "Done"
+
 
 	def collect_stamps(self, bands=['r','i','z'], patches=[], mask=False):
 
