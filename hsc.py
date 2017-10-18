@@ -74,7 +74,7 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
-	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False):
+	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False):
 
 		if len(patches)<1:
 			patches = patches_all
@@ -85,6 +85,9 @@ class dr1:
 			suffix="masked"
 		else:
 			suffix="unmasked"
+
+		if flags:
+			suffix+='_flags'
 
 		for b in bands:
 
@@ -165,7 +168,7 @@ class dr1:
 				    sig_edge = np.std(edge_pixels)
 
 				    if sig_edge>1.5:
-				    	outdat['EDGE_FLAGS']=1
+				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
 				    	
@@ -179,6 +182,15 @@ class dr1:
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
 				    number = seg_final[boxsize/2,boxsize/2]
+				    if flags:
+				    	if number!=0:
+				    		if cat_data['FLAGS'][cat_data['NUMBER']==number][0]!=0:
+				    			continue
+				    	else:
+				    		continue
+				    	if outdat['EDGE_FLAGS'][i]==1:
+				    		continue
+
 				    outfile.write(final)
 
 				    outdat['IDENT'][i] = seg_final[boxsize/2,boxsize/2]
