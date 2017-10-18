@@ -172,6 +172,7 @@ class dr1:
 
 				#import pdb ; pdb.set_trace()
 
+				import pdb ; pdb.set_trace()
 				for name in outdat_all.dtype.names:
 					try:
 						outdat_all[name][start:start+outdat[name].size] = outdat[name]
