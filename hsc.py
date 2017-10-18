@@ -181,7 +181,8 @@ class dr1:
 				    outdat['DEC'][i] = row['DELTAWIN_J2000']
 				    outdat['GAL_FILENAME'][i] = out_path
 				    outdat['GAL_HDU'][i] = ihdu
-				    outdat['FLAGS'] = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
+				    if number!=0:
+				    	outdat['FLAGS'] = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
 
 				    igal+=1
 				    ihdu+=1
