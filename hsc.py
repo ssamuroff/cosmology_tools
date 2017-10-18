@@ -155,7 +155,7 @@ class dr1:
 				        seg_final = seg_stamp	
 
 
-				    if mask & np.unique(seg_stamp).size>2:
+				    if mask and (np.unique(seg_final).size>2):
 				    	outdat['FLAG']=1
 				    	import pdb ; pdb.set_trace()
 
@@ -172,7 +172,6 @@ class dr1:
 
 				#import pdb ; pdb.set_trace()
 
-				import pdb ; pdb.set_trace()
 				for name in outdat_all.dtype.names:
 					try:
 						outdat_all[name][start:start+outdat[name].size] = outdat[name]
