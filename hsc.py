@@ -84,7 +84,7 @@ class dr1:
 			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue.fits'%(b.upper())
 			outfile2 = fi.FITS(out_path2, 'rw')
 
-			outdat_all = np.empty(50000, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			outdat_all = np.empty(50000, dtype=[('IDENT', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 			start=0
 
 			for ip,p in enumerate(patches):
