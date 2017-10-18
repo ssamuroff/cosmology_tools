@@ -165,7 +165,7 @@ class dr1:
 				    sig_edge = np.std(edge_pixels)
 
 				    if sig_edge>1.5:
-				    	cat_data['EDGE_FLAGS']=1
+				    	outdat['EDGE_FLAGS']=1
 
 				    if (np.unique(seg_final).size>2):
 				    	
