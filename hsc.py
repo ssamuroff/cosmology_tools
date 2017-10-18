@@ -81,7 +81,7 @@ class dr1:
 
 		for b in bands:
 
-			out_path2 = '%s/calexp-HSC-%c-9813_galsim_catalogue.fits'%(path, b.upper())
+			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue.fits'%(path, b.upper())
 			outfile2 = fi.FITS(out_path2, 'rw')
 
 			outdat_all = np.empty(50000, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
