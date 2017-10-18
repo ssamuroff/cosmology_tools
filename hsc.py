@@ -3,6 +3,7 @@ import fitsio as fi
 import os
 import math
 import galsim
+import pylab as plt ; plt.switch_backend('agg')
 
 patches_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
 
@@ -79,9 +80,14 @@ class dr1:
 
 		igal=0
 
+		if mask:
+			suffix="masked"
+		else:
+			suffix="unmasked"
+
 		for b in bands:
 
-			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue.fits'%(b.upper())
+			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue_%s.fits'%(b.upper(), suffix)
 			os.system('rm %s'%out_path2)
 			outfile2 = fi.FITS(out_path2, 'rw')
 
@@ -106,7 +112,7 @@ class dr1:
 				boxsizes = get_boxsizes(cat_data)
 				pixel_count = 0
 
-				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images.fits'%(path, b.upper(), p)
+				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images_%s.fits'%(path, b.upper(), p, suffix)
 
 				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAG", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
@@ -155,9 +161,16 @@ class dr1:
 				        seg_final = seg_stamp	
 
 
-				    if mask and (np.unique(seg_final).size>2):
+				    if (np.unique(seg_final).size>2):
 				    	outdat['FLAG']=1
-				    	import pdb ; pdb.set_trace()
+				    	if mask:
+				    		unmasked_pixels = np.argwhere(seg_final==0)
+				    		
+				    		sig = np.std(final[:5,])
+				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig
+				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
+				    		final0 = copy.deepcopy(final)
+				    		final0[masked_pixels]=noise_stamp[masked_pixels]
 
 				    outfile.write(final)
 
