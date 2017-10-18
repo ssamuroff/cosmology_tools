@@ -185,7 +185,7 @@ class dr1:
 				    if flags:
 				    	if number!=0:
 				    		flag = cat_data['FLAGS'][cat_data['NUMBER']==number][0]
-				    		if (flag==4) or (flag==8) or (flag==16) or (flag==32) or (flag==64) or (flag==128):
+				    		if (flag>=4):
 				    			continue
 				    	else:
 				    		continue
