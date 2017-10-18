@@ -107,7 +107,7 @@ class dr1:
 
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images.fits'%(path, b.upper(), p)
 
-				outdat = np.zeros(boxsizes.size, dtype=[('ident', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
