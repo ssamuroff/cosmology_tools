@@ -82,6 +82,7 @@ class dr1:
 		for b in bands:
 
 			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue.fits'%(b.upper())
+			os.system('rm %s'%out_path2)
 			outfile2 = fi.FITS(out_path2, 'rw')
 
 			outdat_all = np.empty(900000, dtype=[('IDENT', int),('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
@@ -120,7 +121,6 @@ class dr1:
 				    y = int(math.floor(row['YWIN_IMAGE']+0.5))
 
 				    boxsize = boxsizes[i]
-				    pixel_count+=boxsize*boxsize
 
 				    x0 = x-boxsize/2
 				    y0 = y-boxsize/2
