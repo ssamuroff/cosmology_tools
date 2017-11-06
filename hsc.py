@@ -74,7 +74,7 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
-	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False):
+	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False, noise_threshold=4):
 
 		if len(patches)<1:
 			patches = patches_all
@@ -170,7 +170,7 @@ class dr1:
 				    print "Mean edge flux:", edge
 				    print "Mean centre flux:", centre
 
-				    if centre< 2*edge:
+				    if centre< noise_threshold*edge:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
