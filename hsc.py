@@ -179,7 +179,7 @@ class dr1:
 				    		unmasked_pixels = np.argwhere(seg_final==0)
 				    		
 				    		sig = np.std(final[:5,])
-				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig_edge
+				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * final[seg_final==0].std()
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
