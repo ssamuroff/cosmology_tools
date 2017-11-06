@@ -87,7 +87,7 @@ class dr1:
 			suffix="unmasked"
 
 		if flags:
-			suffix+='_flags-v2'
+			suffix+='_flags-v3'
 
 		for b in bands:
 
@@ -167,7 +167,7 @@ class dr1:
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
 				    sig_edge = np.std(edge_pixels)
 
-				    if sig_edge>0.3:
+				    if sig_edge>0.05:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
