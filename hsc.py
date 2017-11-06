@@ -87,7 +87,7 @@ class dr1:
 			suffix="unmasked"
 
 		if flags:
-			suffix+='_flags'
+			suffix+='_flags-v2'
 
 		for b in bands:
 
@@ -191,6 +191,8 @@ class dr1:
 				    		continue
 				    	if outdat['EDGE_FLAGS'][i]==1:
 				    		continue
+
+				    import pdb ; pdb.set_trace()
 
 				    outfile.write(final)
 
