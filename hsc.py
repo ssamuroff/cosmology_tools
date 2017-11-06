@@ -165,9 +165,12 @@ class dr1:
 				        seg_final = seg_stamp	
 
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
-				    sig_edge = final[seg_final==0].std()
+				    edge = final[seg_final==0].mean()
+				    centre = final[seg_final==seg_final[len(seg_final)/2, len(seg_final)/2]].mean()
+				    print "Mean edge flux:", edge
+				    print "Mean centre flux:", centre
 
-				    if sig_edge>0.1:
+				    if centre< 2*edge:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
