@@ -178,8 +178,6 @@ class dr1:
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig_edge
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
-
-				    		import pdb ; pdb.set_trace()
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
