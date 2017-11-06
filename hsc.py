@@ -165,9 +165,9 @@ class dr1:
 				        seg_final = seg_stamp	
 
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
-				    sig_edge = np.std(edge_pixels)
+				    sig_edge = final[seg_final==0].std()
 
-				    if sig_edge>0.05:
+				    if sig_edge>0.1:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
