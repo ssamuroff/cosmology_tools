@@ -165,7 +165,7 @@ class dr1:
 				        seg_final = seg_stamp	
 
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
-				    edge = final[seg_final==0].mean()
+				    edge = final[seg_final==0].std()
 				    centre = final[seg_final==seg_final[len(seg_final)/2, len(seg_final)/2]].mean()
 				    print "Mean edge flux:", edge
 				    print "Mean centre flux:", centre
