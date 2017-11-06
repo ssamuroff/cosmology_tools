@@ -167,7 +167,7 @@ class dr1:
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
 				    sig_edge = np.std(edge_pixels)
 
-				    if sig_edge>0.5:
+				    if sig_edge>0.3:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
@@ -178,6 +178,8 @@ class dr1:
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * sig_edge
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
+
+				    		import pdb ; pdb.set_trace()
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
@@ -191,8 +193,6 @@ class dr1:
 				    		continue
 				    	if outdat['EDGE_FLAGS'][i]==1:
 				    		continue
-
-				    import pdb ; pdb.set_trace()
 
 				    outfile.write(final)
 
