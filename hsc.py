@@ -125,7 +125,6 @@ class dr1:
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
 				outfile = fi.FITS(out_path, 'rw')
-				outfile = fi.FITS(out_path2, 'rw')
 
 				ihdu=0
 
