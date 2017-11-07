@@ -91,11 +91,11 @@ class dr1:
 
 		for b in bands:
 
-			out_path2 = 'calexp-HSC-%c-9813_galsim_catalogue_%s.fits'%(b.upper(), suffix)
-			os.system('rm %s'%out_path2)
-			outfile2 = fi.FITS(out_path2, 'rw')
+			
+			#os.system('rm %s'%out_path2)
+			#outfile2 = fi.FITS(out_path2, 'rw')
 
-			outdat_all = np.empty(10000000, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+			
 			start=0
 
 			for ip,p in enumerate(patches):
@@ -120,10 +120,12 @@ class dr1:
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images_%s.fits'%(path, b.upper(), p, suffix)
 
 				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat2 = np.empty(30000, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
 				os.system('rm %s'%out_path)
 				outfile = fi.FITS(out_path, 'rw')
+				outfile = fi.FITS(out_path2, 'rw')
 
 				ihdu=0
 
@@ -212,17 +214,13 @@ class dr1:
 
 				#import pdb ; pdb.set_trace()
 
-				for name in outdat_all.dtype.names:
-					try:
-						outdat_all[name][start:start+outdat[name].size] = outdat[name]
-						start+=outdat[name].size
-					except:
-						import pdb ; pdb.set_trace()
-
+	
+				outfile.write(outdat)
+				outfile[-1].write_key('EXTNAME', 'cat')
 				outfile.close()
 
-			outfile2.write(outdat_all)
-			outfile2.close()
+			#outfile2.write(outdat_all)
+			#outfile2.close()
 
 		print "Done"
 
