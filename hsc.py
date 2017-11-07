@@ -120,6 +120,7 @@ class dr1:
 				out_path = '%s/calexp-HSC-%c-9813-%s_galsim_images_%s.fits'%(path, b.upper(), p, suffix)
 
 				outdat = np.zeros(boxsizes.size, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
+				outdat['FLAGS']-=9999
 				outdat2 = np.empty(30000, dtype=[('IDENT', int), ("FLAGS", int), ("EDGE_FLAGS", int), ('RA', float), ('DEC', float), ('GAL_FILENAME', 'S100'), ('GAL_HDU', int)])
 				
 				print "Writing cutouts to %s"%out_path
@@ -213,8 +214,7 @@ class dr1:
 
 				#import pdb ; pdb.set_trace()
 
-	
-				outfile.write(outdat)
+				outfile.write(outdat[outdat['FLAGS']!=-9999.])
 				outfile[-1].write_key('EXTNAME', 'cat')
 				outfile.close()
 
