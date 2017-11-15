@@ -1,8 +1,8 @@
 import numpy as np
-import astropy.table
+#import astropy.table
 #import pylab as plt
 import glob, os 
-import astropy.io.fits as pyfits
+#import astropy.io.fits as pyfits
 import pdb 
 import fitsio as fi
 import tools.arrays as arr
