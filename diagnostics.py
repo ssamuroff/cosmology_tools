@@ -2103,7 +2103,7 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
 
     return ax1
 
-def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=True):
+def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_catalogue_weights=False, apply_calibration=False, ellipticity_name="e", xdata_name="mean_hsm_psf_e%d_sky", use_weights=False, weights=None, xlim=(-1.,1.), names=["alpha","c"], binning="equal_number", silent=False, visual=False, histograms=True, return_vals=False, correct_response=False):
 
     g1 = xdata[xdata_name%1]
     g2 = xdata[xdata_name%2]
