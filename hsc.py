@@ -175,6 +175,8 @@ class dr1:
 				    if centre< noise_threshold*edge:
 				    	outdat['EDGE_FLAGS'][i]=1
 
+				    import pdb ; pdb.set_trace()
+
 				    if (np.unique(seg_final).size>2):
 				    	
 				    	if mask:
