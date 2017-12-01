@@ -428,7 +428,7 @@ def _make_composite_image(im,seg):
 
 
 def get_uberseg(seg):
-	weight = np.ones(im.shape)
+	weight = np.ones(seg.shape)
 
 	#if only have sky and object, then just return
 	if len(numpy.unique(seg)) == 2:
