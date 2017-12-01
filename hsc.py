@@ -102,6 +102,7 @@ class dr1:
 
 				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,b.upper(),p)
 				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, b.upper(), p)
+				cat_path_i = '%s/calexp-HSC-R-9813-%s_cat.fits'%(path, p)
 				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, b.upper(), p)
 				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, b.upper(), p)
 				filename = os.path.basename(cat_path)
@@ -112,6 +113,7 @@ class dr1:
 				mask_data = fi.FITS(coadd_path)['MASK'][:,:]
 				seg_data = fi.FITS(seg_path)[0][:,:]
 				cat_data = fi.FITS(cat_path)[1].read()
+				cat_data_i = fi.FITS(cat_path_i)[1].read()
 
 
 				boxsizes = get_boxsizes(cat_data)
@@ -130,8 +132,8 @@ class dr1:
 				ihdu=0
 
 				for i,row in enumerate(cat_data):
-				    x = int(math.floor(row['XWIN_IMAGE']+0.5))
-				    y = int(math.floor(row['YWIN_IMAGE']+0.5))
+				    x = int(math.floor(cat_data_i['XWIN_IMAGE'][i]+0.5))
+				    y = int(math.floor(cat_data_i['YWIN_IMAGE'][i]+0.5))
 
 				    nx = coadd_data.shape[1]
 				    ny = coadd_data.shape[0]
@@ -188,9 +190,7 @@ class dr1:
 				    		
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * final[seg_final==0].std()
-				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
-				    		import pdb ; pdb.set_trace()
-
+				    		masked_pixels = np.invert(get_uberseg(seg_final).astype(bool)) #(seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
@@ -204,8 +204,6 @@ class dr1:
 				    		continue
 				    	if outdat['EDGE_FLAGS'][i]==1:
 				    		continue
-
-				    
 
 				    outfile.write(final)
 
