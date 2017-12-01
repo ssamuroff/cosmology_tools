@@ -431,10 +431,10 @@ def get_uberseg(seg):
 	weight = np.ones(seg.shape)
 
 	#if only have sky and object, then just return
-	if len(numpy.unique(seg)) == 2:
+	if len(np.unique(seg)) == 2:
 		return weight
 
-	obj_inds = numpy.where(seg != 0)
+	obj_inds = np.where(seg != 0)
 
 	object_number = seg[seg.shape[1]/2, seg.shape[0]/2]
 
@@ -444,7 +444,7 @@ def get_uberseg(seg):
 	for i,row in enumerate(seg):
 		for j, element in enumerate(row):
 			obj_dists = (i-obj_inds[0])**2 + (j-obj_inds[1])**2
-			ind_min=numpy.argmin(obj_dists)
+			ind_min=np.argmin(obj_dists)
 
 			segval = seg[obj_inds[0][ind_min],obj_inds[1][ind_min]]
 			if segval != object_number:
