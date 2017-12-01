@@ -181,8 +181,6 @@ class dr1:
 				    if centre< noise_threshold*edge:
 				    	outdat['EDGE_FLAGS'][i]=1
 
-				    import pdb ; pdb.set_trace()
-
 				    if (np.unique(seg_final).size>2):
 				    	
 				    	if mask:
@@ -204,6 +202,8 @@ class dr1:
 				    		continue
 				    	if outdat['EDGE_FLAGS'][i]==1:
 				    		continue
+
+				    import pdb ; pdb.set_trace()
 
 				    outfile.write(final)
 
