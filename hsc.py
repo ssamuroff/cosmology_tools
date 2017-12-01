@@ -178,7 +178,7 @@ class dr1:
 				    print "Mean edge flux:", edge
 				    print "Mean centre flux:", centre
 
-				    if edge>0.06:
+				    if edge>0.07:
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
@@ -189,6 +189,8 @@ class dr1:
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * final[seg_final==0].std()
 				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
+				    		import pdb ; pdb.set_trace()
+
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
@@ -203,7 +205,7 @@ class dr1:
 				    	if outdat['EDGE_FLAGS'][i]==1:
 				    		continue
 
-				    import pdb ; pdb.set_trace()
+				    
 
 				    outfile.write(final)
 
