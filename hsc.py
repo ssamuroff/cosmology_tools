@@ -74,7 +74,7 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
-	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False, noise_threshold=4, suffix='v4'):
+	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False, noise_threshold=4, suffix='v5'):
 
 		if len(patches)<1:
 			patches = patches_all
