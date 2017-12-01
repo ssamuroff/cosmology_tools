@@ -39,7 +39,7 @@ class dr1:
 		print full_path
 
 		if config=='':
-			config='%s/seconfig-nersc'%self.base
+			config='%s/seconfig-sv'%self.base
 
 		os.system('cp %s tmp.fits.gz'%full_path)
 		os.system('gunzip tmp.fits.gz')
