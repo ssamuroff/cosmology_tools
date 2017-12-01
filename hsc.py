@@ -404,7 +404,7 @@ def _make_composite_image(im,seg):
 
 	segid = seg[int(coadd_rowcen),int(coadd_colcen)]
 
-	w=numpy.where( (seg != segid) & (seg != 0) )
+	w=np.where( (seg != segid) & (seg != 0) )
 	if w[0].size != 0:
 		im[w] = 0.0
 
@@ -420,7 +420,7 @@ def _make_composite_image(im,seg):
 	crow = crow.clip(0,seg.shape[0]-1)
 	ccol = ccol.clip(0,seg.shape[1]-1)
 
-	wbad=numpy.where( (seg[crow,ccol] != segid ) & (seg[crow,ccol] != 0) )
+	wbad=np.where( (seg[crow,ccol] != segid ) & (seg[crow,ccol] != 0) )
 	if wbad[0].size != 0:
 		im[wbad] = 0
 
