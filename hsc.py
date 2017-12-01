@@ -427,6 +427,31 @@ def _make_composite_image(im,seg):
 	return im
 
 
+def get_uberseg(self, im, seg):
+	weight = np.ones(im.shape)
+
+	#if only have sky and object, then just return
+	if len(numpy.unique(seg)) == 2:
+		return weight
+
+	obj_inds = numpy.where(seg != 0)
+
+	object_number = seg[seg.shape[1]/2, seg.shape[0]/2]
+
+	# Then loop through pixels in seg map, check which obj ind it is closest
+	# to.  If the closest obj ind does not correspond to the target, set this
+	# pixel in the weight map to zero.
+	for i,row in enumerate(seg):
+		for j, element in enumerate(row):
+			obj_dists = (i-obj_inds[0])**2 + (j-obj_inds[1])**2
+			ind_min=numpy.argmin(obj_dists)
+
+			segval = seg[obj_inds[0][ind_min],obj_inds[1][ind_min]]
+			if segval != object_number:
+				weight[i,j] = 0.
+
+	return weight
+
 
 
 
