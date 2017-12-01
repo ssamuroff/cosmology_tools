@@ -133,6 +133,12 @@ class dr1:
 				    x = int(math.floor(row['XWIN_IMAGE']+0.5))
 				    y = int(math.floor(row['YWIN_IMAGE']+0.5))
 
+				    nx = coadd_data.shape[1]
+				    ny = coadd_data.shape[0]
+
+				    if ((x<100) or (x>nx-100) or (y<100) or (y>ny-100)):
+				    	continue
+
 				    boxsize = boxsizes[i]
 
 				    x0 = x-boxsize/2
@@ -174,8 +180,6 @@ class dr1:
 
 				    if centre< noise_threshold*edge:
 				    	outdat['EDGE_FLAGS'][i]=1
-
-				    import pdb ; pdb.set_trace()
 
 				    if (np.unique(seg_final).size>2):
 				    	
