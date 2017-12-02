@@ -181,7 +181,7 @@ class dr1:
 				    print "Mean centre flux:", centre
 
 				    if (edge>0.07) or (centre<0.05) or (final[len(seg_final)/2, len(seg_final)/2]<0.01) :
-				    	outdat['EDGE_FLAGS'][i]=0
+				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
 				    	
