@@ -23,6 +23,13 @@ class chain(samp.sampler):
 		except:
 			self.post = self.samples["like"]
 			self.samples.remove_column("like")
+                try:
+                        self.weight = self.samples["weight"]
+                        self.samples.remove_column("weight")
+			self.has_wt=True
+                except:
+                        self.has_wt=False
+                        print "No weight column"
 		self.wt = np.ones_like(self.post)
 		
 
@@ -295,6 +302,9 @@ class chain(samp.sampler):
 			post=self.post
 		post = tb.Column(post, name="post")
 		samp.add_column(post)
+                if self.has_wt:
+                    weight = tb.Column(self.weight, name="weight")
+                    samp.add_column(weight)
 
 		np.savetxt(filename, np.array(samp[sel]).T, header=self.header, comments="")
 

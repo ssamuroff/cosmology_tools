@@ -7,6 +7,9 @@ from samplers import sampler
 import tools.plots as pl
 import pylab as plt
 
+import sys
+
+
 import matplotlib.colors
 import matplotlib
 matplotlib.rcParams['font.family']='serif'
@@ -472,7 +475,10 @@ def choose_panel_contents(i, j, name1, name2, colour="purple", kde=None, plots=N
 			plt.scatter(x, y, marker=".", edgecolor=colour, facecolor=colour)
 
 def weight_col(chain):
-	w = get_col("weight", chain)
+	if 'weight' in chain.dtype.names:
+		w = get_col("weight", chain)
+	else:
+		w = chain.weight
 	weight_col = w
 	return weight_col
 
@@ -501,41 +507,45 @@ def percentile_weight(x, w, p):
 	return np.interp(p/100., wc, x)
 
 
-def smooth_likelihood_2d(chain, x, y, mod):
+def smooth_likelihood_2d(chain, x, y, mod, trim=0):
 	n = 100
- 	factor = 1.6
- 	weights = weight_col(chain)
+ 	factor = 2
+ 	n0 = int(len(x)*trim)
+ 	weights = weight_col(chain)[n0:]
  	#import pdb ; pdb.set_trace()
- 	kde = mod.KDE([x,y], factor=factor, weights=weights)
- 	dx = std_weight(x, weights)*4
- 	dy = std_weight(y, weights)*4
- 	mu_x = mean_weight(x, weights)
- 	mu_y = mean_weight(y, weights)
+ 	kde = mod.KDE([x[n0:],y[n0:]], factor=factor, weights=weights)
+ 	dx = std_weight(x[n0:], weights)*4
+ 	dy = std_weight(y[n0:], weights)*4
+ 	mu_x = mean_weight(x[n0:], weights)
+ 	mu_y = mean_weight(y[n0:], weights)
  	x_range = (max(x.min(), mu_x-dx), min(x.max(), mu_x+dx))
  	y_range = (max(y.min(), mu_y-dy), min(y.max(), mu_y+dy))
  	(x_axis, y_axis), like = kde.grid_evaluate(n, [x_range, y_range])
  	return n, x_axis, y_axis, like
 
-def _find_contours(chain, like, x, y, n, xmin, xmax, ymin, ymax, contour1, contour2):
+def _find_contours(chain, like, x, y, n, xmin, xmax, ymin, ymax, contour1, contour2, trim=0):
 	N = len(x)
 	x_axis = np.linspace(xmin, xmax, n+1)
 	y_axis = np.linspace(ymin, ymax, n+1)
 	weights = weight_col(chain)
-	histogram, _, _ = np.histogram2d(x, y, bins=[x_axis, y_axis], weights=weights)
+	n0 = int(len(weights)*trim)
+	histogram, _, _ = np.histogram2d(x, y, bins=[x_axis, y_axis], weights=weights[n0:])
 	def objective(limit, target):
 		w = np.where(like>=limit)
 		count = histogram[w]
 		return count.sum() - target
 	target1 = histogram.sum()*(1-contour1)
 	target2 = histogram.sum()*(1-contour2)
-
+	#import pdb ; pdb.set_trace()
 	level1 = sp.optimize.bisect(objective, like.min(), like.max(), args=(target1,))
 	level2 = sp.optimize.bisect(objective, like.min(), like.max(), args=(target2,))
 	return level1, level2, like.sum()
 
+
+
 def smooth_likelihood(x, mod):
 	n = 100
-	factor = 1.6
+	factor = 1.8
 	kde = mod.KDE(x, factor=factor)
 	x_axis, like = kde.grid_evaluate(n, (x.min(), x.max()) )
 	return n, x_axis, like
@@ -558,47 +568,98 @@ def get_col(name, chain):
 	          'a_ii':'intrinsic_alignment_parameters',
 	          'alpha_gi':'intrinsic_alignment_parameters',
 	          'alpha_ii':'intrinsic_alignment_parameters',
+	          'c1':'intrinsic_alignment_parameters--',
+	          'c2':'intrinsic_alignment_parameters--',
+	          'alpha1':'intrinsic_alignment_parameters--',
+	          'alpha2':'intrinsic_alignment_parameters--',
+	          'bias_ta':'intrinsic_alignment_parameters--',
+	          'a1':'intrinsic_alignment_parameters--',
+	          'a2':'intrinsic_alignment_parameters--',
+	          'a3':'intrinsic_alignment_parameters--',
+	          'a4':'intrinsic_alignment_parameters--',
+	          's8':'cosmological_parameters--',
+	          'w':'cosmological_parameters--',
+	          'omega_m':'cosmological_parameters--',
 	          'weight':""}
 
-	return chain["%s%s"%(sections[name],name)]
+	if "%s%s"%(sections[name],name) in chain.dtype.names:
+		return chain["%s%s"%(sections[name],name)]
+	else:
+		return []
 
 
-def make_panel(i, j, name1, name2, chain, label, blind, lims, alpha, fill, ls, colour, kde=None, plots=None):
+def make_panel(i, j, name1, name2, chain, label, blind, lims, alpha, fill, ls, colour, kde=None, plots=None, trim=0):
 	if (i==j):
 		x = get_col(name1, chain)
+		if len(x)==0:
+			return
 		make_1d_plot(x, colour=colour, ls=ls, kde=kde, label=label)
 		if (i==1):
-			plt.legend(bbox_to_anchor=(3.1, 2), fontsize=16)
+			plt.legend(bbox_to_anchor=(2.7, 2), fontsize=16)
+		plt.ylim(0,1)
+		plt.xticks(rotation=45)
 	else:
 		y = get_col(name1, chain)
 		x = get_col(name2, chain)
-		n, x_axis, y_axis, like = smooth_likelihood_2d(chain, x, y, kde)
+		if (len(x)==0) or (len(y)==0):
+			return
+		n0 = int(len(x)*trim)
+		n, x_axis, y_axis, like = smooth_likelihood_2d(chain, x, y, kde, trim=trim)
 		contour1=1-0.68
 		contour2=1-0.95
 
 		level0 = 1.1
-		level1, level2, total_mass = _find_contours(chain, like, x, y, n, x_axis[0], x_axis[-1], y_axis[0], y_axis[-1], contour1, contour2)
+		level1, level2, total_mass = _find_contours(chain, like, x[n0:], y[n0:], n, x_axis[0], x_axis[-1], y_axis[0], y_axis[-1], contour1, contour2, trim=trim)
+
 		if fill:
+			print colour
 			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls, alpha=alpha)
 			plt.contourf(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls, alpha=alpha*2)
 		else:
-			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=["white"], linestyles=ls)
-			plt.contourf(x_axis, y_axis, like.T, [level1,level0], colors=["white"], linestyles=ls)
+			plt.contour(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls)
+			plt.contour(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls)
+
+		plt.xticks(rotation=45)
+		plt.yticks(rotation=45)
 
 		return
+
+
+
 
 #Need to run the following to import kde and plots
 # sys.path.append('/home/samuroff/cosmosis/')
 # from cosmosis.postprocessing import plots
 # from cosmosis.plotting import kde
-def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=None, lims=[(None,None)]*10, blind=[True]*10, ls=["-"]*10,fill=[False]*10, alpha=[0.2]*10, labels=[None]*10):
+def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=None, lims=[(None,None)]*10, blind=[False]*10, ls=["-"]*10, fill=[False]*10, alpha=[0.2]*10, labels=[None]*10, fontsize=18, trim=0):
 	plt.style.use("y1a1")
 	plt.switch_backend("pdf")
+	import tools.arrays as arr
 
-	parameter_labels = {'a_gi':r'$A_\mathrm{GI}$',
+	#cplots = plot2D()
+
+	for j,chain in enumerate(chains):
+		vals = arr.add_col(np.array(chain.samples),'weight',chain.weight)
+		chains[j] = vals
+
+	parameter_labels = {
+	          'a_gi':r'$A_\mathrm{GI}$',
 	          'a_ii':r'$A_\mathrm{II}$',
+	          'c1':r'$A_1$',
+	          'c2':r'$A_2$',
 	          'alpha_ii':r'$\eta_\mathrm{GI}$',
-	          'alpha_gi':r'$\eta_\mathrm{II}$'}
+	          'alpha_gi':r'$\eta_\mathrm{II}$',
+	          'alpha_1':r'$\eta_1$',
+	          'alpha_2':r'$\eta_2$',
+	          's8':'$S_8$',
+	          'omega_m':'$\Omega_\mathrm{m}$',
+	          'w':'$w_0$',
+	          'bias_ta':r'$b^\mathrm{src}_g$',
+	          'bias_tt':r'$b^\mathrm{src}_g$',
+	          'a1':r'$A^{(1)}$',
+	          'a2':r'$A^{(2)}$',
+	          'a3':r'$A^{(3)}$',
+	          'a4':r'$A^{(4)}$'}
 		
 	npar = len(names)
 	naxis = npar
@@ -606,7 +667,20 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 	sections={'a_gi':'intrinsic_alignment_parameters',
 	          'a_ii':'intrinsic_alignment_parameters',
 	          'alpha_ii':'intrinsic_alignment_parameters',
-	          'alpha_gi':'intrinsic_alignment_parameters'}
+	          'alpha_gi':'intrinsic_alignment_parameters',
+	          'c1':'intrinsic_alignment_parameters',
+	          'c2':'intrinsic_alignment_parameters',
+	          'alpha_1':'intrinsic_alignment_parameters',
+	          'alpha_2':'intrinsic_alignment_parameters',
+	          'bias_ta':'intrinsic_alignment_parameters',
+	          'bias_tt':'intrinsic_alignment_parameters',
+	          'a1':'intrinsic_alignment_parameters',
+	          'a2':'intrinsic_alignment_parameters',
+	          'a3':'intrinsic_alignment_parameters',
+	          'a4':'intrinsic_alignment_parameters',
+	          's8':'cosmological_parameters',
+	          'w':'cosmological_parameters',
+	          'omega_m':'cosmological_parameters'}
 	print "Will make corner plot of %d parameters"%npar
 	for i,name1 in enumerate(names):
 		fullname1 = "%s--%s"%(sections[name1], name1)
@@ -619,7 +693,7 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 			print i, j, fullname1, fullname2
 
 			for l,chain in enumerate(chains):
-				make_panel(i, j, name1, name2, chain, labels[l], blind[l], lims[l], alpha[l], fill[l], ls[l], colours[l], kde=kde, plots=plots)
+				make_panel(i, j, name1, name2, chain, labels[l], blind[l], lims[l], alpha[l], fill[l], ls[l], colours[l], kde=kde, plots=plots, trim=trim)
 			#self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, contours=contours, ls=ls, overplot=overplot, fill=fill, alpha=alpha, label=label, include=include)
 
 			if (blind[l]):
@@ -637,19 +711,23 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 			      (3,2):[True,False],
 			      (3,3):[True,False]}
 
-			if not show[(i,j)][0]:
+			if not i==npar-1:
 				plt.xticks(visible=False)
+
+
+			if not show[(i,j)][0]:
+				pass #plt.xticks(visible=False)
 			if not show[(i,j)][1]:
 				plt.yticks(visible=False)
 
 			if (j==0) and (i!=0):
 				if not blind:
-					plt.yticks(np.arange(lims[0][0], lims[0][1], 1)[::2][1:],visible=True, fontsize=10)
-				plt.ylabel(parameter_labels[name1], fontsize=18)
+					plt.yticks(np.arange(lims[0][0], lims[0][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
+				plt.ylabel(parameter_labels[name1], fontsize=fontsize)
 			if i==naxis-1:
 				if not blind:
-					plt.xticks(np.arange(lims[1][0], lims[1][1], 1)[::2][1:],visible=True, fontsize=10)
-				plt.xlabel(parameter_labels[name2], fontsize=18)
+					plt.xticks(np.arange(lims[1][0], lims[1][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
+				plt.xlabel(parameter_labels[name2], fontsize=fontsize)
 					
 			if len(lims)>0 and (i!=j):
 				plt.xlim(lims[j][0], lims[j][1])

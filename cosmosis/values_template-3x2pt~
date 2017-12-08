@@ -1,0 +1,43 @@
+[cosmological_parameters]
+omega_m      =  $omega_m
+h0           =  $h0
+omega_b      =  $omega_b
+n_s          =  $n_s
+A_s          =  $A_s
+omnuh2       =  $omnuh2
+w            = -1.0
+massive_nu   =  1
+massless_nu  =  2.046
+omega_k      =  0.0
+tau          =  0.08
+wa           =  0.0
+
+
+[shear_calibration_parameters]
+m1 = $m1
+m2 = $m2
+m3 = $m3
+m4 = $m4
+
+[intrinsic_alignment_parameters]
+A = $a
+alpha = $alpha
+z0 = 0.62
+
+[wl_photoz_errors]
+bias_1 = $bias_1
+bias_2 = $bias_2
+bias_3 = $bias_3
+bias_4 = $bias_4
+
+[lens_photoz_errors]
+bias_1 = $bias_1
+bias_2 = $bias_2
+bias_3 = $bias_3
+bias_4 = $bias_4
+
+[bias_parameters]
+b_1 = $b_1
+b_2 = $b_2
+b_3 = $b_3
+b_4 = $b_4

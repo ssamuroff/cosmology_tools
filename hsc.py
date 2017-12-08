@@ -8,6 +8,12 @@ import pylab as plt ; plt.switch_backend('agg')
 
 patches_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
 
+
+class cosmos:
+	def __init__(self,catpath='/home/rmandelb.proj/data-shared/HSC/cosmos/parent_best_processed/real_galaxy_catalog_best.fits'):
+		self.cat = fi.FITS(catpath)[1].read()
+
+
 class dr1:
 	def __init__(self, data=''):
 		print 'Initialised HSC DR1 data wrapper.'
@@ -39,7 +45,7 @@ class dr1:
 		print full_path
 
 		if config=='':
-			config='%s/seconfig-nersc'%self.base
+			config='%s/seconfig-sv'%self.base
 
 		os.system('cp %s tmp.fits.gz'%full_path)
 		os.system('gunzip tmp.fits.gz')
@@ -74,7 +80,7 @@ class dr1:
 		print "Done all pointings requested"
 		return None
 
-	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False, noise_threshold=4, suffix='v4'):
+	def export_galsim_stamps(self, bands=['r','i','z'], patches=[], mask=False, flags=False, noise_threshold=4, suffix='v5'):
 
 		if len(patches)<1:
 			patches = patches_all
@@ -102,6 +108,7 @@ class dr1:
 
 				path = '%s/deepCoadd/HSC-%c/9813/%s'%(self.base,b.upper(),p)
 				cat_path = '%s/calexp-HSC-%c-9813-%s_cat.fits'%(path, b.upper(), p)
+				cat_path_i = '%s/calexp-HSC-R-9813-%s_cat.fits'%(path, p)
 				seg_path = '%s/calexp-HSC-%c-9813-%s_seg.fits'%(path, b.upper(), p)
 				coadd_path = '%s/calexp-HSC-%c-9813-%s.fits.gz'%(path, b.upper(), p)
 				filename = os.path.basename(cat_path)
@@ -112,6 +119,7 @@ class dr1:
 				mask_data = fi.FITS(coadd_path)['MASK'][:,:]
 				seg_data = fi.FITS(seg_path)[0][:,:]
 				cat_data = fi.FITS(cat_path)[1].read()
+				cat_data_i = fi.FITS(cat_path_i)[1].read()
 
 
 				boxsizes = get_boxsizes(cat_data)
@@ -130,8 +138,14 @@ class dr1:
 				ihdu=0
 
 				for i,row in enumerate(cat_data):
-				    x = int(math.floor(row['XWIN_IMAGE']+0.5))
-				    y = int(math.floor(row['YWIN_IMAGE']+0.5))
+				    x = int(math.floor(cat_data_i['XWIN_IMAGE'][i]+0.5))
+				    y = int(math.floor(cat_data_i['YWIN_IMAGE'][i]+0.5))
+
+				    nx = coadd_data.shape[1]
+				    ny = coadd_data.shape[0]
+
+				    if ((x<100) or (x>nx-100) or (y<100) or (y>ny-100)):
+				    	continue
 
 				    boxsize = boxsizes[i]
 
@@ -167,12 +181,12 @@ class dr1:
 				        seg_final = seg_stamp	
 
 				    edge_pixels = np.hstack((final[0,:], final[-1,:], final[:,0], final[:,-1]))
-				    edge = final[seg_final==0].std()
+				    edge = np.unique(final[seg_final==0]).std()
 				    centre = final[seg_final==seg_final[len(seg_final)/2, len(seg_final)/2]].mean()
 				    print "Mean edge flux:", edge
 				    print "Mean centre flux:", centre
 
-				    if centre< noise_threshold*edge:
+				    if (edge>0.07) or (centre<0.05) or (final[len(seg_final)/2, len(seg_final)/2]<0.01) :
 				    	outdat['EDGE_FLAGS'][i]=1
 
 				    if (np.unique(seg_final).size>2):
@@ -182,7 +196,7 @@ class dr1:
 				    		
 				    		sig = np.std(final[:5,])
 				    		noise_stamp = np.random.normal(size=final.size).reshape(final.shape) * final[seg_final==0].std()
-				    		masked_pixels = (seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
+				    		masked_pixels = np.invert(get_uberseg(seg_final).astype(bool)) #(seg_final!=0) & (seg_final!=seg_final[boxsize/2,boxsize/2])
 				    		
 				    		final[masked_pixels]=noise_stamp[masked_pixels]
 
@@ -385,10 +399,62 @@ def get_cutout(i, pixels, info):
 
 
 
+def _make_composite_image(im,seg):
+
+	cim=im.copy()
+
+	coadd_rowcen, coadd_colcen = im.shape[0]/2, im.shape[1]/2
+	rowcen, colcen = im.shape[0]/2, im.shape[1]/2
+
+	segid = seg[int(coadd_rowcen),int(coadd_colcen)]
+
+	w=np.where( (seg != segid) & (seg != 0) )
+	if w[0].size != 0:
+		im[w] = 0.0
+
+	u = rows 
+	v = cols
+
+	crow = coadd_rowcen + u
+	ccol = coadd_colcen + v
+
+	crow = crow.round().astype('i8')
+	ccol = ccol.round().astype('i8')
+
+	crow = crow.clip(0,seg.shape[0]-1)
+	ccol = ccol.clip(0,seg.shape[1]-1)
+
+	wbad=np.where( (seg[crow,ccol] != segid ) & (seg[crow,ccol] != 0) )
+	if wbad[0].size != 0:
+		im[wbad] = 0
+
+	return im
 
 
-				    
+def get_uberseg(seg):
+	weight = np.ones(seg.shape)
 
+	#if only have sky and object, then just return
+	if len(np.unique(seg)) == 2:
+		return weight
+
+	obj_inds = np.where(seg != 0)
+
+	object_number = seg[seg.shape[1]/2, seg.shape[0]/2]
+
+	# Then loop through pixels in seg map, check which obj ind it is closest
+	# to.  If the closest obj ind does not correspond to the target, set this
+	# pixel in the weight map to zero.
+	for i,row in enumerate(seg):
+		for j, element in enumerate(row):
+			obj_dists = (i-obj_inds[0])**2 + (j-obj_inds[1])**2
+			ind_min=np.argmin(obj_dists)
+
+			segval = seg[obj_inds[0][ind_min],obj_inds[1][ind_min]]
+			if segval != object_number:
+				weight[i,j] = 0.
+
+	return weight
 
 
 
