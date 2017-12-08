@@ -8,6 +8,12 @@ import pylab as plt ; plt.switch_backend('agg')
 
 patches_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
 
+
+class cosmos:
+	def __init__(self,catpath='/home/rmandelb.proj/data-shared/HSC/cosmos/parent_best_processed/real_galaxy_catalog_best.fits'):
+		self.cat = fi.FITS(catpath)[1].read()
+
+
 class dr1:
 	def __init__(self, data=''):
 		print 'Initialised HSC DR1 data wrapper.'
