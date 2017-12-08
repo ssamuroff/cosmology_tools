@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
-import astropy.io.fits as pyfits
-import astropy.table as tb
+#import astropy.io.fits as pyfits
+#import astropy.table as tb
 import os, pdb, copy
 import pylab as plt
 from tools import samplers as samp

@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 import scipy.interpolate as spi
 import scipy.spatial as sps
-import astropy.io.fits as pyfits
+#import astropy.io.fits as pyfits
 
 #import matplotlib.colors
 #import matplotlib
