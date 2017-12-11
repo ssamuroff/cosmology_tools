@@ -2,20 +2,86 @@ import numpy as np
 import fitsio as fi
 import os
 import math
-import galsim
 import copy
-import pylab as plt ; plt.switch_backend('agg')
+import pylab as plt
+plt.switch_backend('agg')
 
 patches_all = ['0,2',  '1,2',  '1,7',  '2,4',  '3,1',  '3,6',  '4,2',  '4,7', '5,3',  '5,8',  '6,4',  '7,0',  '7,5',  '8,2',  '8,7', '0,3',  '1,3',  '2,0',  '2,5',  '3,2',  '3,7',  '4,3',  '4,8',  '5,4',  '6,0',  '6,5',  '7,1',  '7,6',  '8,3', '0,4',  '1,4',  '2,1',  '2,6',  '3,3',  '3,8',  '4,4',  '5,0',  '5,5',  '6,1',  '6,6',  '7,2',  '7,7',  '8,4', '0,5',  '1,5',  '2,2',  '2,7',  '3,4',  '4,0',  '4,5',  '5,1',  '5,6',  '6,2',  '6,7',  '7,3',  '7,8',  '8,5', '1,1',  '1,6',  '2,3',  '3,0',  '3,5',  '4,1',  '4,6',  '5,2',  '5,7',  '6,3',  '6,8',  '7,4',  '8,1',  '8,6']
 
 
 class cosmos:
-	def __init__(self,catpath='/home/rmandelb.proj/data-shared/HSC/cosmos/parent_best_processed/real_galaxy_catalog_best.fits'):
-		self.cat = fi.FITS(catpath)[1].read()
+	def __init__(self,catpath='/home/rmandelb.proj/data-shared/HSC/cosmos/parent_best_processed/real_galaxy_catalog_best.fits', cutouts='/global/cscratch1/sd/sws/hsc/cutouts/'):
+		self.paths = {}
+		if os.path.exists(catpath):
+			self.cat = fi.FITS(catpath)[1].read()
+		else:
+			print 'Catalogue path does not exist'
+			print catpath
+		self.paths['cutouts'] = cutouts 
+		self.paths['catalogue'] = catpath
+
+	def visualise_stamp(self, i, bands=['r','i'], batch=0):
+		path1 = '%s/%c/galaxies-%d/'%(self.path['cutouts'],bands[0], batch)
+		path1 = glob.glob(path1+'%d-cutout-HSC-%c*.fits'%bands[0].upper())
+		path1 = path1[0]
+
+		ppath1 = '%s/%c/psf-%d/'%(self.path['cutouts'],bands[0], batch)
+		ppath1 = glob.glob(ppath1+'%d-psf-calexp*-HSC-%c*.fits'%bands[0].upper())
+		ppath1 = ppath1[0]
+
+		mpath1 = '%s/%c/psf-%d/'%(self.path['cutouts'],bands[0], batch)
+		mpath1 = glob.glob(mpath1+'%d-psf-calexp*-HSC-%c*.fits'%bands[0].upper())
+		mpath1 = mpath1[0]
+
+		print path1
+		print ppath1
+		print mpath1
+
+
+
+
+
+	def export_query(self, band='i', outfile='test_query.txt', window=[0,-1]):
+
+		n = len(self.cat[window[0]:window[1]])
+		if n==0:
+			print 'Invalid index range'
+			return 0
+
+		out = open(outfile, 'wa')
+		out.write('#?   ra       dec       sw    sh   filter  image  mask variance type \n')
+		for i, col in enumerate(self.cat[window[0]:window[1]]):
+			print i
+			line = '%f %f 8asec 8asec HSC-%c true true false coadd \n'%(col['RA'], col['DEC'], band.upper())
+			out.write(line)
+		out.close()
+		print 'Done'
+
+	def export_psf_query(self, band='i', outfile='test_psf_query.txt', window=[0,-1]):
+
+		n = len(self.cat[window[0]:window[1]])
+		if n==0:
+			print 'Invalid index range'
+			return 0
+
+		out = open(outfile, 'wa')
+		out.write('#?   ra dec filter type rerun \n')
+		for i, col in enumerate(self.cat[window[0]:window[1]]):
+			print i
+			line = '%f %f %c coadd pdr1_udeep \n'%(col['RA'], col['DEC'], band.lower())
+			out.write(line)
+		out.close()
+		print 'Done'
+
+
+
+
+
 
 
 class dr1:
 	def __init__(self, data=''):
+		import galsim
 		print 'Initialised HSC DR1 data wrapper.'
 		if data=='':
 			data = '/global/cscratch1/sd/sws/hsc/pdr1_udeep_wide_depth_best'
@@ -455,10 +521,6 @@ def get_uberseg(seg):
 				weight[i,j] = 0.
 
 	return weight
-
-
-
-
 
 
 
