@@ -3,6 +3,8 @@ import fitsio as fi
 import os
 import math
 import copy
+import glob
+import galsim
 import pylab as plt
 plt.switch_backend('agg')
 
@@ -20,22 +22,149 @@ class cosmos:
 		self.paths['cutouts'] = cutouts 
 		self.paths['catalogue'] = catpath
 
-	def visualise_stamp(self, i, bands=['r','i'], batch=0):
-		path1 = '%s/%c/galaxies-%d/'%(self.path['cutouts'],bands[0], batch)
-		path1 = glob.glob(path1+'%d-cutout-HSC-%c*.fits'%bands[0].upper())
-		path1 = path1[0]
+	def hst_profile(self, i):
+		self.source = galsim.RealGalaxyCatalog(self.paths['catalogue'])
 
-		ppath1 = '%s/%c/psf-%d/'%(self.path['cutouts'],bands[0], batch)
-		ppath1 = glob.glob(ppath1+'%d-psf-calexp*-HSC-%c*.fits'%bands[0].upper())
+	def make_galsim_catalogue(self, band='r', verbose=True, target='real_galaxy_catalog_hsc_%c.fits', batches=[]):
+		# Create a copy of the catalogue to write to
+		dt = np.dtype([('IDENT', '>i4'), ('RA', '>f8'), ('DEC', '>f8'), ('MAG', '>f8'), ('BAND', 'S5'), ('WEIGHT', '>f8'), ('GAL_FILENAME', 'S200'), ('PSF_FILENAME', 'S200'), ('GAL_HDU', '>i4'), ('PSF_HDU', '>i4'), ('PIXEL_SCALE', '>f8'), ('NOISE_MEAN', '>f8'), ('NOISE_VARIANCE', '>f8'), ('NOISE_FILENAME', 'S26')])
+		newcat = np.zeros(self.cat.size, dtype=dt)
+
+		batch = 0
+		nrow = 0
+		for i,row in enumerate(self.cat):
+
+			if (len(batches)>0):
+				if not (batch in batches):
+					continue
+			nrow+=1
+
+			# adjusting index for ridiculous HSC formatting
+			# starts from 2 - vad fan??
+			i_perverse = i+2 
+			if verbose:
+				print i, i_perverse
+
+			p1 = self.construct_path(i_perverse, objtype='masked_galaxies', band=band, batch=batch, filename_only=False)
+			newcat['GAL_FILENAME'][i] = '%s/%s'%(p1.split('/')[-2],p1.split('/')[-1])
+			p2 = self.construct_path(i_perverse, objtype='psf', band=band, batch=batch, filename_only=False)
+			newcat['PSF_FILENAME'][i] = '%s/%s'%(p2.split('/')[-2],p2.split('/')[-1])
+			newcat['GAL_HDU'][i] = -1
+			newcat['PSF_HDU'][i] = -1
+			newcat['BAND'][i] = band
+			newcat['PIXEL_SCALE'][i] = 0.168
+
+			# Copy over the information that doesn't need to change
+			cols_done = ['GAL_FILENAME', 'PSF_FILENAME', 'GAL_HDU', 'PSF_HDU', 'BAND', 'PIXEL_SCALE' ]
+			for name in newcat.dtype.names:
+				if not (name in cols_done): 
+					newcat[name] = self.cat[name]
+
+			if (i%899==0) and (i!=0):
+				batch+=1
+
+		if '%c' in target:
+			target = target%band
+		if verbose:
+			print 'Saving catalogue to ', target
+
+		# Check whether a FITS files with the same name exists already
+		# If it does then delete the old version
+		if os.path.exists(target):
+			print 'Will overwrite file %s. Are you sure you want to do this?'%target
+			import pdb ; pdb.set_trace()
+			os.system('rm %s'%target)
+		print nrow
+
+		outfits = fi.FITS(target[:nrow], 'rw')
+		outfits.write(newcat)
+		outfits.close()
+
+
+	def psf(self, i, band='r', gs=True, batch=0):
+		ppath1 = '%s/%c/psf-%d/'%(self.paths['cutouts'],band, batch)
+		ppath1 = glob.glob(ppath1+'%d-psf-calexp*-HSC-%c*.fits'%(i, band.upper()))
 		ppath1 = ppath1[0]
 
-		mpath1 = '%s/%c/psf-%d/'%(self.path['cutouts'],bands[0], batch)
-		mpath1 = glob.glob(mpath1+'%d-psf-calexp*-HSC-%c*.fits'%bands[0].upper())
-		mpath1 = mpath1[0]
+		psf = fi.FITS(ppath1)[-1].read()
 
-		print path1
-		print ppath1
-		print mpath1
+		if not gs:
+			return psf
+		else:
+			import pdb ; pdb.set_trace()
+
+	def construct_path(self, i, objtype='galaxies', band='r', batch=0, filename_only=True):
+		if (objtype=='masked_galaxies'):
+			mpath1 = '%s/%c/galaxies-%d/'%(self.paths['cutouts'], band, batch)
+			mpath1 = glob.glob(mpath1+'%d-*masked*-HSC-%c*.fits'%(i, band.upper()))
+			if filename_only:
+				mpath1[0] = os.path.basename(mpath1[0])
+			try:
+				return mpath1[0]
+			except:
+				import pdb ; pdb.set_trace()
+		elif (objtype=='galaxies'):
+			path1 = '%s/%c/galaxies-%d/'%(self.paths['cutouts'],band, batch)
+			glob.glob(path1+'%d-cutout-HSC-%c*.fits'%(i, band.upper()))
+			if filename_only:
+				path1[0] = os.path.basename(path1[0])
+			return path1[0]
+		elif (objtype=='psf'):
+			ppath1 = '%s/%c/psf-%d/'%(self.paths['cutouts'],band, batch)
+			ppath1 = glob.glob(ppath1+'%d-*psf*-HSC-%c*.fits'%(i, band.upper()))
+			if filename_only:
+				ppath1[0] = os.path.basename(ppath1[0])
+			return ppath1[0]
+
+	def visualise_stamp(self, i, bands=['r','i'], batch=0, cmap='jet', nstamp=0):
+		psf=[]
+		gal=[]
+		mgal=[]
+
+		for band in bands:
+			path1 = '%s/%c/galaxies-%d/'%(self.paths['cutouts'],band, batch)
+			path1 = glob.glob(path1+'%d-cutout-HSC-%c*.fits'%(i, band.upper()))
+			path1 = path1[0]
+
+			ppath1 = '%s/%c/psf-%d/'%(self.paths['cutouts'],band, batch)
+			ppath1 = glob.glob(ppath1+'%d-psf-calexp*-HSC-%c*.fits'%(i, band.upper()))
+			ppath1 = ppath1[0]
+
+			mpath1 = '%s/%c/galaxies-%d/'%(self.paths['cutouts'],band, batch)
+			mpath1 = glob.glob(mpath1+'%d-*masked*-HSC-%c*.fits'%(i, band.upper()))
+			mpath1 = mpath1[0]
+
+			psf.append(fi.FITS(ppath1)[-1].read())
+			gal.append(fi.FITS(path1)['IMAGE'].read())
+			mgal.append(fi.FITS(mpath1)[-1].read())
+
+		j=1
+		N = len(psf)
+		gmax = gal[0].max()
+		gmin = gal[0].min()
+		mgmax = mgal[0].max()
+		mgmin = mgal[0].min()
+		for i,(p,g,masked) in enumerate(zip(psf,gal,mgal)):
+			if nstamp>0:
+				x0 = g.shape[1]/2
+				y0 = g.shape[0]/2
+				dx = nstamp/2
+				dy = nstamp/2
+
+				g = g[y0-dy:y0+dy, x0-dx:x0+dx ]
+				masked = masked[y0-dy:y0+dy, x0-dx:x0+dx ]
+			plt.subplot(int('%d%d%d'%(N,3,j)))
+			plt.imshow(g, interpolation='none', cmap=cmap)
+			plt.clim(mgmin, mgmax)
+			print mgmin, mgmax
+			j+=1
+			plt.subplot(int('%d%d%d'%(N,3,j)))
+			plt.imshow(masked, interpolation='none', cmap=cmap)
+			plt.clim(mgmin, mgmax)
+			j+=1
+			plt.subplot(int('%d%d%d'%(N,3,j)))
+			plt.imshow(p, interpolation='none', cmap=cmap)
+			j+=1
 
 
 
@@ -52,7 +181,7 @@ class cosmos:
 		out.write('#?   ra       dec       sw    sh   filter  image  mask variance type \n')
 		for i, col in enumerate(self.cat[window[0]:window[1]]):
 			print i
-			line = '%f %f 8asec 8asec HSC-%c true true false coadd \n'%(col['RA'], col['DEC'], band.upper())
+			line = '%f %f 8asec 8asec HSC-%c true true true coadd \n'%(col['RA'], col['DEC'], band.upper())
 			out.write(line)
 		out.close()
 		print 'Done'
@@ -521,6 +650,8 @@ def get_uberseg(seg):
 				weight[i,j] = 0.
 
 	return weight
+
+
 
 
 
