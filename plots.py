@@ -1,6 +1,6 @@
 import numpy as np
 import scipy as sp
-import astropy.io.fits as pyfits
+#import astropy.io.fits as pyfits
 import os, pdb
 from tools import fisher as fi
 from samplers import sampler
@@ -2397,7 +2397,7 @@ def footprint_sub(ra,dec,rasep,decsep,nside,fig, cmap='none'):
 	ymin-=r/10.
 	ymax+=r/5.
 	ax.set_ylim(ymin,ymax)
-	plt.savefig('/global/cscratch1/sd/sws/y1a1-im3shape-footprint-%s.pdf'%cmap, bbox_inches='tight')
+	plt.savefig('footprint.pdf'%cmap, bbox_inches='tight')
 	return
 
 

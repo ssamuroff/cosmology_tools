@@ -1,6 +1,6 @@
 import numpy as np
-import astropy.table as tb
-import astropy.io.fits as pf
+#import astropy.table as tb
+#import astropy.io.fits as pf
 
 
 def add_col(rec, name, arr=[], dtype=None, verbose=False):

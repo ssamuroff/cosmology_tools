@@ -1,6 +1,6 @@
 import numpy as np
 import scipy as sp
-import astropy.io.fits as pyfits
+#import astropy.io.fits as pyfits
 import os, pdb
 
 class fisher:
