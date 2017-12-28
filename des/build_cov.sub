@@ -1,0 +1,10 @@
+#PBS -N build_covariance-parallelise
+#PBS -l nodes=2:ppn=32
+#PBS -l walltime=48:00:00
+#PBS -o /home/samuroff/logs/build_covariance
+#PBS -M simon.samuroff@postgrad.manchester.ac.uk
+#PBS -j oe
+
+
+cd /share/des/disc3/samuroff/mpp/cosmosis/
+mpiexec -n 64 python build_cross_covariance.py --mpi --theory sws/ias/datavecs/simulated/fiducial/ --order sws/ias/datavecs/real/mcal-nongaussian/dvec-multiprobe-mcal-multicolour-NG_data.fits --config desy1.yaml --outdir cov/
