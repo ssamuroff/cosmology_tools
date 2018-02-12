@@ -28,7 +28,7 @@ datavec = fi.FITS(args.order)
 
 params = yaml.load(open(args.config))
 
-area = (np.pi * params['area']/180.)
+area = (np.pi * np.pi * params['area']/180./180.)
 fsky = area/4./np.pi
 
 bessel_kernels = {'xip':0, 'xim':4, 'gammat':2, 'wtheta':0}
@@ -56,7 +56,7 @@ class matrix:
 		# Bad, bad, bad. I know. This is bad.
 		# Will fix this at some point
 		naxis = 2080 + 700 + 100
-		self.block = np.zeros((2200,2200)) + 1e-30
+		self.block = np.zeros((3560,3560)) + 1e-30
 	def choose_spectra(self, i, j, k, l, correlation1, correlation2, gtype):
 		# For the (xi xi) part all of the required angular spectra are GG
 		# The red-blue information is subsumed into the index
@@ -82,16 +82,28 @@ class matrix:
 			C3 = get_auto_cl(path_ss, j,l, ctype='ss')
 			C4 = get_auto_cl(path_gg, i,k, ctype='gg')
 
-		elif (('gammat' in correlation1) and ('xi' in correlation2)) or (('gammat' in correlation2) and ('xi' in correlation1)):
+		elif  (('gammat' in correlation2) and ('xi' in correlation1)):
 			path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
 			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
 			try:
-                            C1 = np.genfromtxt(path_gs%(j,k))
-                        except:
-                            C1 = np.genfromtxt(path_gs%(k,j))
+				C1 = np.genfromtxt(path_gs%(j,k))
+			except:
+				C1 = np.genfromtxt(path_gs%(k,j))
 			C2 = get_auto_cl(path_ss, l, i, ctype='ss')
 			C3 = get_auto_cl(path_ss, k, i, ctype='ss')
 			C4 = get_auto_cl(path_ss, l,j, ctype='ss')
+
+		elif (('gammat' in correlation1) and ('xi' in correlation2)):
+			path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
+			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
+			try:
+				C2 = np.genfromtxt(path_gs%(i,l))
+			except:
+				C2 = np.genfromtxt(path_gs%(l,i))
+			C1 = get_auto_cl(path_ss, k, j, ctype='ss')
+			C3 = get_auto_cl(path_ss, k, i, ctype='ss')
+			C4 = get_auto_cl(path_ss, l,j, ctype='ss')
+
 		else:
 			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
 			if gtype[1]=='lens':
@@ -116,7 +128,7 @@ class matrix:
 		return x, C1, C2, C3, C4
 	def find_element(self, t1, t2, i, j, k, l, gtype, correlation1, correlation2):
 		if not hasattr(self, gtype):
-			path = args.order.replace('multicolour', gtype).replace('_data','')
+			path = args.order.replace('multicolour', gtype).replace('_data','').replace('-v5', '')
 			setattr(self, gtype, fi.FITS(path)['covmat'.upper()].read())
 			setattr(self, '%s_info'%gtype, fi.FITS(path)['covmat'.upper()].read_header())
 			setattr(self, '%s_%s'%(gtype, 'xip'), fi.FITS(path)['xip'].read())
@@ -140,13 +152,15 @@ class matrix:
 			else:
 				import pdb ; pdb.set_trace()
 
+                #if ((g1,g2,g3,g4)==('early','early','lens','early')) and ('xi' in correlation1) and ('gammat' in correlation2) and ((i,j,k,l)==(1,1,3,1)): import pdb ; pdb.set_trace()
+
 		try:
 			index2 = np.argwhere((ord2['BIN1']==k) & (ord2['BIN2']==l) & (ord2['ANGBIN']==t2))[0,0]
 		except:
 			if ('xi' in correlation2) or ('wtheta' in correlation2):
 				index2 = np.argwhere((ord2['BIN1']==l) & (ord2['BIN2']==k) & (ord2['ANGBIN']==t2))[0,0]
 			else:
-				import pdb ; pdb.set_trace()
+				raise
 
 		start1 = info['STRT_%d'%corr_order[correlation1]]
 		start2 = info['STRT_%d'%corr_order[correlation2]]
@@ -210,7 +224,7 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 					continue
 
 				g1, g2, i0, j0 = cov.interpret_bin_indices(i, j, correlation1)
-				g3, g4, k0, l0 = cov.interpret_bin_indices(k, l, correlation2)
+				g3, g4, k0, l0 = cov.interpret_bin_indices(k, l, correlation2) 
 
 				if args.verbosity>1:
 					print '%s %s'%(correlation1, correlation2)
@@ -232,14 +246,23 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 					K = ell * J1 * J2 * (C1*C2 + C3*C4)
 
 					val = np.trapz(K, ell) / (8*np.pi*np.pi) / fsky
-					#if correlation1=='xim' or correlation2=='xim': import pdb ; pdb.set_trace() 
 				else:
 					if len(source_types)==0:
 						gt = 'late'
 					else:
 						gt = source_types[0]
 
-					val = cov.find_element(itheta1, itheta2, i0, j0, k0, l0, gt, correlation1, correlation2)
+					try:
+						val = cov.find_element(itheta1, itheta2, i0, j0, k0, l0, gt, correlation1, correlation2)
+					except:
+						ell, C1, C2, C3, C4 = cov.choose_spectra(i, j, k, l, correlation1, correlation2, [g1,g2,g3,g4])
+						n1 = bessel_kernels[correlation1]
+						n2 = bessel_kernels[correlation2]
+						J1 = sps.jn(n1, ell*theta1)
+						J2 = sps.jn(n2, ell*theta2)
+						K = ell * J1 * J2 * (C1*C2 + C3*C4)
+						val = np.trapz(K, ell) / (8*np.pi*np.pi) / fsky
+                                            
 					#val = 5e-14
 
 				cov.block[b,a] = val
