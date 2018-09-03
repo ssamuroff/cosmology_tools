@@ -253,3 +253,183 @@ class y1shear:
 			filename = "/global/cscratch1/sd/sws/mof_colour_space_division-%s-colouredby_%s.%s"%(title,colour_by[1],extension)
 			print filename
 			plt.savefig(filename) 
+
+def type_cut(pz):
+    mask = np.zeros(pz.size)-9999
+    mask[(pz['template_type']<1)]=1
+    mask[(pz['template_type']>1)]=2
+    return mask
+
+
+def colour_cut(shapes, pz):
+	# Hardcoded numbers
+	a= [0.037,0.12,0.05,0.0]
+	c0=[-0.1,-1.7,0.15,1.6]
+	bins=[0.2,0.43,0.63,0.9,1.3]
+
+	# Extract mags
+	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+	z = 30 - 2.5 * np.log10(shapes["flux_z"])
+
+	mask = np.zeros(shapes.size)-9999
+
+	# Now loop over tomographic bins
+	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
+		lin = (a[b] * r + c0[b])
+		colour_select_r = ((r-z)>lin)
+		mask[select & colour_select_r] = 1
+		colour_select_b = ((r-z)<lin)
+		mask[select & colour_select_b] = 2
+
+	return mask
+
+def colour_diagram(x0, y0, ls="-", colour="k", pdf=True, title="", ylim=[0,0.7], xlim=[0,0.4], split_param=[0.24,0.085]):
+    #Count the galaxies in grid cells
+    print "Counting..."
+    counts,xbins,ybins, = np.histogram2d(x0, y0, bins=80, range=[xlim,ylim], normed=1 )
+    y=(ybins[:-1]+ybins[1:])/2
+    x=(xbins[:-1]+xbins[1:])/2
+    xx,yy=np.meshgrid(x,y)
+    print "Making histograms..."
+    C = plt.contour(xx,yy,counts.T, 8, colors=colour,linestyles=ls, linewidth=.5)
+    plt.xlabel("$r-$band Flux $f_r$", fontsize=22)
+    plt.ylabel("$r-z$", fontsize=22)
+    plt.xlim(xbins.min(),xbins.max())
+    plt.ylim(ybins.min(),ybins.max())
+    plt.title(title, fontsize=22)
+    #green valley division
+    if len(split_param)>0:
+        xl = np.linspace(xlim[0],xlim[1],100)
+        lin = split_param[0]*xl+split_param[1]
+        plt.plot(xl,lin, color="forestgreen", ls="--", lw=2.5)
+    return 0
+
+def hist1d(C, pz, type_split=True, labels=True, xlim=(-4,4)):
+	N = float(C.size)
+	if labels:
+		lab = "All Galaxies"
+	else:
+		lab = None
+	H, edges = np.histogram(C, bins=120, range=xlim)
+	x = (edges[:-1]+edges[1:])/2
+	plt.plot(x, H, color='purple', lw=2, label=lab)
+
+	if type_split:
+		#Define a split by BPZ template
+		late = (pz['template_type']>1)
+		early = (pz['template_type']<1)
+
+		# Get the normalisations
+		Ne = float(C[early].size)
+		if labels:
+			labe = "Early-type"
+			labl = "Late-type"
+		else:
+			labe = None
+			labl = None
+		He,edgese = np.histogram(C[early], bins=120, range=xlim)
+		xe = (edgese[:-1]+edgese[1:])/2
+
+		Nl =float (C[late].size )
+		Hl,edgesl = np.histogram(C[late], bins=120, range=xlim)
+		xl = (edgesl[:-1]+edgesl[1:])/2
+
+		plt.fill_between(xe, He, color='red', alpha=0.3, linestyle=":")
+		plt.plot(xe, He, color='red', label=labe, linestyle=":")
+		plt.fill_between(xl, Hl, color='royalblue', alpha=0.3, linestyle="--")
+		plt.plot(xl, Hl, color='royalblue', label=labl, linestyle="--")
+
+	# Tweak the axes
+	if labels:
+		plt.legend(loc="upper left")
+	plt.yticks(visible=False)
+	plt.xlim(xlim[0],xlim[1])
+	
+	print "Done"
+	return None
+
+
+
+def colour_panels(shapes, pz):
+	# Hardcoded numbers
+	a= [0.037,0.12,0.05,0.0]
+	c0=[-0.1,-1.7,0.15,1.6]
+	bins=[0.2,0.43,0.63,0.9,1.3]
+
+	# Extract mags
+	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+	i = 30 - 2.5 * np.log10(shapes["flux_i"])
+	z = 30 - 2.5 * np.log10(shapes["flux_z"])
+
+	mask = np.zeros(shapes.size)-9999
+
+	# Now loop over tomographic bins
+	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
+		type_select_r = (pz['template_type']<1)
+		mask[select & type_select_r] = 1
+		type_select_b = (pz['template_type']>1)
+		mask[select & type_select_b] = 2
+		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=0.35)
+		y = r-i
+		x = i-z
+		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='royalblue' )
+		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[-0.2,1.3], split_param=[0,np.inf], colour='red' )
+		if (b==3):
+			plt.xlabel("$i-z$", fontsize=12)
+			plt.xticks([0,0.4,0.8,1.2])
+		else:
+			plt.xlabel("")
+			plt.xticks(visible=False)
+
+		plt.xticks(fontsize=12)
+		plt.yticks(fontsize=12)
+		plt.ylabel("$r-i$", fontsize=12)
+
+		plt.annotate("$(%d)$"%(b+1),xy=(-0.05,1.8),fontsize=14)
+
+	return mask
+
+def colour_mag_panels(shapes, pz):
+	# Hardcoded numbers
+	a= [0.037,0.12,0.05,0.0]
+	c0=[-0.1,-1.7,0.15,1.6]
+	bins=[0.2,0.43,0.63,0.9,1.3]
+
+	# Extract mags
+	r = 30 - 2.5 * np.log10(shapes["flux_r"])
+	i = 30 - 2.5 * np.log10(shapes["flux_i"])
+	z = 30 - 2.5 * np.log10(shapes["flux_z"])
+
+	mask = np.zeros(shapes.size)-9999
+
+	# Now loop over tomographic bins
+	for b,(lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
+		select = (pz['mean_z']>lower) & (pz['mean_z']<upper)
+		
+		type_select_r = (pz['template_type']<1)
+		mask[select & type_select_r] = 1
+		type_select_b = (pz['template_type']>1)
+		mask[select & type_select_b] = 2
+		plt.subplot(int("%d%d%d"%(4,1,b+1)), aspect=1.6)
+		y = r-z
+		x = r
+		colour_diagram(x[select & (mask==2)],y[select & (mask==2)], ylim=[0,2.5],xlim=[18,25.5], split_param=[a[b],c0[b]], colour='royalblue' )
+		colour_diagram(x[select & (mask==1)],y[select & (mask==1)], ylim=[0,2.5],xlim=[18,25.5], split_param=[0,np.inf], colour='red' )
+		if (b==3):
+			plt.xlabel("$r$-band Magnitude", fontsize=12)
+			plt.xticks([18,20,22,24])
+		else:
+			plt.xlabel("")
+			plt.xticks(visible=False)
+
+		plt.xticks(fontsize=12)
+		plt.yticks(fontsize=12)
+		plt.ylabel("$r-z$", fontsize=12)
+
+		plt.annotate("$(%d)$"%(b+1),xy=(18.5,1.8),fontsize=14)
+
+	return 0
+
+
