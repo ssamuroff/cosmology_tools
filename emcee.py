@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 #import astropy.io.fits as pyfits
-#import astropy.table as tb
+import astropy.table as tb
 import os, pdb, copy
 import pylab as plt
 from tools import samplers as samp
@@ -18,6 +18,7 @@ class chain(samp.sampler):
 	def __init__(self, filename):
 		self.samples=tb.Table.read(filename, format="ascii")
 		try:
+            #import pdb ; pdb.set_trace()
 			self.post = self.samples["post"]
 			self.samples.remove_column("post")
 		except:
