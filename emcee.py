@@ -39,7 +39,7 @@ class chain(samp.sampler):
 
 		self.filename=filename
 
-		print "found %d posterior samples in %s"%(len(self.post), self.filename)
+		print("found %d posterior samples in %s"%(len(self.post), self.filename))
 
 		sep="END_OF_PRIORS_INI\n"
 		text = open(self.filename).read()
@@ -50,14 +50,36 @@ class chain(samp.sampler):
 			if name.lower()!=name:
 				self.samples.rename_column(name,name.lower())
 
+	def add_s8(self):
+		"""Special case of add_column for S8,
+		   necessitated by the move to python 3."""
+
+		newcol = self.samples['cosmological_parameters--sigma_8']*((self.samples['cosmological_parameters--omega_m']/0.3)**0.5)
+		newcol = tb.Column(newcol, name="cosmological_parameters--s8")
+
+
+		self.samples.add_column(newcol, index=len(self.samples.dtype))
+
+		cosmosis_section = 'cosmological_parameters'
+		name = 's8'
+
+		self.header = self.header.replace("\tpost", "\t%s--%s\tpost"%(cosmosis_section, name))
+
+		self.header = self.header.replace("n_varied=%d"%self.npar, "n_varied=%d"%(self.npar+1))
+		self.npar+=1
+
+
 	def add_column(self, name, pmin=-1, pmax=1, values="random", cosmosis_section="cosmological_parameters"):
 		"""Draw new samples from a uniform distribution over a specified range."""
+		"""Beware: this only works in python 2 (how the exec statement works has changed).
+		   Which is annoying. 
+		   Use add_s8 instead, if that's what you want to do."""
 		
 		num = len(self.samples)
 		if values=="random":
 			newcol = (np.random.rand(num)*(pmax-pmin)) + (pmin+pmax)/2. - (pmax-pmin)/2
-			print "Added random samples "
-			print newcol
+			print("Added random samples ")
+			print(newcol)
 		# A rather hacked together bit of code to parse a human readable string
 		# specifying a specific combination of parameters	
 		else:
@@ -79,9 +101,10 @@ class chain(samp.sampler):
 			for p in par_names:
 				values = values.replace(p, "self.samples[parameters['%s']]"%p)
 
-			print "Generating new column %s from existing columns "%name , par_names
-			print values 
-			exec "newcol = " + values
+			print("Generating new column %s from existing columns "%name , par_names)
+			print(values)
+			namespace = {}
+			exec("newcol = %s"%values, namespace)
 
 		newcol = tb.Column(newcol, name=cosmosis_section+"--"+name)
 
@@ -107,10 +130,10 @@ class chain(samp.sampler):
 
 		self.remove_bounds()
 
-		print "Discarding %d/%d samples"%(num, n0)
+		print("Discarding %d/%d samples"%(num, n0))
 
 	def thin(self, factor):
-		print "Thinning chain by a factor of %2.3f"%factor
+		print("Thinning chain by a factor of %2.3f"%factor)
 		#num  = len(self.samples[range[0]:range[1]])/factor
 		#sel = np.arange(0,len(self.samples), len(self.samples)/num).astype(int)
 
@@ -126,15 +149,15 @@ class chain(samp.sampler):
 		self.nsamp = len(self.samples)
 		for param in self.samples.dtype.names:
 			if param=="post": continue
-			print param,
+			print(param,)
 			plt.plot(self.samples[param], ".", color=colour)
 			for i, c2 in enumerate(overplot):
 				plt.plot(c2.samples[param], ".", color=colours[i])
 			if blind:
 				plt.yticks(visible=False)
-				print ""
+				print("")
 			else:
-				print "%3.3f"%self.samples[param][3*self.nsamp/4 :].mean()
+				print("%3.3f"%self.samples[param][3*self.nsamp/4 :].mean())
 				plt.axhline(self.samples[param][3*self.nsamp/4 :].mean(), color="k", ls=":")
 			plt.title(param)
 			plt.savefig("%s/%s.png"%(dirname,param))
@@ -186,7 +209,7 @@ class chain(samp.sampler):
 		npar = len(names)
 		naxis = npar
 		ipanel = 0
-		print "Will make corner plot of %d parameters"%npar
+		print("Will make corner plot of %d parameters"%npar)
 		for i,name1 in enumerate(names):
 			fullname1 = "%s--%s"%(sections[name1], name1)
 			for j, name2 in enumerate(names):
@@ -194,7 +217,7 @@ class chain(samp.sampler):
 				fullname2 = "%s--%s"%(sections[name2], name2)
 				if j>i: continue
 				plt.subplot(naxis,naxis,ipanel, aspect="auto")
-				print i, j, fullname1, fullname2
+				print(i, j, fullname1, fullname2)
 				self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, contours=contours, ls=ls, overplot=overplot, fill=fill, alpha=alpha, label=label, include=include)
 
 				plt.yticks(visible=False)
@@ -231,7 +254,7 @@ class chain(samp.sampler):
 	def get_1d_likelihood(self, name, kde=None, verbose=True):
 		x = self.samples[name]
 		if verbose:
-			print " - 1D likelihood ", name
+			print(" - 1D likelihood ", name)
 
 		if kde is None:
 			from cosmosis.plotting import kde
@@ -273,14 +296,14 @@ class chain(samp.sampler):
 
 		nsamp=len(newsamp)
 
-		print "New chain contains %d/%d points after resampling"%(len(newsamp), len(self.samples))
+		print("New chain contains %d/%d points after resampling"%(len(newsamp), len(self.samples)))
 
 		return nsamp, np.array(newsamp), self.samples[np.array(newsamp)]
 
 	def write_columns(self, filename=None, overwrite=False, bounds=True, impweight=False, apply_weights=False, halfchains=False):
 		if not filename and overwrite:
 			filename = self.filename
-			print "Overwriting file %s"%self.filename
+			print("Overwriting file %s"%self.filename)
 
 		if bounds:
 			sel = np.array(self.mask).astype(bool)
@@ -291,13 +314,13 @@ class chain(samp.sampler):
 		nsamp=len(self.samples)
 
 		if impweight:
-			print "Using importance sampled posterior ",np.array(self.wt)
+			print("Using importance sampled posterior ",np.array(self.wt))
 			nsamp, i, samp = self.do_importance_resampling()
-			print i
+			print(i)
 			post=np.array(self.post)[i]
 			sel=np.ones_like(post).astype(bool)
 		elif apply_weights:
-			print "Applying weights to posterior ",self.wt
+			print("Applying weights to posterior ",self.wt)
 			post=self.post*self.wt
 		else:
 			post=self.post
@@ -333,7 +356,7 @@ class chain(samp.sampler):
 		np.savetxt(name1, np.array(samp[:n/2]).T, header=self.header, comments="")
 		np.savetxt(name2, np.array(samp[n/2:]).T, header=self.header, comments="")
 
-		print "Saving half chains to %s %s"%(name1, name2)
+		print("Saving half chains to %s %s"%(name1, name2))
 
 		del(samp)
 
@@ -341,7 +364,7 @@ class chain(samp.sampler):
 		if newplot:
 			plt.figure(newplot)
 		if thin:
-			print "Thinning chain by a factor of %2.3f"%thin
+			print("Thinning chain by a factor of %2.3f"%thin)
 			num  = len(self.samples[range[0]:range[1]])/thin
 			sel = np.arange(0,len(self.samples[range[0]:range[1]]), len(self.samples)/num).astype(int)
 		else:
@@ -356,23 +379,23 @@ class chain(samp.sampler):
 
 		self.post = np.hstack((np.zeros(num), self.post))
 
-		print "Added %d dummy samples."%num
+		print("Added %d dummy samples."%num)
 
 	def check_convergence(self, param, burn):
 		samples = self.samples[parameters[param]][burn:]
 		post = self.post[burn:]
 
-		print "Mean of samples: %3.4f"%np.mean(samples)
+		print("Mean of samples: %3.4f"%np.mean(samples))
 		median = np.median(samples)
-		print "Median of samples: %3.4f"%median
+		print("Median of samples: %3.4f"%median)
 		best_fit = samples[np.argwhere( post==post.max() )[0,0]]
-		print "Max. likelihood value: %3.4f"%best_fit
-		print "Standard deviation of samples: %3.4f"%np.std(samples)
+		print("Max. likelihood value: %3.4f"%best_fit)
+		print("Standard deviation of samples: %3.4f"%np.std(samples))
 
 	def smooth(self, plot_type="variance",param="s8", nbins=50, line=True, colour="m"):
 		samp=self.samples[parameters[param]]
 		bins=np.linspace(0,len(samp),nbins).astype(int)
-		print bins
+		print(bins)
 		x=(bins[1:]+bins[:-1])/2.
 
 		y=[]
@@ -442,7 +465,7 @@ class chain(samp.sampler):
 		self.bounds[param] = limits
 		sel = (np.array(self.samples[parameters[param]])>limits[0]) & (np.array(self.samples[parameters[param]])<limits[1])
 		self.mask *= sel.astype(int)
-		print "Imposing bounds %f < %s < %f"%(limits[0], param, limits[1])
+		print("Imposing bounds %f < %s < %f"%(limits[0], param, limits[1]))
 
 	def remove_bounds(self):
 		self.bounds = {}
@@ -459,8 +482,8 @@ class chain(samp.sampler):
 			sel2 = self.mask.astype(bool)
 		else:
 			sel2 = np.ones_like(self.post).astype(bool)
-		print len(self.samples[p1])
-		print len(self.samples[p1][sel1 & sel2])
+		print(len(self.samples[p1]))
+		print(len(self.samples[p1][sel1 & sel2]))
 		samp1 = self.samples[p1][sel1 & sel2]
 		samp2 = self.samples[p2][sel1 & sel2]
 
@@ -477,7 +500,7 @@ class chain(samp.sampler):
 		plt.ylabel(labels[param[1]])
 
 		if mark_fiducial:
-			print fiducial[param[0]], fiducial[param[1]]
+			print(fiducial[param[0]], fiducial[param[1]])
 			plt.plot(fiducial[param[0]], fiducial[param[1]], "x", color='k', markersize=10, markerfacecolor='k')
 
 		if colourbar:
@@ -486,17 +509,17 @@ class chain(samp.sampler):
 	def check_compatibility(self, chain):
 		compatible = True
 		if chain.npar!=self.npar:
-			print "parameter space dimensons differ"
+			print("parameter space dimensons differ")
 			compatible = False
 
 		if not np.in1d(self.samples.dtype.names, chain.samples.dtype.names).all():
-			print "parameter space is non identical"
+			print("parameter space is non identical")
 			compatible - False
 
 		return compatible
 
 	def halfchain_test(self, smoothing=2.5, dirname="halfchain_test"):
-		print "Will check convergence of chain"
+		print("Will check convergence of chain")
 
 		os.system("mkdir -p halfchain_test")
 
@@ -523,14 +546,14 @@ def gaussian(x,mu,sigma):
 def extract_confidence_bounds(directory, param="s8", conf="std", deltaz=False):
 	if isinstance(conf, str):
 		if conf.lower()=="std":
-			print "Using standard deviation of points as the errorbar on %s"%param
+			print("Using standard deviation of points as the errorbar on %s"%param)
 			means=open(directory+"/means.txt").read().split("\n")
 			y=[]
 			dz=[]
 			for line in means:
 				if deltaz:
 					if ".txt" in line:
-						print line.split("_deltazprior")
+						print(line.split("_deltazprior"))
 						if "_deltazprior" in line:
 							val=line.split("_deltazprior")[1].split("_")[0]
 						elif "shear_" not in line:
@@ -543,7 +566,7 @@ def extract_confidence_bounds(directory, param="s8", conf="std", deltaz=False):
 						dz.append(float(val))
 				try:
 					if param in line.split()[0]:
-						print line.split()
+						print(line.split())
 						y.append(float(line.split()[2]))
 
 				except:
@@ -574,7 +597,7 @@ def extract_confidence_bounds(directory, param="s8", conf="std", deltaz=False):
 
 	u=[]
 	for line in upper:
-		print line
+		print(line)
 		if deltaz:
 			if "deltazprior" in line:
 				val = line.split("_deltazprior")[1].split("_")[0]
@@ -585,8 +608,8 @@ def extract_confidence_bounds(directory, param="s8", conf="std", deltaz=False):
 		except:
 			continue
 
-	print "Upper bounds", u
-	print "Lower bounds", l
+	print("Upper bounds", u)
+	print("Lower bounds", l)
 
 	if not deltaz:
 		return np.array(u)-np.array(l)
@@ -600,7 +623,7 @@ def extract_bias(directory, param="s8", deltaz=False):
 	dz=[]
 	b=[]
 	for line in bias:
-		print line
+		print(line)
 		if deltaz:
 			if "deltazprior" in line:
 				dz.append(float(line.replace(".txt", "").split("_deltazprior")[1].split("_")[0].split("/")[0]))
@@ -610,7 +633,7 @@ def extract_bias(directory, param="s8", deltaz=False):
 		except:
 			continue
 
-	print "Means:", b
+	print("Means:", b)
 
 	b=np.array(b)-fiducial[param]
 

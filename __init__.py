@@ -1,1 +1,1 @@
-from n_of_z import *
+import numpy as np
