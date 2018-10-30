@@ -435,6 +435,37 @@ class covariance_wrapper:
 		np.savetxt(filename,self.corr)
 
 
+order={'xip':(0,1), 'xim':(1,2), 'gammat':(2,3), 'wtheta':(3,-1)}
+def compute_snr(fits, corr='all'):
+
+	if (corr=='all'):
+		# Assemble the 3x2pt datavector
+		dvec = np.concatenate([fits[c]['VALUE'].read() for c in ['xip','xim','gammat','wtheta']])
+
+		# And the covaraiance matrix
+		C = fits['COVMAT'].read()
+	else:
+		dvec = fits[corr]['VALUE'].read()
+
+		C = fits['COVMAT'].read()
+		hdr = fits['COVMAT'].read_header()
+		i0 = hdr['STRT_%d'%order[corr][0]]
+		if (order[corr][1]==-1):
+			C = C[i0:,i0:]
+		else:
+			i1 = hdr['STRT_%d'%order[corr][1]]
+			C = C[i0:i1,i0:i1]
+		
+
+	print('Datavector contains %d elements.'%len(dvec))
+	print('Inverting covariance matrix.')
+	Cinv = np.linalg.inv(C)
+
+	snr = np.sqrt(np.dot(dvec, np.dot(Cinv,dvec) ))
+	print('S/R: %3.3f'%snr)
+
+	return snr
+
 
 
 

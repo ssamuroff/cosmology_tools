@@ -18,6 +18,7 @@ class chain(samp.sampler):
 	def __init__(self, filename):
 		self.samples=tb.Table.read(filename, format="ascii")
 		try:
+            #import pdb ; pdb.set_trace()
 			self.post = self.samples["post"]
 			self.samples.remove_column("post")
 		except:
