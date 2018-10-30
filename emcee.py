@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 #import astropy.io.fits as pyfits
-#import astropy.table as tb
+import astropy.table as tb
 import os, pdb, copy
 import pylab as plt
 from tools import samplers as samp
@@ -23,16 +23,14 @@ class chain(samp.sampler):
 		except:
 			self.post = self.samples["like"]
 			self.samples.remove_column("like")
-                try:
-                        self.weight = self.samples["weight"]
-                        self.samples.remove_column("weight")
+		try:
+			self.weight = self.samples["weight"]
+			self.samples.remove_column("weight")
 			self.has_wt=True
-                except:
-                        self.has_wt=False
-                        print "No weight column"
+		except:
+			self.has_wt=False
+			print( "No weight column")
 		self.wt = np.ones_like(self.post)
-		
-
 		self.mask = np.ones_like(self.post)
 		self.bounds={}
 
@@ -49,12 +47,41 @@ class chain(samp.sampler):
 			if name.lower()!=name:
 				self.samples.rename_column(name,name.lower())
 
+	def append(self, filename):
+		samples=tb.Table.read(filename, format="ascii")
+		try:
+			post = samples["post"]
+			samples.remove_column("post")
+		except:
+			post = samples["like"]
+			samples.remove_column("like")
+			try:
+				self.weight = self.samples["weight"]
+				self.samples.remove_column("weight")
+				self.has_wt=True
+			except:
+				print( "No weight column")
+				wt = np.ones_like(post)
+				self.has_wt=False
+
+		print("found %d posterior samples in %s"%(len(post), filename))
+
+		s = copy.deepcopy(self.samples)
+		s = np.array(s).astype(self.samples.dtype)
+		samples = np.array(samples).astype(self.samples.dtype)
+		p = copy.deepcopy(self.post)
+
+		self.post = np.hstack((p,post))
+		self.samples = np.hstack((s,samples))
+
 	def add_s8(self):
 		"""Special case of add_column for S8,
 		   necessitated by the move to python 3."""
 
 		newcol = self.samples['cosmological_parameters--sigma_8']*((self.samples['cosmological_parameters--omega_m']/0.3)**0.5)
 		newcol = tb.Column(newcol, name="cosmological_parameters--s8")
+
+		self.samples = tb.Table(self.samples)
 
 
 		self.samples.add_column(newcol, index=len(self.samples.dtype))
@@ -325,9 +352,9 @@ class chain(samp.sampler):
 			post=self.post
 		post = tb.Column(post, name="post")
 		samp.add_column(post)
-                if self.has_wt:
-                    weight = tb.Column(self.weight, name="weight")
-                    samp.add_column(weight)
+		if self.has_wt:
+			weight = tb.Column(self.weight, name="weight")
+			samp.add_column(weight)
 
 		np.savetxt(filename, np.array(samp[sel]).T, header=self.header, comments="")
 

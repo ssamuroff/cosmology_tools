@@ -9,7 +9,7 @@ def add_col(rec, name, arr=[], dtype=None, verbose=False):
 
 	if name in rec.dtype.names:
 		if verbose:
-			print "Table already has a column called %s"%name
+			print("Table already has a column called %s"%name)
 		return rec
 
 	if len(arr)==0:
