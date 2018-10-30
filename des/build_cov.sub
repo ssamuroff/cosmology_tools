@@ -1,10 +1,13 @@
-#PBS -N build_covariance-parallelise
-#PBS -l nodes=2:ppn=32
-#PBS -l walltime=48:00:00
-#PBS -o /home/samuroff/logs/build_covariance
-#PBS -M simon.samuroff@postgrad.manchester.ac.uk
+#PBS -N build_covariance
+#PBS -l nodes=1:ppn=16
+#PBS -l walltime=18:00:00
+#PBS -o /physics2/ssamurof/logs/build_covariance.log
+#PBS -M ssamurof@andrew.cmu.edu
+#PBS -q physics
 #PBS -j oe
 
+OUTDIR=cov-v7
 
-cd /share/des/disc3/samuroff/mpp/cosmosis/
-mpiexec -n 64 python build_cross_covariance.py --mpi --theory sws/ias/datavecs/simulated/fiducial/ --order sws/ias/datavecs/real/mcal-nongaussian/dvec-multiprobe-mcal-multicolour-NG_data.fits --config desy1.yaml --outdir cov/
+cd /physics2/ssamurof/cosmosis/
+mkdir -p $OUTDIR
+mpiexec -n 16 python -m tools.des.build_cross_covariance.py --mpi --theory sws/ias/datavecs/simulated/fiducial/ --order sws/ias/datavecs/real/mcal-nongaussian/dvec-multiprobe-mcal-multicolour-NG-v7.fits --config desy1.yaml --outdir $OUTDIR

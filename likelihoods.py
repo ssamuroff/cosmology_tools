@@ -6,6 +6,7 @@ from tools import fisher as fi
 from samplers import sampler
 import tools.plots as pl
 import pylab as plt
+import scipy.interpolate as spi
 
 import sys
 
@@ -543,24 +544,58 @@ def _find_contours(chain, like, x, y, n, xmin, xmax, ymin, ymax, contour1, conto
 
 
 
-def smooth_likelihood(x, mod):
-	n = 100
-	factor = 1.8
-	kde = mod.KDE(x, factor=factor)
-	x_axis, like = kde.grid_evaluate(n, (x.min(), x.max()) )
-	return n, x_axis, like
 
-def make_1d_plot(x, colour='k', ls='-', label=None, kde=None):
+
+def make_1d_plot(x, colour='k', ls='-', label=None, kde=None, weights=[], limits=[]):
 
 	if x.max()-x.min()==0:
 		return
 
-	n, x_axis, like = smooth_likelihood(x, kde)
-	like/=like.max()
+	if len(weights)==0:
+		norm = 1
+		weights = np.ones(len(x))
+	else:
+		norm = sum(weights)
+
+	# Need to properly weight the samples if we're using multinest
+	def smooth_likelihood(x, mod, weights=[]):
+		n = 300
+		factor = 3.1
+		kde = mod.KDE(x, factor=factor, weights=weights)
+		x_axis, like = kde.grid_evaluate(n, (x.min(), x.max()) )
+		return n, x_axis, like
+
+	n, x_axis, like = smooth_likelihood(x, kde, weights=weights/norm)
+
+	# This should be correctly normalised over the range set earlier
+	x_axis, like = normalise_like(x_axis, like, limits=[])
 
 	plt.plot(x_axis, like, colour, ls=ls, label=label)
-	plt.ylim(ymin=0)
-	return 0
+
+	plt.xlim(x_axis.min(),x_axis.max())
+
+	return like
+
+def normalise_like(x, l, limits=[], samples=200):
+
+	# Decide on the bounds for this parameter
+	# if they're not specified use the whole x axis range
+	if (len(limits)==0):
+		xmin = x.min()
+		xmax = x.max()
+	else:
+		xmin,xmax = limits
+
+	# set up a likelihood interpolator
+	L = spi.interp1d(x,l)
+
+	# and resample at a set of points defined by xmin,xmax
+	xf = np.linspace(xmin,xmax,samples)
+	lf = L(xf)
+
+	norm = np.trapz(lf,xf)
+
+	return xf, lf/norm
 
 
 def get_col(name, chain):
@@ -588,19 +623,29 @@ def get_col(name, chain):
 		return []
 
 
-def make_panel(i, j, name1, name2, chain, label, blind, lims, alpha, fill, ls, colour, kde=None, plots=None, trim=0):
+def make_panel(i, j, name1, name2, chain, label, blind, lims1, lims2, alpha, fill, ls, colour, kde=None, plots=None, trim=0, fontsize=14):
+	if 'c2' in name1:
+		scale1 = 5.0
+	else:
+		scale1 = 1.0
+	if 'c2' in name2:
+		scale2 = 5.0
+	else:
+		scale2 = 1.0
+		
 	if (i==j):
-		x = get_col(name1, chain)
+		x = np.array(get_col(name1, chain))/scale1
+
 		if len(x)==0:
 			return
-		make_1d_plot(x, colour=colour, ls=ls, kde=kde, label=label)
-		if (i==1):
-			plt.legend(bbox_to_anchor=(2.7, 2), fontsize=16)
+		like = make_1d_plot(x, colour=colour, ls=ls, kde=kde, label=label, weights=chain['weight'], limits=lims1)
+		if (i==0):
+			plt.legend(bbox_to_anchor=(1.1, 1), fontsize=10)
 		plt.ylim(0,1)
-		plt.xticks(rotation=45)
+		plt.xticks(rotation=45, fontsize=fontsize)
 	else:
-		y = get_col(name1, chain)
-		x = get_col(name2, chain)
+		y = np.array(get_col(name1, chain))/scale1
+		x = np.array(get_col(name2, chain))/scale2
 		if (len(x)==0) or (len(y)==0):
 			return
 		n0 = int(len(x)*trim)
@@ -615,14 +660,16 @@ def make_panel(i, j, name1, name2, chain, label, blind, lims, alpha, fill, ls, c
 			print colour
 			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls, alpha=alpha)
 			plt.contourf(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls, alpha=alpha*2)
+			plt.contour(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls)
+			plt.contour(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls)
 		else:
 			plt.contour(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls)
 			plt.contour(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls)
 
-		plt.xticks(rotation=45)
-		plt.yticks(rotation=45)
+		plt.xticks(rotation=45, fontsize=fontsize)
+		plt.yticks(rotation=45, fontsize=fontsize)
 
-		return
+	return like
 
 
 
@@ -692,8 +739,15 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 			plt.subplot(naxis,naxis,ipanel, aspect="auto")
 			print i, j, fullname1, fullname2
 
+			likemax = 0
+			likemin = 10000
 			for l,chain in enumerate(chains):
-				make_panel(i, j, name1, name2, chain, labels[l], blind[l], lims[l], alpha[l], fill[l], ls[l], colours[l], kde=kde, plots=plots, trim=trim)
+				like = make_panel(i, j, name1, name2, chain, labels[l], blind[l], lims[name1], lims[name2], alpha[l], fill[l], ls[l], colours[l], kde=kde, plots=plots, trim=trim, fontsize=fontsize)
+				if like is None:
+					continue
+				else:
+					likemax = max(like.max(),likemax)
+					likemin = min(like.min(),likemin)
 			#self.choose_panel_contents(i,j, fullname1, fullname2, colour=colour, kde=kde, plots=plots, contours=contours, ls=ls, overplot=overplot, fill=fill, alpha=alpha, label=label, include=include)
 
 			if (blind[l]):
@@ -722,20 +776,21 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 
 			if (j==0) and (i!=0):
 				if not blind:
-					plt.yticks(np.arange(lims[0][0], lims[0][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
+					plt.yticks(np.arange(lims[name1][0], lims[name1][1], 1)[1:],visible=True, fontsize=fontsize/2)
 				plt.ylabel(parameter_labels[name1], fontsize=fontsize)
 			if i==naxis-1:
 				if not blind:
-					plt.xticks(np.arange(lims[1][0], lims[1][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
+					plt.xticks(np.arange(lims[name2][0], lims[name2][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
 				plt.xlabel(parameter_labels[name2], fontsize=fontsize)
 					
 			if len(lims)>0 and (i!=j):
-				plt.xlim(lims[j][0], lims[j][1])
-				plt.ylim(lims[i][0], lims[i][1])
-			if i==j:
-					plt.xlim(lims[j][0], lims[j][1])
-			plt.axhline(0,color="k", ls=":", alpha=0.5)
-			plt.axvline(0,color="k", ls=":", alpha=0.5)
+				plt.xlim(lims[name2][0], lims[name2][1])
+				plt.ylim(lims[name1][0], lims[name1][1])
+			elif (i==j):
+				plt.ylim(likemin, likemax)
+			plt.xlim(lims[name2][0], lims[name2][1])
+			#plt.axhline(0,color="k", ls=":", alpha=0.5)
+			#plt.axvline(0,color="k", ls=":", alpha=0.5)
 
 	plt.subplots_adjust(hspace=0, wspace=0)
 

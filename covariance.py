@@ -435,8 +435,53 @@ class covariance_wrapper:
 		np.savetxt(filename,self.corr)
 
 
+def get_scales_selection(scalesfile, fits, corrs, dvec):
+	if scalesfile=='':
+		return np.ones(len(dvec)).astype(bool)
+
+	bounds = {}
+	for c in corrs:
+		bounds[c] = {}
+
+	# Parse the cosmosis scales file
+	with open(scalesfile) as fp:  
+		for n, line in enumerate(fp):
+			if ('[' in line) or (not ('angle_range' in line)):
+				continue
+
+			base = line.split('angle_range_')[-1].split(':')[0]
+			correlation,i,j = base.split('_')
+			if not (correlation in corrs):
+				continue
+
+			linelist = line.split(' ')
+			if '\n' in linelist:
+				linelist.remove('\n')
+			lower = float(linelist[-2])
+			upper = float(linelist[-1].replace('\n',''))
+			
+			bounds[correlation][(int(i),int(j))] = (lower,upper)
+
+	mask = []
+	for c in corrs:
+		fitsdat = fits[c].read()
+		for t,i,j in zip(fitsdat['ANG'],fitsdat['BIN1'], fitsdat['BIN2']):
+			lower,upper = bounds[c][(i,j)]
+
+			allowed = (t>lower) & (t<upper)
+			mask.append(allowed)
+
+			#print(c,i,j,allowed,lower,upper)
+
+	if len(mask)!=len(dvec):
+		import pdb ; pdb.set_trace()
+
+	return np.array(mask)
+
+
+
 order={'xip':(0,1), 'xim':(1,2), 'gammat':(2,3), 'wtheta':(3,-1)}
-def compute_snr(fits, corr='all'):
+def compute_snr(fits, corr='all', scales=''):
 
 	if (corr=='all'):
 		# Assemble the 3x2pt datavector
@@ -455,9 +500,16 @@ def compute_snr(fits, corr='all'):
 		else:
 			i1 = hdr['STRT_%d'%order[corr][1]]
 			C = C[i0:i1,i0:i1]
-		
 
-	print('Datavector contains %d elements.'%len(dvec))
+	if corr=='all':
+		corrs = ['xip','xim','gammat','wtheta']
+	else:
+		corrs = [corr]  
+
+	mask = get_scales_selection(scales, fits, corrs, dvec)
+	dvec[np.invert(mask)] = 0
+
+	print('Datavector contains %d elements.'%len(dvec[dvec!=0]))
 	print('Inverting covariance matrix.')
 	Cinv = np.linalg.inv(C)
 

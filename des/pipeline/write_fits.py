@@ -10,7 +10,7 @@ class WriteFits(PipelineStage):
     inputs = {
         "ggl_bins"              : ("cov", "run.gglensing_zbins"),
         "cov"                   : ("cov", "cov.txt"),
-        "covfiles"              : ("cov", "run_*"),
+        "covfiles"              : ("cov", "y1_mcal_revision_*"),
 
         "2pt"                   : ("nofz","2pt.fits"),
         "xip"                   : ("2pt", "*_xip.txt"),
@@ -86,6 +86,7 @@ class WriteFits(PipelineStage):
 
         if self.params['lensfile'] != 'None':
             self.strip_wtheta(fits)
+            import pdb ; pdb.set_trace()
             self.strip_missing_gglensing(fits)
 
         length=self.get_cov_lengths(fits)
@@ -158,6 +159,7 @@ class WriteFits(PipelineStage):
 
     def load_cov(self):
         import os
+        print(self.input_path("covfiles"))
 
         if os.path.exists(self.input_path("cov")): 
             os.remove(self.input_path("cov"))

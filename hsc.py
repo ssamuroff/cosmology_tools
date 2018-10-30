@@ -46,9 +46,9 @@ class cosmos:
 				print i, i_perverse
 
 			p1 = self.construct_path(i_perverse, objtype='masked_galaxies', band=band, batch=batch, filename_only=False)
-			newcat['GAL_FILENAME'][i] = '%s/%s'%(p1.split('/')[-2],p1.split('/')[-1])
+			newcat['GAL_FILENAME'][i] = '%c/%s/%s'%(band,p1.split('/')[-2],p1.split('/')[-1])
 			p2 = self.construct_path(i_perverse, objtype='psf', band=band, batch=batch, filename_only=False)
-			newcat['PSF_FILENAME'][i] = '%s/%s'%(p2.split('/')[-2],p2.split('/')[-1])
+			newcat['PSF_FILENAME'][i] = '%c/%s/%s'%(band,p2.split('/')[-2],p2.split('/')[-1])
 			newcat['GAL_HDU'][i] = -1
 			newcat['PSF_HDU'][i] = -1
 			newcat['BAND'][i] = band

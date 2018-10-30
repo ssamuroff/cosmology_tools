@@ -1,2 +1,2 @@
 from tools import diagnostics as di
-from tools import shapes as s
+#from tools import shapes as s

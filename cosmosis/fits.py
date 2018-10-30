@@ -24,6 +24,8 @@ class dvec:
 			cname = correlations[i]
 
 			newpts = self.pts[lower:upper]
+			if len(newpts)==0:
+				continue
 			print('%s has %d datapoints.'%(cname, len(newpts)))
 
 			outdat = self.exts[cname].read()
@@ -34,6 +36,7 @@ class dvec:
 			outfits[cname].write(outdat)
 
 		outfits.close()
+		print('Done.')
 
 	def revert_corrs(self, names=['xip','xim','gammat','wtheta']):
 		print('%d correlations to process.'%len(names))

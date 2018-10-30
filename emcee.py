@@ -4,6 +4,8 @@ import scipy as sp
 import astropy.table as tb
 import os, pdb, copy
 import pylab as plt
+import imp
+emcee = imp.load_source('emcee', '/home/ssamurof/.local/lib/python2.7/site-packages/emcee')
 from tools import samplers as samp
 
 labels={"a1":"$A^{1}_\mathrm{IA}$","a2":"$A^{2}_\mathrm{IA}$","a3":"$A^{3}_\mathrm{IA}$","a4":"$A^{4}_\mathrm{IA}$","sigma8": "$\sigma_8$", "s8" : "$S_8 \equiv \sigma_8 ( \Omega_m / 0.31 ) ^{0.5}$", "w0":"$w_0$", "omega_m": "$\Omega _m$", "h" : '$h$', "ns":"$n_s$", "omega_b" : '$\Omega _b$', "shear--bias_1":"$\delta z^1$", "shear--bias_2":"$\delta z^2$", "shear--bias_3":"$\delta z^3$", "sz1":"$S_z ^1$", "sz2":"$S_z ^2$", "sz3":"$S_z ^3$", "redmagic--bias_1":"$\delta z^1$ (redmagic)", "redmagic--bias_2":"$\delta z^2$ (redmagic)", "redmagic--bias_3":"$\delta z^3$ (redmagic)", "a": "$A$", "eta": "$\eta$","A_II": "$A_{II}$", "eta_II": "$\eta_{II}$", "A_GI": "$A_{GI}$", "eta_GI": "$\eta_{GI}$", "m1":"$m_1$", "m2":"$m_2$", "m3":"$m_3$", "b_1": '$b_g^1$', "b_2" : '$b_g^2$', "b_3" : '$b_g^3$'}
@@ -15,26 +17,35 @@ parameters={"omega_m" : 'cosmological_parameters--omega_m', "s8":"cosmological_p
 fiducial = {"sigma8":0.82, "s8":0.8273733018687 ,"w0": -1.0, "omega_m":0.3156, "eta":0.0 ,"eta_ii": 0.0, "eta_gi": 0.0, "a_ii": 1.0 , "a_gi": 1.0, "a":1.0}
 
 class chain(samp.sampler):
-	def __init__(self, filename):
-		self.samples=tb.Table.read(filename, format="ascii")
-		try:
-            #import pdb ; pdb.set_trace()
-			self.post = self.samples["post"]
-			self.samples.remove_column("post")
-		except:
-			self.post = self.samples["like"]
-			self.samples.remove_column("like")
-                try:
-                        self.weight = self.samples["weight"]
-                        self.samples.remove_column("weight")
-			self.has_wt=True
-                except:
-                        self.has_wt=False
-                        print "No weight column"
-		self.wt = np.ones_like(self.post)
+	def __init__(self, filename, chain=None):
+		if (chain==None):
+			self.samples=tb.Table.read(filename, format="ascii")
+			try:
+				self.post = self.samples["post"]
+				self.samples.remove_column("post")
+
+			except:
+				self.post = self.samples["like"]
+				self.samples.remove_column("like")
+			try:
+				self.weight = self.samples["weight"]
+				self.samples.remove_column("weight")
+				self.has_wt=True
+			except:
+				self.has_wt=False
+				print "No weight column"
+
+			self.wt = np.ones_like(self.post)
+			self.mask = np.ones_like(self.post)
+
+		else:
+			print('Not loading parameter samples - using the ones provided instead.')
+			setattr(self, 'samples', chain.samples)
+			setattr(self, 'post', chain.post)
+			#setattr(self, 'has_wt', chain.has_wt)
+
 		
 
-		self.mask = np.ones_like(self.post)
 		self.bounds={}
 
 		self.filename=filename
@@ -528,6 +539,76 @@ class chain(samp.sampler):
 		os.system(cmd)
 
 		os.system("mv halfchain[1,2].txt halfchain_test")
+
+	def plot_autocorr_scale(self):
+		"""Stolen from Dan Foreman-Mackey. 
+		   See https://emcee.readthedocs.io/en/latest/tutorials/autocorr/#autocorr"""
+
+		samp = np.array([self.samples[name] for name in self.samples.dtype.names])
+		N = np.exp(np.linspace(np.log(100), np.log(samp.shape[1]), 10)).astype(int)
+
+		gw2010 = np.empty(len(N))
+		new = np.empty(len(N))
+
+		for i, n in enumerate(N):
+			gw2010[i] = autocorr_gw2010(samp[:, :n])
+			new[i] = autocorr_new(samp[:, :n])
+
+		fig = plt.figure()
+		plt.plot(N, new, color='purple', label='New')
+		plt.plot(N, gw2010, color='royalblue', label='GW10')
+		plt.xscale('log')
+		plt.yscale('log')
+		plt.ylabel(r'$\tau$')
+		plt.savefig('autocorr.png')
+		plt.close()
+
+
+def next_pow_two(n):
+    i = 1
+    while i < n:
+        i = i << 1
+    return i
+
+def autocorr_func_1d(x, norm=True):
+    x = np.atleast_1d(x)
+    if len(x.shape) != 1:
+        raise ValueError("invalid dimensions for 1D autocorrelation function")
+    n = next_pow_two(len(x))
+
+    # Compute the FFT and then (from that) the auto-correlation function
+    f = np.fft.fft(x - np.mean(x), n=2*n)
+    acf = np.fft.ifft(f * np.conjugate(f))[:len(x)].real
+    acf /= 4*n
+
+    # Optionally normalize
+    if norm:
+        acf /= acf[0]
+
+    return acf
+
+# Automated windowing procedure following Sokal (1989)
+def auto_window(taus, c):
+    m = np.arange(len(taus)) < c * taus
+    if np.any(m):
+        return np.argmin(m)
+    return len(taus) - 1
+
+# Following the suggestion from Goodman & Weare (2010)
+def autocorr_gw2010(y, c=5.0):
+    f = autocorr_func_1d(np.mean(y, axis=0))
+    taus = 2.0*np.cumsum(f)-1.0
+    window = emcee.autocorr.auto_window(taus, c)
+    return taus[window]
+
+def autocorr_new(y, c=5.0):
+    f = np.zeros(y.shape[1])
+    for yy in y:
+        f += autocorr_func_1d(yy)
+    f /= len(y)
+    taus = 2.0*np.cumsum(f)-1.0
+    window = emcee.autocorr.auto_window(taus, c)
+    return taus[window]
 
 def merge_chains(chain1, chain2):
 	if not chain1.check_compatibility(chain2):
