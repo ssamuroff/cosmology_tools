@@ -12,18 +12,18 @@ from scipy.interpolate import Rbf
 def text_to_fits(filename, keyword='fornax'):
     res = load_results0(keyword=keyword)
     fio.write(filename, res)
-    print "Wrote merged results to %s"%filename
+    print("Wrote merged results to %s"%filename)
 
 def rename(tilename):
     files = glob.glob("*fornax*.txt")
     for f in files:
         new = tilename+f
-        print new
+        print(new)
         os.system("mv %s %s"%(f, new))
 
 def concatenate_results(outfile=None):
     if not outfile:
-        print "Please specify an output filename."
+        print("Please specify an output filename.")
     import glob
     files_main = glob.glob("*main*.txt")
     files_epoch = glob.glob("*epoch*.txt")
@@ -72,22 +72,22 @@ def concatenate_results(outfile=None):
     o.close()
 
 def load_epoch(epoch_path):
-    print "Loading epoch catalogue from %s"%epoch_path
+    print("Loading epoch catalogue from %s"%epoch_path)
     import glob
     files=glob.glob("%s/*.fits"%epoch_path)
     e=[]                  
     for i, f in enumerate(files):
         e.append(pyfits.getdata(f))
-        print i, f
+        print(i, f)
 
     epoch = np.concatenate(np.array(e))
 
-    print "Found %d epoch results"%epoch.size
+    print("Found %d epoch results"%epoch.size)
 
     return epoch
 
 def get_pixel_cols(meds_path):
-    print "Loading pixel coordinate positions from %s"%meds_path
+    print("Loading pixel coordinate positions from %s"%meds_path)
     import glob
     files=glob.glob("%s/DES*.fits*"%meds_path)
 
@@ -99,14 +99,14 @@ def get_pixel_cols(meds_path):
         cid.append(m["id"])
         ti = np.array([i]*m["id"].size)
         tile_identifier.append(ti)
-        print i, f
+        print(i, f)
 
     tile_identifier = np.concatenate(tile_identifier)
     x = np.concatenate(np.array(x))
     y = np.concatenate(np.array(y))
     cid = np.concatenate(np.array(cid))
 
-    print "Found %d epoch results"%cid.size
+    print("Found %d epoch results"%cid.size)
 
     out=np.zeros(cid.size,dtype=[("coadd_objects_id", int),("ix", float),("iy", float),("tile", int) ])
     out["ix"] = x
@@ -127,7 +127,7 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     Nf=0
     i0=0
     if apply_infocuts:
-        print "Applying info flag cuts on loading."
+        print("Applying info flag cuts on loading.")
     if format=='txt':
         extra='.main'
     else:
@@ -163,15 +163,15 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
     else:
         res= np.zeros(len(files)*buff, dtype=dt)
 
-    print "initial length of buffer : %d"%res.shape
+    print("initial length of buffer : %d"%res.shape)
 
             
     for f in files:
         tile = os.path.basename(f)[:12]
         if (len(match)>0):
             if  (tile not in match):
-                #print "Excluding %s"%f
-                #print "file exists but is not in the specified list of tiles."
+                #print("Excluding %s"%f)
+                #print("file exists but is not in the specified list of tiles.")
                 continue 
         if format.lower()=="fits":
             fits = fi.FITS(f)
@@ -190,28 +190,28 @@ def load_results(res_path='None', keyword='fornax', format='txt', postprocessed=
             dat = dat[dat["info_flag"]==0]
 
         if len(additional_cuts)>0:
-            print "Applying additional cuts"
+            print("Applying additional cuts")
             count = additional_cuts.count("%s")
             cut = additional_cuts%tuple(["dat"]*count)
-            exec cut
+            exec(cut)
             dat = dat[cuts]
 
         nrows = len(dat)
         i1 = i0 + nrows
         if res[i0:i1].size<(i1-i0):
-            print "Need more space - adding %d rows to the catalogue."%((i1-i0)*2)
+            print("Need more space - adding %d rows to the catalogue."%((i1-i0)*2))
             res = np.array(astropy.table.join(res, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         res[i0:i1] = dat
         ind[tile]=(i0,i1)
        # if res[i1]!=dat[-1]:
-        #    print "ERROR: Data overflow. %d %d"%(i1, len(res))
-        print Nf, tile, "(%d-%d)"%(i0,i1)
+        #    print("ERROR: Data overflow. %d %d"%(i1, len(res)))
+        print(Nf, tile, "(%d-%d)"%(i0,i1))
         Nf+=1
         i0 += nrows
 
     res = res[:i0]
 
-    print 'Read results for %d objects from %d files.' %(len(res),len(files))
+    print('Read results for %d objects from %d files.' %(len(res),len(files)))
 
     if return_filelist:
         return res, files, ind
@@ -230,9 +230,9 @@ def load_results0(res_path='None', keyword='fornax'):
     res = np.array(astropy.table.Table.read(files[0], format='ascii')).astype(dtype=i3sdt)
     for f in files[1:]:
         res=np.concatenate((np.array(res).astype(i3sdt), np.array(astropy.table.Table.read(f, format='ascii')).astype(i3sdt)))
-        print f
+        print(f)
 
-    print 'Read results for %d objects from %d files.' %(len(res),len(files))
+    print('Read results for %d objects from %d files.' %(len(res),len(files)))
 
     return res
 
@@ -249,7 +249,7 @@ def load_results0(res_path='None', keyword='fornax'):
 #        files = glob.glob('*%s*truth.*fits*'%keyword)
 #    truth = pyfits.getdata(files[0],dtype=i3sdt)
 #    
-#    print 'Truth table contains %d objects' %len(truth)
+#    print('Truth table contains %d objects' %len(truth))
 
 #    return truth
 
@@ -265,7 +265,7 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
 
     if match:
         list_res=[os.path.basename(m)[:12] for m in match]
-        print "matching to tilelist ", list_res
+        print("matching to tilelist ", list_res)
             
         filelist=[]
         for f in files:
@@ -322,17 +322,17 @@ def load_truth(truth_path=None, keyword='DES', match=None, apply_infocuts=True, 
         i1 = i0 + nrows
 
         while truth[i0:i1].size!=(i1-i0):
-            print "Need more space - adding %d rows to the truth table."%((i1-i0)*2)
+            print("Need more space - adding %d rows to the truth table."%((i1-i0)*2))
             truth = np.array(astropy.table.join(truth, np.zeros((i1-i0)*2, dtype=dt), join_type="outer"))
         truth[i0:i1] = dat
-        print i+1, tile, "%d/%d"%(i1, len(truth))
+        print(i+1, tile, "%d/%d"%(i1, len(truth)))
         i0 += nrows 
     #truth = np.concatenate((np.array(truth), np.array(astropy.table.Table.read(f, format="fits"))))
     
                 
     truth = truth[truth[bookmark]!=0]
 
-    print 'Truth table contains %d objects' %len(truth)
+    print('Truth table contains %d objects' %len(truth))
 
     return truth
 
@@ -345,8 +345,8 @@ def info_cuts(res):
 def get_bord_results(disc,bulge):
     bm=bulge['likelihood']>disc['likelihood']
     dm=bulge['likelihood']<disc['likelihood']
-    if np.all(dm): print 'Warning: The disc fit is always chosen for these results.'
-    elif np.all(bm): print 'Warning: The bulge fit is always chosen for these results.'
+    if np.all(dm): print('Warning: The disc fit is always chosen for these results.')
+    elif np.all(bm): print('Warning: The bulge fit is always chosen for these results.')
     
     # Apply selection
     res_bulge = bulge[bm]
@@ -362,13 +362,13 @@ def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_ob
     if table3 is not None:
         third_dataset=True
         if verbose:
-            print "Found 3 catalogues to match"
+            print("Found 3 catalogues to match")
     else:
         third_dataset=False
 
     if unique:
         if verbose:
-            print "Enforcing unique entries."
+            print("Enforcing unique entries.")
         un,ind=np.unique(res[name2], return_index=True)
         res=res[ind]
         un,ind=np.unique(tr[name1], return_index=True)
@@ -381,22 +381,22 @@ def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_ob
         table3 = table3[np.argsort(table3[name3])]
 
     if verbose:
-        print "Sorting..."
+        print("Sorting...")
     tr = tr[np.argsort(tr[name1])]
     res = res[np.argsort(res[name2])]
 
     if (res.shape==tr.shape) and (np.all(res[name2]==tr[name1])):
-        print 'Matched %d objects'%len(tr[name1])
+        print('Matched %d objects'%len(tr[name1]))
     else:
         if verbose:
-            print "Matching..."
+            print("Matching...")
 
         tr = tr[np.in1d(tr[name1], res[name2])]
         res = res[np.in1d(res[name2], tr[name1])]
 
         if third_dataset:
             if verbose:
-                print "Matching to third array"
+                print("Matching to third array")
             table3 = table3[np.in1d(table3[name3], res[name2])]
             table3 = table3[np.in1d(table3[name3], tr[name1])]
 
@@ -408,11 +408,11 @@ def match_results(res,tr, table3=None, name1="coadd_objects_id", name2="coadd_ob
     return res,tr 
 
 def fast_match_results(table1, table2, name1="coadd_objects_id", name2="coadd_objects_id"):
-    print "Sorting"
+    print("Sorting")
     indices2 = np.argsort(table2[name2])
     indices1 = np.argsort(table1[name1])
 
-    print "Matching"
+    print("Matching")
     indices = np.searchsorted(table1[name1],table2[name2])
 
     return table1[indices1], table2[indices2][indices]
@@ -461,19 +461,19 @@ def truth_histograms(tr, mask, mode='show'):
     plt.xlabel('true redshift')
 
 def binned_plots(res, savedir=None):
-    print "plotting mean e vs"
+    print("plotting mean e vs")
     cols = res.dtype.names
     for c in cols:
         if not isinstance(res[c][0], float) and (c!="stamp_size"):
             continue
         if "covmat" in c or (len(np.unique(res[c]))<3.):
             continue
-        print c
+        print(c)
         
         meane_binned_plot(res, binned_by=c, savedir=savedir)
         
 
-    print "done"
+    print("done")
 
 
 
@@ -494,7 +494,7 @@ def meane_binned_plot(res, mask=None, binned_by="snr", savedir=None):
     else:
         bins = np.linspace(res[binned_by].min(), res[binned_by].max(), 9)
 
-    print "mean: %f (%f, %f)" %(q.mean(), q.min(), q.max()) 
+    print("mean: %f (%f, %f)" %(q.mean(), q.min(), q.max()) )
 
         
     meane1=[]
@@ -514,9 +514,9 @@ def meane_binned_plot(res, mask=None, binned_by="snr", savedir=None):
             meanq.append(np.mean(q[sel1]))
             varq.append(np.std(e1[sel1])/np.sqrt(len(e1[sel1])))
 
-    print bins
-    print meane1
-    print meane2
+    print(bins)
+    print(meane1)
+    print(meane2)
     if len(meane1)>0:
         plt.errorbar(meanq, meane1, yerr=vare1, fmt="o", color="m", label="$e_1$")
         plt.errorbar(meanq, meane1, yerr=vare1, fmt="-", color="m")
@@ -534,7 +534,7 @@ def meane_binned_plot(res, mask=None, binned_by="snr", savedir=None):
             plt.close()
 
 def stabilised_fit(x,y,wt):
-    print "Stabilising fit to get finite covariance (perhaps consider using more datapoints?)"
+    print("Stabilising fit to get finite covariance (perhaps consider using more datapoints?)")
     import sys
     x_new = list(x) + list(x)[-1:]
     y_new = list(y) + list(y)[-1:]
@@ -632,20 +632,20 @@ def truth_plots(res, tr, mask=None, nbins=5, mode='show', savedir=None, true_sha
         p21,covm21 = stabilised_fit(meang2,meane1_cross,1.0/vare2/vare2)
     m21,c21 = p21
 
-    print 'm11=%f +- %f'%(m11,covm11[0,0]**0.5)
-    print 'm22=%f +- %f'%(m22,covm22[0,0]**0.5)
-    print 'm12=%f +- %f'%(m12,covm12[0,0]**0.5)
-    print 'm21=%f +- %f'%(m21,covm21[0,0]**0.5)
-    print 'c11=%f +- %f'%(c11,covm11[1,1]**0.5)
-    print 'c22=%f +- %f'%(c22,covm22[1,1]**0.5)
-    print 'c12=%f +- %f'%(c12,covm12[1,1]**0.5)
-    print 'c21=%f +- %f'%(c21,covm21[1,1]**0.5)
+    print('m11=%f +- %f'%(m11,covm11[0,0]**0.5))
+    print('m22=%f +- %f'%(m22,covm22[0,0]**0.5))
+    print('m12=%f +- %f'%(m12,covm12[0,0]**0.5))
+    print('m21=%f +- %f'%(m21,covm21[0,0]**0.5))
+    print('c11=%f +- %f'%(c11,covm11[1,1]**0.5))
+    print('c22=%f +- %f'%(c22,covm22[1,1]**0.5))
+    print('c12=%f +- %f'%(c12,covm12[1,1]**0.5))
+    print('c21=%f +- %f'%(c21,covm21[1,1]**0.5))
 
-    print "Total number of galaxies : %d"%len(res)
+    print("Total number of galaxies : %d"%len(res))
 
     if "is_bulge" in res.dtype.names:
         fb = 1.0*sum(res['is_bulge'])/len(res)
-        print "Bulge fraction : %f" %(fb)
+        print("Bulge fraction : %f" %(fb))
     else:
         fb =0.0
 
@@ -748,11 +748,11 @@ def truth_plots(res, tr, mask=None, nbins=5, mode='show', savedir=None, true_sha
         p22, cov22 = np.polyfit(meang2,de2, 1, w=1.0/vard2/vard2, cov=True, full=False)
         a22,b22 = p22
     
-        print 'Using true sheared shape'
-        print 'm11_tss=%f +- %f'%(a11,cov11[0,0]**0.5)
-        print 'm22_tss=%f +- %f'%(a22,cov22[0,0]**0.5)
-        print 'c11_tss=%f +- %f'%(b11,cov11[1,1]**0.5)
-        print 'c22_tss=%f +- %f'%(b22,cov22[1,1]**0.5)
+        print('Using true sheared shape')
+        print('m11_tss=%f +- %f'%(a11,cov11[0,0]**0.5))
+        print('m22_tss=%f +- %f'%(a22,cov22[0,0]**0.5))
+        print('c11_tss=%f +- %f'%(b11,cov11[1,1]**0.5))
+        print('c22_tss=%f +- %f'%(b22,cov22[1,1]**0.5))
     
         if mode=="show":
             plt.errorbar(true_sheared_shape[0],de1,yerr=vard1, xerr=vare1int, color='m', fmt = 'o', label='$i,j=1,1$')
@@ -828,15 +828,15 @@ def truth_plots(res, tr, mask=None, nbins=5, mode='show', savedir=None, true_sha
         p21, cova21 = np.polyfit(meane2psf,meane1, 1, cov=True, full=False)
         alpha21,c21psf = p21
 
-        print 'PSF correlations:'
-        print 'alpha11=%f +- %f'%(alpha11,cova11[0,0]**0.5)
-        print 'alpha22=%f +- %f'%(alpha22,cova22[0,0]**0.5)
-        print 'alpha12=%f +- %f'%(alpha12,cova12[0,0]**0.5)
-        print 'alpha21=%f +- %f'%(alpha21,cova21[0,0]**0.5)
-        print 'c11_psf=%f +- %f'%(c11psf,cova11[1,1]**0.5)
-        print 'c22_psf=%f +- %f'%(c22psf,cova22[1,1]**0.5)
-        print 'c12_psf=%f +- %f'%(c12psf,cova12[1,1]**0.5)
-        print 'c21_psf=%f +- %f'%(c21psf,cova21[1,1]**0.5)
+        print('PSF correlations:')
+        print('alpha11=%f +- %f'%(alpha11,cova11[0,0]**0.5))
+        print('alpha22=%f +- %f'%(alpha22,cova22[0,0]**0.5))
+        print('alpha12=%f +- %f'%(alpha12,cova12[0,0]**0.5))
+        print('alpha21=%f +- %f'%(alpha21,cova21[0,0]**0.5))
+        print('c11_psf=%f +- %f'%(c11psf,cova11[1,1]**0.5))
+        print('c22_psf=%f +- %f'%(c22psf,cova22[1,1]**0.5))
+        print('c12_psf=%f +- %f'%(c12psf,cova12[1,1]**0.5))
+        print('c21_psf=%f +- %f'%(c21psf,cova21[1,1]**0.5))
     
         if mode=="show":
             plt.errorbar(meane1psf,meane1,yerr=vare1, color='m', fmt = 'o', label='$i,j=1,1$')
@@ -903,7 +903,7 @@ def histograms_2d(savedir, res):
     for i, t1 in enumerate(res.dtype.names):
         for j, t2 in enumerate(res.dtype.names):
             if (t1 in relevant_parameters) and (t2 in relevant_parameters) and (j>i):
-                print "%d %d parameters: %s %s" %(i,j, t1,t2)
+                print("%d %d parameters: %s %s" %(i,j, t1,t2))
                 plt.hist2d(res[t1], res[t2],bins=80)
                 plt.xlabel(t1)
                 plt.ylabel(t2)
@@ -917,7 +917,7 @@ def plot_correlations_obs(savedir, res):
     for i, t1 in enumerate(res.dtype.names):
         for j, t2 in enumerate(res.dtype.names):
             if (t1 in relevant_parameters) and (t2 in relevant_parameters) and (j>i):
-                print "%d %d parameters: %s %s" %(i,j, t1,t2)
+                print("%d %d parameters: %s %s" %(i,j, t1,t2))
                 plt.scatter(res[t1], res[t2])
                 plt.xlabel(t1)
                 plt.ylabel(t2)
@@ -930,7 +930,7 @@ def histograms_1d(savedir, res_sim, res_data=None):
     os.system("mkdir -p %s/histograms"%savedir)
     for i, t in enumerate(res_sim.dtype.names):
         if (t in relevant_parameters):
-            print "%d %s" %(i, t)
+            print("%d %s" %(i, t))
             plt.hist(res_sim[t], bins=80, histtype="step", color="m", normed=1.0, label="simulation")
             if res_data:
                 plt.hist(res_sim[t], bins=80, histtype="step", color="m", normed=1.0, label="data")
@@ -964,7 +964,7 @@ def extract_weighted_cosmos_sample(catfile, cosmosfile= "/share/des/disc2/image-
         sel=np.random.randint(0, len(dat['mag_auto'][(dat['mag_auto']>e1[i]) & (dat['mag_auto']<e2[i])]), 1)
         ident+= list(dat['ident'][(dat['mag_auto']>e1[i]) & (dat['mag_auto']<e2[i])][sel])
         y+=list(dat['mag_auto'][(dat['mag_auto']>e1[i]) & (dat['mag_auto']<e2[i])][sel])
-        print i
+        print(i)
     
     return np.array(ident), np.array(y)    
 
@@ -1066,15 +1066,15 @@ def psf_leakage(res, savedir=None, mode="show", equal_number_bins=False):
     p21, cova21 = np.polyfit(meane2psf,meane1, 1, cov=True, w=1./vare2/vare2,full=False)
     alpha21,c21psf = p21
 
-    print 'PSF correlations:'
-    print 'alpha11=%f +- %f'%(alpha11,cova11[0,0]**0.5)
-    print 'alpha22=%f +- %f'%(alpha22,cova22[0,0]**0.5)
-    print 'alpha12=%f +- %f'%(alpha12,cova12[0,0]**0.5)
-    print 'alpha21=%f +- %f'%(alpha21,cova21[0,0]**0.5)
-    print 'c11_psf=%f +- %f'%(c11psf,cova11[1,1]**0.5)
-    print 'c22_psf=%f +- %f'%(c22psf,cova22[1,1]**0.5)
-    print 'c12_psf=%f +- %f'%(c12psf,cova12[1,1]**0.5)
-    print 'c21_psf=%f +- %f'%(c21psf,cova21[1,1]**0.5)    
+    print('PSF correlations:')
+    print('alpha11=%f +- %f'%(alpha11,cova11[0,0]**0.5))
+    print('alpha22=%f +- %f'%(alpha22,cova22[0,0]**0.5))
+    print('alpha12=%f +- %f'%(alpha12,cova12[0,0]**0.5))
+    print('alpha21=%f +- %f'%(alpha21,cova21[0,0]**0.5))
+    print('c11_psf=%f +- %f'%(c11psf,cova11[1,1]**0.5))
+    print('c22_psf=%f +- %f'%(c22psf,cova22[1,1]**0.5))
+    print('c12_psf=%f +- %f'%(c12psf,cova12[1,1]**0.5))
+    print('c21_psf=%f +- %f'%(c21psf,cova21[1,1]**0.5)    )
     plt.errorbar(meane1psf,meane1,yerr=vare1, color='m', fmt = 'o', label='$i,j=1,1$')
     plt.plot(meane1psf, np.array(meane1psf)*alpha11+c11psf, c='m')
     plt.errorbar(meane2psf,meane2,yerr=vare2, color='b', fmt='o', label='$i,j=2,2$')
@@ -1123,12 +1123,12 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
     if method not in methods:
         raise ValueError("Unrecognised method: %s"%method)
     else:
-        print "Generating bootstrap errorbars: %s"%method
-        print "Using %d samples"%nsubsamples
+        print("Generating bootstrap errorbars: %s"%method)
+        print("Using %d samples"%nsubsamples)
     resampled = []
     if isinstance(full_cat, tuple) and (len(full_cat)==2):
         if len(columns_needed)>0:
-            print "Using selected columns"
+            print("Using selected columns")
             dtx= [ ( n, str(full_cat[0].dtype[n]) ) for n in full_cat[0].dtype.names if n in columns_needed] 
             dty= [ ( n, str(full_cat[1].dtype[n]) ) for n in full_cat[1].dtype.names if n in columns_needed]
             dt = np.dtype(dtx + dty)
@@ -1163,13 +1163,13 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
         ndir = int(np.sqrt(nsubsamples))
         ra_bins = find_bin_edges(ydata["ra"], ndir)
         ra_bins = zip(ra_bins[:-1], ra_bins[1:] )
-        print "Splitting data into %dx%d bootstrap patches"%(ndir,ndir)
+        print("Splitting data into %dx%d bootstrap patches"%(ndir,ndir))
 
         ira = 0
         idec= 0
 
     for i in xrange(nsubsamples):
-        print "    %d"%(i+1)
+        print("    %d"%(i+1))
 
         if (method=="split"):
             b_low = bootstrap_edges[i]
@@ -1199,11 +1199,11 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
         elif (method=="random"):
             indices = np.random.rand(ntot)<sample_frac #np.random.choice(ntot-1,resample_length)
         elif (method=="cosmos"):
-            print "Subdividing catalogue by COSMOS identifier"
+            print("Subdividing catalogue by COSMOS identifier")
             cosmos_ids = np.unique(xdata["cosmos_ident"])
             selected_ids = np.random.choice(cosmos_ids, cosmos_ids.size/2, replace=False)
             indices = np.in1d(xdata["cosmos_ident"], selected_ids)
-        #print "bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low)
+        #print("bootstrap subsample %d (%d-%d)"%(i+1, b_high, b_low))
         if additional_args is None:
             if not separate_xy:
                 derived_quantity = operation( full_cat[indices])
@@ -1225,7 +1225,7 @@ def bootstrap_error(nsubsamples, full_cat, operation, additional_args=None, addi
                     dat = data[indices]
                     derived_quantity = operation(dat, dat, **kwargs)
 
-            #print derived_quantity
+            #print(derived_quantity)
 
 
         resampled.append(derived_quantity)
@@ -1253,9 +1253,9 @@ def find_bin_edges(x,nbins,w=None):
     r=np.zeros((nbins+1))
     ist=0
     for j in xrange(1,nbins):
-      # print k[j],r[j-1]
+      # print(k[j],r[j-1])
       if k[j]<r[j-1]:
-        print 'Random weight approx. failed - attempting brute force approach'
+        print('Random weight approx. failed - attempting brute force approach')
         fail=True
         break
       w0=np.sum(w[i[ist:k[j]]])
@@ -1296,7 +1296,7 @@ def find_bin_edges(x,nbins,w=None):
 def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/home/samuroff/shear_pipeline/im3shape-weights_column.fits", sbins=15, rbins=15, binning="equal_number", simdat=None):
 
     if len(data.dtype.names)>3:
-        print "Extracting columns required"
+        print("Extracting columns required")
         placeholder=data
         data = np.zeros(data.size, dtype=[("snr", float ), ("mean_rgpp_rp", float), ("e1", float)])
         for col in data.dtype.names:
@@ -1308,14 +1308,14 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
         rgpp = (np.unique(bt["rgp_lower"])+np.unique(bt["rgp_upper"]))/2
         nbins = rgpp.size
 
-        print "Will evaluate weights on grid from %s"%table
+        print("Will evaluate weights on grid from %s"%table)
     elif (binning is "equal_number"):
         bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
         bins = find_bin_edges(data["mean_rgpp_rp"], rbins)
         bt["rgp_lower"] = bins[:-1]
         bt["rgp_upper"] = bins[1:]
     else:
-        print "Using log bins in rgpp"
+        print("Using log bins in rgpp")
         bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
         bt["rgp_lower"] = np.logspace(np.log10(1.13),np.log10(3),rbins+1)[:-1]
         bt["rgp_upper"] = np.logspace(np.log10(1.13),np.log10(3),rbins+1)[1:]
@@ -1355,7 +1355,7 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
                 wt_sim = 0
                 nsim = 0
 
-            print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
+            print("%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal))
 
             wt_vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, wt, nsim, wt_sim, method ])
 
@@ -1364,7 +1364,7 @@ def im3shape_weights_grid(data, bins_from_table=True, table=None, filename="/hom
 
         out_table = np.zeros(len(wt_vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", float), ("inverse_weight", float), ("nsim", float), ("simulation_inverse_weight", float), ("method", int)])
         for i, col in enumerate(out_table.dtype.names):
-            print "Writing column %s"%col
+            print("Writing column %s"%col)
             out_table[col] = np.array(wt_vec).T[i]
 
         out_fits.write(out_table, clobber=True)
@@ -1387,7 +1387,7 @@ def compute_im3shape_weight(e1, verbose=True, return_method=False):
 
     if (not np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
         if verbose:
-            print "WARNING fit variance is not finite: %2.4f"%simga_direct
+            print("WARNING fit variance is not finite: %2.4f"%simga_direct)
         method = 0
         if return_method:
             sigma_direct = (sigma_direct, method)
@@ -1396,7 +1396,7 @@ def compute_im3shape_weight(e1, verbose=True, return_method=False):
 
     elif (np.isfinite(sigma_fit)) and (not np.isfinite(sigma_direct)):
         if verbose:
-            print "WARNING direct variance estimate is not finite: %2.4f"%sigma_fit
+            print("WARNING direct variance estimate is not finite: %2.4f"%sigma_fit)
         method = 1
         if return_method:
             sigma_fit = (sigma_fit, method)
@@ -1404,7 +1404,7 @@ def compute_im3shape_weight(e1, verbose=True, return_method=False):
         return sigma_fit
     elif (np.isfinite(sigma_fit)) and (np.isfinite(sigma_direct)):
         if verbose:
-            print "Using the maximum of direct : %2.4f, best fit : %2.4f"%(sigma_direct,sigma_fit)
+            print("Using the maximum of direct : %2.4f, best fit : %2.4f"%(sigma_direct,sigma_fit))
 
         var = max(sigma_direct,sigma_fit)
         method = int(sigma_fit==var)
@@ -1414,7 +1414,7 @@ def compute_im3shape_weight(e1, verbose=True, return_method=False):
         return var
 
     else:
-        print "WARNING: neither variance estimate is finite. Using default (0.25)"
+        print("WARNING: neither variance estimate is finite. Using default (0.25)")
         var = 0.25
         if return_method:
             var = (var, -1)
@@ -1423,7 +1423,7 @@ def compute_im3shape_weight(e1, verbose=True, return_method=False):
 def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, save=True, outdir=".", outfile="im3shape_weights.fits"):
     from scipy.interpolate import Rbf
     # Set up the interpolator with some fixed scale factor
-    print "Setting up variance interpolator"
+    print("Setting up variance interpolator")
     rgpp = np.sqrt(weights_grid["rgpp_lower"] * weights_grid["rgpp_upper"])
     snr = np.sqrt(weights_grid["snr_lower"] * weights_grid["snr_upper"])
     fx = np.log10(snr).max()
@@ -1433,35 +1433,35 @@ def interpolate_weights_grid(weights_grid, target_data, smoothing=1.0, save=True
 
     import pdb ; pdb.set_trace()
 
-    print "Performing interpolation"
+    print("Performing interpolation")
     ngal = target_data["snr"].size
     if ngal<10e6:
         interpolated_sigma = interpolator( np.log10(target_data["snr"])/fx, np.log10(target_data["mean_rgpp_rp"])/fy )
     else:
-        print "Splitting array"
+        print("Splitting array")
         ngal = target_data["snr"].size
         nchunk = ngal/8
         interpolated_sigma=[]
         for i in xrange(8):
-            print i
+            print(i)
             interpolated_sigma.append( interpolator( np.log10(target_data["snr"][i*nchunk:(i+1)*nchunk])/fx, np.log10(target_data["mean_rgpp_rp"][i*nchunk:(i+1)*nchunk])/fy ) )
         if ngal!=8*nchunk:
             interpolated_sigma.append( interpolator( np.log10(target_data["snr"][(i+1)*nchunk:])/fx, np.log10(target_data["mean_rgpp_rp"][(i+1)*nchunk:])/fy ) )
 
         interpolated_sigma = np.concatenate(interpolated_sigma)
 
-    print "Setting up output arrays"
+    print("Setting up output arrays")
     out = np.empty(target_data.size, dtype=[("coadd_objects_id", int), ("weight", float)])
     out["coadd_objects_id"] = target_data["coadd_objects_id"] 
     out["weight"] = 1./(interpolated_sigma * interpolated_sigma)
 
     if save:
-        print "Saving output to %s/%s"%(outdir, outfile)
+        print("Saving output to %s/%s"%(outdir, outfile))
         out_fits = fi.FITS("%s/%s"%(outdir, outfile), "rw")
         out_fits.write(out)
         out_fits[-1].write_key("EXTNAME", "i3s_weights_col")
         out_fits.close()
-        print "Done"
+        print("Done")
 
     return out
 
@@ -1505,15 +1505,15 @@ def get_bias(xdata, catalogue, external_calibration_col=None, use_catalogue_weig
             e2 = catalogue["intrinsic_e2"][sel] + g2
 
     if weights is not None:
-        print "Will use weights provided"
+        print("Will use weights provided")
         w = weights[sel]
     else:
         w = np.ones_like(e1)
 
     if apply_calibration:
-        print "Applying calibration columns"
+        print("Applying calibration columns")
         if external_calibration_col is not None:
-            print "Using external calibration column"
+            print("Using external calibration column")
             c1 = external_calibration_col["c1"][sel]
             c2 = external_calibration_col["c2"][sel]
             m = external_calibration_col["m"][sel]
@@ -1522,7 +1522,7 @@ def get_bias(xdata, catalogue, external_calibration_col=None, use_catalogue_weig
             c1 = catalogue["c1"][sel]
             c2 = catalogue["c2"][sel]
         else:
-            print "No additive column found"
+            print("No additive column found")
             c1 = np.zeros_like(e1)
             c2 = np.zeros_like(e1)
     else:
@@ -1611,14 +1611,14 @@ def get_bias(xdata, catalogue, external_calibration_col=None, use_catalogue_weig
         plt.legend(loc="lower left")
 
     if not silent:
-        print 'm11=%f +- %f'%(m11,cov11[0,0]**0.5)
-        print 'm22=%f +- %f'%(m22,cov22[0,0]**0.5)
-        print 'm12=%f +- %f'%(m12,cov12[0,0]**0.5)
-        print 'm21=%f +- %f'%(m21,cov21[0,0]**0.5)
-        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
-        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
-        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
-        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
+        print('m11=%f +- %f'%(m11,cov11[0,0]**0.5))
+        print('m22=%f +- %f'%(m22,cov22[0,0]**0.5))
+        print('m12=%f +- %f'%(m12,cov12[0,0]**0.5))
+        print('m21=%f +- %f'%(m21,cov21[0,0]**0.5))
+        print('c11=%f +- %f'%(c11,cov11[1,1]**0.5))
+        print('c22=%f +- %f'%(c22,cov22[1,1]**0.5))
+        print('c12=%f +- %f'%(c12,cov12[1,1]**0.5))
+        print('c21=%f +- %f'%(c21,cov21[1,1]**0.5))
 
     m = (m11+m22)/2
     c = (c11+c22)/2
@@ -1684,7 +1684,7 @@ def get_selection_to_match(target, unweighted, nbins=40, xlim=(None,None), exist
     for i, edges in enumerate(zip(bins_uw[:-1], bins_uw[1:])):
         lower = edges[0]
         upper = edges[1]
-        print "%d [%2.3f-%2.3f]"%(i,lower,upper)
+        print("%d [%2.3f-%2.3f]"%(i,lower,upper))
 
         select_subset = (unweighted<upper) & (unweighted>lower)
         nbin = mask[select_subset].size
@@ -1695,7 +1695,7 @@ def get_selection_to_match(target, unweighted, nbins=40, xlim=(None,None), exist
         nremove = nbin - bin_frac*nbin
         nremove = int(nremove)
 
-        print "Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin))
+        print("Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin)))
 
         indices_to_keep = np.random.choice(range(nbin), nremove, replace=False)
         mask_subset[indices_to_keep] = 0
@@ -1730,7 +1730,7 @@ def get_selection_to_match_3d(target, unweighted, nbins=40, xlim=(None,None), ex
         for j, edges1 in enumerate(zip(bins_uw[1][:-1], bins_uw[1][1:])):
             for k, edges2 in enumerate(zip(bins_uw[2][:-1], bins_uw[2][1:])):
 
-                print "%d %d %d [%2.3f-%2.3f] [%2.3f-%2.3f] [%2.3f-%2.3f]"%(i,j,k, edges0[0], edges0[1], edges1[0], edges1[1], edges2[0], edges2[1])
+                print("%d %d %d [%2.3f-%2.3f] [%2.3f-%2.3f] [%2.3f-%2.3f]"%(i,j,k, edges0[0], edges0[1], edges1[0], edges1[1], edges2[0], edges2[1]))
 
                 select_subset = (unweighted[0]<edges0[1]) & (unweighted[0]>edges0[0]) & (unweighted[1]<edges1[1]) & (unweighted[1]>edges1[0]) & (unweighted[2]<edges2[1]) & (unweighted[2]>edges2[0])
                 nbin = mask[select_subset].size
@@ -1742,7 +1742,7 @@ def get_selection_to_match_3d(target, unweighted, nbins=40, xlim=(None,None), ex
                 nremove = nbin - bin_frac*nbin
                 nremove = int(nremove)
 
-                print "Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin))
+                print("Selecting %d/%d (%2.3f pc)"%(nbin-nremove,nbin, 100.*(1-nremove*1.0/nbin)))
 
                 indices_to_keep = np.random.choice(range(nbin), nremove, replace=False)
                 mask_subset[indices_to_keep] = 0
@@ -1771,7 +1771,7 @@ def get_weights_to_match(target, unweighted, nbins=60, xlim=(None,None), existin
     return p_tar(unweighted)/p_uw(unweighted)
 
 def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), verbose=False):
-    print "Constructing histograms."
+    print("Constructing histograms.")
     if (xlim[0] is not None) or (ylim[0] is not None):
         rge=(xlim,ylim)
     else:
@@ -1783,7 +1783,7 @@ def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), ver
     if (target[1].size!=source[1].size):
         trunc = min(target[1].size,source[1].size)
         if verbose: 
-            print "Enforcing equal sized arrays. Size %d"%trunc
+            print("Enforcing equal sized arrays. Size %d"%trunc)
 
         target_pool = [[],[]]
         source_pool = [[],[]]     
@@ -1803,7 +1803,7 @@ def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), ver
 
         for j, edges_inner in enumerate(zip(y_tar[:-1], y_tar[1:])):
             if verbose:
-                print "Processing node (%d %d) edges : [%3.3f - %3.3f] [%3.3f - %3.3f]"%(i+1, j+1, edges[0], edges[1], edges_inner[0], edges_inner[1])
+                print("Processing node (%d %d) edges : [%3.3f - %3.3f] [%3.3f - %3.3f]"%(i+1, j+1, edges[0], edges[1], edges_inner[0], edges_inner[1]))
 
             target_inner = (tg>edges_inner[0]) & (tg<edges_inner[1])
             source_inner = (sc>edges_inner[0]) & (sc<edges_inner[1])
@@ -1822,7 +1822,7 @@ def get_2d_wts(target, source, nbins=60, xlim=(None,None), ylim=(None,None), ver
 
 
 def get_nd_wts(target, source, nbins=60, verbose=False):
-    print "Constructing histograms."
+    print("Constructing histograms.")
 
     # work out the number of dimensions required
     # Define the binning in each
@@ -1836,7 +1836,7 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
         edges.append(zip( bin_centres[:-1], bin_centres[1:]))
     ndim = len(bounds)
     if verbose:
-        print "Found %d dimensions"%ndim
+        print("Found %d dimensions"%ndim)
     bins_all = np.meshgrid(*bins)
 
     wts = np.zeros(source[0].size)
@@ -1845,7 +1845,7 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
     if (target[1].size!=source[1].size):
         trunc = min(target[1].size,source[1].size)
         if verbose: 
-            print "Enforcing equal sized arrays. Size %d"%trunc
+            print("Enforcing equal sized arrays. Size %d"%trunc)
         target_pool = []
         source_pool = []     
         for i in xrange(ndim):
@@ -1860,7 +1860,7 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
 
     for i in xrange(ntot):
         if verbose:
-                print "Processing node %d/%d edges : "%(i+1, ntot),
+                print("Processing node %d/%d edges : "%(i+1, ntot),)
         data_source = source_pool
         data_target = target_pool
         selection = np.ones_like(wts).astype(bool)
@@ -1868,7 +1868,7 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
             bin_index = dimension[0].flatten()[i]
             lower,upper = dimension[1][bin_index][0], dimension[1][bin_index][1]
 
-            if verbose: print "[%3.3f - %3.3f]"%(lower,upper),
+            if verbose: print("[%3.3f - %3.3f]"%(lower,upper),)
             selection = selection & (source[j]<upper) & (source[j]>lower)
             selection_source = (data_source[j]<upper) & (data_source[j]>lower)
             data_source = [ dat[selection_source] for dat in data_source]
@@ -1877,11 +1877,11 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
 
         try:
             wts[selection] = data_target[0].size * 1.0 / data_source[0].size 
-            if verbose: print ""
+            if verbose: print("")
 
         except:
             wts[selection] = 0.0
-            if verbose: print 0
+            if verbose: print(0)
 
 
     wts[np.invert(np.isfinite(wts))]=0
@@ -1894,7 +1894,7 @@ def get_nd_wts(target, source, nbins=60, verbose=False):
 def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(None,None), split=False, do_diagnostic_plot=False):
     """Return a 2d weight grid which will force one distribution to look like another."""
 
-    print "Constructing histograms."
+    print("Constructing histograms.")
     n_uw, x_uw , y_uw= np.histogram2d(unweighted[0], unweighted[1], bins=nbins, normed=False,)
     n_tar, x_tar, y_tar = np.histogram2d(target[0], target[1], bins=nbins, normed=False)
 
@@ -1907,8 +1907,8 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
         fy = np.log10(y_tar).max()
 
     import scipy.interpolate
-    print "Setting up interpolators...",
-    print "1",
+    print("Setting up interpolators...",)
+    print("1",)
     x_tar = (x_tar[1:]+x_tar[:-1])/2.
     y_tar = (y_tar[1:]+y_tar[:-1])/2.
     xx,yy=np.meshgrid(x_tar,y_tar)
@@ -1916,7 +1916,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
     p_tar = setup_rbf_interpolator(xx.flatten(), yy.flatten(), n_tar.flatten(), logx=True, logy=True, scale=[fx,fy])
 
     
-    print "2"
+    print("2")
     x_uw = (x_uw[1:]+x_uw[:-1])/2.
     y_uw = (y_uw[1:]+y_uw[:-1])/2.
     xx0,yy0 = np.meshgrid(x_uw,y_uw)
@@ -1930,7 +1930,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
         samples = p_tar(np.log10(mcx)/fx, np.log10(mcy)/fy)
         pl.interpolator_diagnostic(n_tar, xx.flatten(), yy.flatten(), samples, mcx, mcy)
 
-    print "Interpolating to data."
+    print("Interpolating to data.")
 
     if not split:
         try:
@@ -1938,7 +1938,7 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
             ps = p_uw(np.log10(unweighted[0])/fx, np.log10(unweighted[1])/fy)/norm_s
             p = pt/ps *  (ps>1e-4).astype(int)
         except Exception as error:
-            print "Whole array interpolation did not work. The error was", error
+            print("Whole array interpolation did not work. The error was", error)
             split=True
 
     if split:
@@ -1949,16 +1949,16 @@ def get_weights_surface(target, unweighted, nbins=90, xlim=(None,None), ylim=(No
 
         while not stalle:
             lpiece = ngal/npieces
-            print "Trying %d pieces of length %3.3f M ..."%(npieces, lpiece/1e6),
+            print("Trying %d pieces of length %3.3f M ..."%(npieces, lpiece/1e6),)
             for n in xrange(npieces):
                 pt = p_tar(np.log10(unweighted[0][n*lpiece : (n+1)*lpiece])/fx, np.log10(unweighted[1][n*lpiece : (n+1)*lpiece])/fy)
                 ps = p_uw(np.log10(unweighted[0][n*lpiece : (n+1)*lpiece])/fx, np.log10(unweighted[1][n*lpiece : (n+1)*lpiece])/fy)
                 p[n*lpiece : (n+1)*lpiece] = pt/ps * ((ps>1e-3) & (pt>1e-3)).astype(int)
-            print "done."
+            print("done.")
 
             stalle = True
 #            except:
-#                print "no - will try again."
+#                print("no - will try again.")
 #                npieces *= 2
 #                continue
 
@@ -1991,7 +1991,7 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
         R2 = np.ones(catalogue.size)
 
     if weights is not None:
-        print "Will use weights provided"
+        print("Will use weights provided")
         w = weights[sel]
     else:
         w = np.ones_like(e1)
@@ -2003,20 +2003,20 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
             m = catalogue["m"][sel]
             c1 = catalogue["c1"][sel]
             c2 = catalogue["c2"][sel]
-            print "Applying calibration columns"
+            print("Applying calibration columns")
         else:
             m = external_calibration_col["m"][sel]
             c1 = external_calibration_col["c1"][sel]
             c2 = external_calibration_col["c2"][sel]
-            print "Applying external calibration columns"
+            print("Applying external calibration columns")
     else:
         m = np.zeros_like(e1)
         c1 = np.zeros_like(e1)
         c2 = np.zeros_like(e1)
 
     if  ("weight" not in catalogue.dtype.names) and (use_weights):
-        print "Warning: you set use_weights=True, but there is no weights column."
-        print "using unweighted values."
+        print("Warning: you set use_weights=True, but there is no weights column.")
+        print("using unweighted values.")
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -2064,10 +2064,10 @@ def correlate_scalar(xdata, catalogue, nbins=5, external_calibration_col=None, u
 
 
     if not silent:
-        print 'alpha11=%f +- %f'%(m11,cov11[0,0]**0.5)
-        print 'alpha22=%f +- %f'%(m22,cov22[0,0]**0.5)
-        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
-        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
+        print('alpha11=%f +- %f'%(m11,cov11[0,0]**0.5))
+        print('alpha22=%f +- %f'%(m22,cov22[0,0]**0.5))
+        print('c11=%f +- %f'%(c11,cov11[1,1]**0.5))
+        print('c22=%f +- %f'%(c22,cov22[1,1]**0.5))
 
     m = (m11+m22)/2
     c = (c11+c22)/2
@@ -2125,7 +2125,7 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
         R2 = np.ones(catalogue.size)
 
     if weights is not None:
-        print "Will use weights provided"
+        print("Will use weights provided")
         w = weights[sel]
     else:
         w = np.ones_like(e1)
@@ -2137,20 +2137,20 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
             m = catalogue["m"][sel]
             c1 = catalogue["c1"][sel]
             c2 = catalogue["c2"][sel]
-            print "Applying calibration columns"
+            print("Applying calibration columns")
         else:
             m = external_calibration_col["m"][sel]
             c1 = external_calibration_col["c1"][sel]
             c2 = external_calibration_col["c2"][sel]
-            print "Applying external calibration columns"
+            print("Applying external calibration columns")
     else:
         m = np.zeros_like(e1)
         c1 = np.zeros_like(e1)
         c2 = np.zeros_like(e1)
 
     if  ("weight" not in catalogue.dtype.names) and (use_weights):
-        print "Warning: you set use_weights=True, but there is no weights column."
-        print "using unweighted values."
+        print("Warning: you set use_weights=True, but there is no weights column.")
+        print("using unweighted values.")
 
     if isinstance(binning,str):
         if binning=="equal_number":
@@ -2218,14 +2218,14 @@ def get_alpha(xdata, catalogue, nbins=5, external_calibration_col=None, use_cata
     m21,c21 = p21
 
     if not silent:
-        print 'alpha11=%f +- %f'%(m11,cov11[0,0]**0.5)
-        print 'alpha22=%f +- %f'%(m22,cov22[0,0]**0.5)
-        print 'alpha12=%f +- %f'%(m12,cov12[0,0]**0.5)
-        print 'alpha21=%f +- %f'%(m21,cov21[0,0]**0.5)
-        print 'c11=%f +- %f'%(c11,cov11[1,1]**0.5)
-        print 'c22=%f +- %f'%(c22,cov22[1,1]**0.5)
-        print 'c12=%f +- %f'%(c12,cov12[1,1]**0.5)
-        print 'c21=%f +- %f'%(c21,cov21[1,1]**0.5)
+        print('alpha11=%f +- %f'%(m11,cov11[0,0]**0.5))
+        print('alpha22=%f +- %f'%(m22,cov22[0,0]**0.5))
+        print('alpha12=%f +- %f'%(m12,cov12[0,0]**0.5))
+        print('alpha21=%f +- %f'%(m21,cov21[0,0]**0.5))
+        print('c11=%f +- %f'%(c11,cov11[1,1]**0.5))
+        print('c22=%f +- %f'%(c22,cov22[1,1]**0.5))
+        print('c12=%f +- %f'%(c12,cov12[1,1]**0.5))
+        print('c21=%f +- %f'%(c21,cov21[1,1]**0.5))
 
     m = (m11+m22)/2
     c = (c11+c22)/2
@@ -2291,7 +2291,7 @@ def find_distance_self(array, name="cosmos_ident", check_array=[], verbose=True)
     ind=[]
 
 
-    print "Found %d unique ids."%ids.size
+    print("Found %d unique ids."%ids.size)
     for n, i in enumerate(ids):
         if len(check_array)!=0:
             if array["DES_id"][array[name]==i][0] in check_array["coadd_objects_id"]:
@@ -2316,7 +2316,7 @@ def find_distance_self(array, name="cosmos_ident", check_array=[], verbose=True)
        # R[select] = result
 
         if verbose:
-            print n, i
+            print(n, i)
 
     R = np.array(R)*60*60/0.27
     ind = np.array(ind).astype(int)
@@ -2344,16 +2344,16 @@ def extract_cosmos_column(cosmos, target, column_name, outfile=None, start_point
     else:
         reference=[]
 
-    print "Writing to disc %s"%outfile
+    print("Writing to disc %s"%outfile)
     f = open(outfile, "wa")
 
-    print "Found %d unique ids."%ids.size
+    print("Found %d unique ids."%ids.size)
 
-    print "Will start from element %d"%start_point
+    print("Will start from element %d"%start_point)
 
     for n, i in enumerate(target["cosmos_ident"][start_point:]):
         if "%d"%target["DES_id"][n] in reference:
-            print "%d %d -- already done "%(n, i)
+            print("%d %d -- already done "%(n, i))
             continue 
         val = cosmos[cosmos["ident"]==i][0][column_name]
         if return_vals: 
@@ -2361,11 +2361,11 @@ def extract_cosmos_column(cosmos, target, column_name, outfile=None, start_point
 
         f.write("%d %f \n"%(target["DES_id"][n],val))
 
-        print n, i
+        print(n, i)
     f.close()
 
     if return_vals:
-        print "packaging array"
+        print( "packaging array")
 
         out = np.zeros(len(column), dtype=(column[0].dtype, "%s"%column_name))
         out[column_name] = column
@@ -2379,7 +2379,7 @@ def extract_cosmos_column(cosmos, target, column_name, outfile=None, start_point
 def get_correct_boxsize(cosmos, results, truth):
     f = np.sqrt(-2*np.log(0.5))
     for i, row in enumerate(results):
-        print i
+        print(i)
         c = cosmos[cosmos["ident"]==data["cosmos_ident"]]
         rp = f * results["mean_hsm_psf_sigma"]/3
 
@@ -2410,7 +2410,7 @@ def setup_rbf_interpolator(x, y, z, logx=True, logy=True, scale=[]):
 
 def dilute_shear(dilution_factor, data):
 
-    print "WARNING : Will dilute shear by factor of %3.3f"%dilution_factor
+    print("WARNING : Will dilute shear by factor of %3.3f"%dilution_factor)
 
     ntot = data.size
     nscramble = int(dilution_factor*ntot)
@@ -2427,12 +2427,12 @@ def reassign_random_shears(mask, data):
     ngal = data[mask].size
     ntot = data.size
 
-    print "WARNING : Will randomise shears of %d galaxies (%3.3f percent of total)"%(ngal, ngal*100.0/ntot)
+    print("WARNING : Will randomise shears of %d galaxies (%3.3f percent of total)"%(ngal, ngal*100.0/ntot))
 
     g1 = np.random.rand(ngal)*0.16-0.08
     g2 = np.random.rand(ngal)*0.16-0.08
 
-    print np.mean(g1), np.mean(g2)
+    print(np.mean(g1), np.mean(g2))
 
     data["true_g1"][mask] = g1
     data["true_g2"][mask] = g2
@@ -2443,16 +2443,16 @@ def get_heymans_number_density(catalogue, external_weights_column=None):
     fac = 60.
     area = np.unique(catalogue["tilename"]).size * 0.75 * 0.75 * fac * fac
     num = catalogue["e1"].size
-    print "Total area : %3.3f deg^2"%(area/fac/fac)
+    print("Total area : %3.3f deg^2"%(area/fac/fac))
 
     if (external_weights_column==None) and ("weight" in catalogue.dtype.names):
         wts = catalogue["weight"]
     elif (external_weights_column!=None):
-        print "Using external weights column"
+        print("Using external weights column")
         wts = external_weights_column
     else:
         wts = np.ones(num)
-        print "Warning : no weight column found. Will return raw number density."
+        print("Warning : no weight column found. Will return raw number density.")
         return (wts.sum())**2 / (wts*wts).sum() / area
 
     nraw = num/area
@@ -2464,16 +2464,16 @@ def get_chang_number_density(catalogue, external_weights_column=None, component=
     fac = 60.
     area = np.unique(catalogue["tilename"]).size * 0.75 * 0.75 * fac * fac
     num = catalogue["e1"].size
-    print "Total area : %3.3f deg^2"%(area/fac/fac)
+    print("Total area : %3.3f deg^2"%(area/fac/fac))
 
     if (external_weights_column==None) and ("weight" in catalogue.dtype.names):
         wts = catalogue["weight"]
     elif (external_weights_column!=None):
-        print "Using external weights column"
+        print("Using external weights column")
         wts = external_weights_column
     else:
         wts = np.ones(num)
-        print "Warning : no weight column found. Will return raw number density."
+        print("Warning : no weight column found. Will return raw number density.")
         return (wts.sum())**2 / (wts*wts).sum() / area
 
     e = catalogue["e%d"%component] #np.sqrt(catalogue["e1"]*catalogue["e1"] + catalogue["e2"]*catalogue["e2"])
@@ -2500,7 +2500,7 @@ def reduce(x, y, nbins=6, bin_type="equal", xlim=(-np.inf,np.inf), ylim=(-np.inf
     yvec=[]
 
     for i, (lower,upper) in enumerate(zip(bins[:-1],bins[1:])):
-        print i, lower, upper
+        print(i, lower, upper)
         select = (x<upper) & (x>lower)
         xvec.append([x[select].mean(), x[select].std(), x[select].size ])
         ysel = (y>ylim[0]) & (y<ylim[1])
@@ -2511,7 +2511,7 @@ def reduce(x, y, nbins=6, bin_type="equal", xlim=(-np.inf,np.inf), ylim=(-np.inf
 
 def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200], filename="/share/des/disc7/samuroff/hoopoe-bulge-disc-grid.fits"):
 
-    print "Using log bins in rgpp"
+    print("Using log bins in rgpp")
     bt=np.zeros(rbins, dtype=[("rgp_lower", float), ("rgp_upper", float)])
     bt["rgp_lower"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[:-1]
     bt["rgp_upper"] = np.logspace(np.log10(ylim[0]),np.log10(ylim[1]),rbins+1)[1:]
@@ -2534,7 +2534,7 @@ def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200]
 
             fb = nb*1.0/ngal
 
-            print "%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal)
+            print("%d,%d [%3.2f,%3.2f], [%3.2f,%3.2f] %d"%(i,j,rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal))
 
             vec.append([i, j, rgpp_lower, rgpp_upper, snr_lower, snr_upper, ngal, nb])
 
@@ -2543,7 +2543,7 @@ def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200]
 
         out_table = np.zeros(len(vec), dtype=[("i_rgpp", int),("i_snr", int), ("rgpp_lower", float),("rgpp_upper", float), ("snr_lower", float),("snr_upper", float), ("ngal", int), ("nb", int)])
         for i, col in enumerate(out_table.dtype.names):
-            print "Writing column %s"%col
+            print("Writing column %s"%col)
             out_table[col] = np.array(vec).T[i]
 
         out_fits.write(out_table, clobber=True)
@@ -2568,7 +2568,7 @@ def count_bulge_galaxies(data,sbins=20, rbins=20, ylim=[1.13,2.2], xlim=[12,200]
 #for b0,b1 in zip(allowed_boxsizes[:-1], allowed_boxsizes[1:]):
 #    select = (b>b0) & (b<b1)
 #    boxsize[select] = b1
-#    print b1
+#    print(b1)
 
 
 relevant_parameters = ['ra_as', 'dec_as', 'e1', 'e2', 'radius', 'radius_ratio', 'bulge_a', 'disc_a', 'coadd_objects_id', 'time', 'bulge_flux', 'disc_flux', 'flux_ratio', 'snr', 'old_snr', 'min_residuals', 'max_residuals', 'model_min', 'model_max', 'likelihood', 'levmar_start_error', 'levmar_end_error', 'levmar_resid_grad', 'levmar_vector_diff', 'levmar_error_diff', 'levmar_comp_grad', 'levmar_iterations', 'levmar_reason', 'levmar_like_evals', 'levmar_grad_evals', 'levmar_sys_evals', 'mean_flux', 'n_exposure', 'stamp_size', 'mean_rgpp_rp', 'mean_psf_e1_sky', 'mean_psf_e2_sky', 'fails_psf_e2_sky', 'mean_psf_fwhm', 'mean_unmasked_flux_frac', 'fails_unmasked_flux_frac', 'mean_model_edge_mu', 'mean_model_edge_sigma', 'mean_edge_mu', 'fails_edge_mu', 'mean_edge_sigma', 'mean_hsm_psf_e1_sky', 'mean_hsm_psf_e2_sky', 'mean_hsm_psf_sigma', 'mean_hsm_psf_rho4', 'mean_mask_fraction',  'round_snr',  'round_snr_mw', 'ra', 'dec', 'chi2_pixel', 'mag_auto_g', 'mag_auto_r', 'mag_auto_i', 'mag_auto_z', 'desdm_zp']
