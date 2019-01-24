@@ -2,9 +2,9 @@ import numpy as np
 import scipy as sp
 import astropy.io.fits as pyfits
 import os, pdb
-from tools import fisher as fi
-from samplers import sampler
-import tools.plots as pl
+#from tools import fisher as fi
+from tools.samplers import sampler
+#import tools.plots as pl
 import pylab as plt
 import scipy.interpolate as spi
 
@@ -27,22 +27,22 @@ fiducial={"sigma8_input" : 0.82, "omega_m":0.312, "w" : -1.0, "wa" : 0.0}
 class grid(sampler):
 	def __init__(self, fil):
 		sampler.__init__(self,fil)
-                self.extract_and_reshape()
-                self.file = fil
+		self.extract_and_reshape()
+		self.file = fil
 
+		def extract_and_reshape(self):
+			"""Extract the posterior sample grid and reshape into a 2d matrix"""
+			self.posterior = self.F.T[-1]
+			self.nsamp = len(np.unique( self.F.T[0] ))
+			self.npar = len(self.param)
+			shape = tuple(self.npar*[self.nsamp])
 
-        def extract_and_reshape(self):
-            """Extract the posterior sample grid and reshape into a 2d matrix"""
-            self.posterior = self.F.T[-1]
-            self.nsamp = len(np.unique( self.F.T[0] ))
-            self.npar = len(self.param)
-            shape = tuple(self.npar*[self.nsamp])
-	    self.posterior = self.posterior.reshape(shape)
-		
-	    # Do the same for the sample coordinates in each dimension
-	    for i, p in enumerate(self.param):
-                self.par[p]['samples'] = self.F.T[i].reshape(shape)
-                self.par[p]['marginalised'] = False
+		self.posterior = self.posterior.reshape(shape)
+
+		# Do the same for the sample coordinates in each dimension
+		for i, p in enumerate(self.param):
+			self.par[p]['samples'] = self.F.T[i].reshape(shape)
+			self.par[p]['marginalised'] = False
 
 
 	def marginalise(self, parameter, *args, **kwargs):
@@ -58,12 +58,12 @@ class grid(sampler):
 		# Sum PDF along one axis and output the result in the required manner
 		if mode=='internal':
 			self.posterior = spm.logsumexp(self.posterior, axis=m)
-			print self.posterior.shape
+			print(self.posterior.shape)
 
 			# Clean up the parameter array
 			self.param= np.delete(np.array(self.param), m)
 			self.par[parameter]['marginalised'] = True
-			print 'Marginalised over %s.'%parameter
+			print('Marginalised over %s.'%parameter)
 
 			return 0
 
@@ -72,7 +72,7 @@ class grid(sampler):
 			posterior = spm.logsumexp(posterior, axis=m)
 			param = args[1]
 			param = np.delete(np.array(param), m)
-			print 'Marginalised over %s.'%parameter
+			print('Marginalised over %s.'%parameter)
 
 			return posterior, param		
 
@@ -94,7 +94,7 @@ class grid(sampler):
 		# Find the PDF peak
 		i0 = np.argwhere(pf == pf.max())[0,0]
 		x0 = xf[i0]
-		print 'Integrating around %s = %f' %(parameter, x0)
+		print('Integrating around %s = %f' %(parameter, x0))
 
 		f = 0.0
 		sigma = 0.0
@@ -109,7 +109,7 @@ class grid(sampler):
 			# parameter range and break the loop
 			if f>=frac:
 				sigma = (xf[i0+i] - xf[i0-i])/2.
-				print 'Estimated 1 sigma uncertainty range = %f after %d iterations' %(sigma,i)
+				print('Estimated 1 sigma uncertainty range = %f after %d iterations' %(sigma,i))
 				break
 
 		return x0, sigma
@@ -117,7 +117,7 @@ class grid(sampler):
 class multigrid:
     def __init__(self, grids):
         for i, g in enumerate(grids):
-            print "loading %s"%g
+            print("loading %s"%g)
             setattr(self, "grid%d"%i, grid(g))
         self.names=grids
 
@@ -142,33 +142,33 @@ def pp_to_bias(loc, fil, method="best_fit"):
         if not l:
             continue
         if "#" in l:
-            print l, l.split("zbias")[1].replace(".txt","")
+            print(l, l.split("zbias")[1].replace(".txt",""))
             b+=[float(l.split("zbias")[1].replace(".txt",""))]
         else:
             
             r = l.split(" ")
-            print r
+            print(r)
             p+=[r[3]]
             p_std+=[r[6]]
 
     if method=="best_fit":
     	b=[]
     	p=[]
-        lines =open("%s/best_fit.txt"%loc).read()
-        lines = lines.split("\n")
-        for l in lines[1:]:
-            if not l:
-                continue
-            if "#" in l:
-                b+=[float(l.split("zbias")[1].replace(".txt",""))]
-            elif l.split(" ")[0]=="cosmological_parameters--sigma8_input":
-                r= l.split(" ")
-                p+=[r[-1]]
+    	lines =open("%s/best_fit.txt"%loc).read()
+    	lines = lines.split("\n")
+    	for l in lines[1:]:
+    		if not l:
+    			continue
+    		if "#" in l:
+    			b+=[float(l.split("zbias")[1].replace(".txt",""))]
+    		elif l.split(" ")[0]=="cosmological_parameters--sigma8_input":
+    			r= l.split(" ")
+    			p+=[r[-1]]
 
     order = np.argsort(np.array(b).astype(float))
 
     out=np.array([np.array(b).astype(float)[order], np.array(p).astype(float)[order], np.array(p_std).astype(float)[order]])
-    print out
+    print(out)
     np.savetxt(fil, out.T)
 
 def pp_to_error(loc, fil, save=True):
@@ -320,7 +320,7 @@ class fig5:
 		if gp:
 			self.gp_2d = pp_to_error_2d("%s/ggl+pos"%self.dir, None, save=False)
 
-		print "Loaded countour areas from %s"%self.dir
+		print("Loaded countour areas from %s"%self.dir)
 
 
 
@@ -437,7 +437,7 @@ def kullback_leibler(samples1, samples2, show=False, savename="kullback_leibler_
 		plt.plot(x,p2, "--", lw=2.5, color="steelblue")
 		plt.title("$KL[p_1, p_2]=%3.3f$"%kl)
 		plt.savefig("/home/samuroff/shear_pipeline/plot_dump/%s"%savename)
-	print "KL=",kl
+	print("KL=",kl)
 
 	return kl
 
@@ -510,19 +510,19 @@ def percentile_weight(x, w, p):
 
 def smooth_likelihood_2d(chain, x, y, mod, trim=0):
 	n = 100
- 	factor = 2
- 	n0 = int(len(x)*trim)
- 	weights = weight_col(chain)[n0:]
- 	#import pdb ; pdb.set_trace()
- 	kde = mod.KDE([x[n0:],y[n0:]], factor=factor, weights=weights)
- 	dx = std_weight(x[n0:], weights)*4
- 	dy = std_weight(y[n0:], weights)*4
- 	mu_x = mean_weight(x[n0:], weights)
- 	mu_y = mean_weight(y[n0:], weights)
- 	x_range = (max(x.min(), mu_x-dx), min(x.max(), mu_x+dx))
- 	y_range = (max(y.min(), mu_y-dy), min(y.max(), mu_y+dy))
- 	(x_axis, y_axis), like = kde.grid_evaluate(n, [x_range, y_range])
- 	return n, x_axis, y_axis, like
+	factor = 2
+	n0 = int(len(x)*trim)
+	weights = weight_col(chain)[n0:]
+	#import pdb ; pdb.set_trace()
+	kde = mod.KDE([x[n0:],y[n0:]], factor=factor, weights=weights)
+	dx = std_weight(x[n0:], weights)*4
+	dy = std_weight(y[n0:], weights)*4
+	mu_x = mean_weight(x[n0:], weights)
+	mu_y = mean_weight(y[n0:], weights)
+	x_range = (max(x.min(), mu_x-dx), min(x.max(), mu_x+dx))
+	y_range = (max(y.min(), mu_y-dy), min(y.max(), mu_y+dy))
+	(x_axis, y_axis), like = kde.grid_evaluate(n, [x_range, y_range])
+	return n, x_axis, y_axis, like
 
 def _find_contours(chain, like, x, y, n, xmin, xmax, ymin, ymax, contour1, contour2, trim=0):
 	N = len(x)
@@ -541,9 +541,6 @@ def _find_contours(chain, like, x, y, n, xmin, xmax, ymin, ymax, contour1, conto
 	level1 = sp.optimize.bisect(objective, like.min(), like.max(), args=(target1,))
 	level2 = sp.optimize.bisect(objective, like.min(), like.max(), args=(target2,))
 	return level1, level2, like.sum()
-
-
-
 
 
 def make_1d_plot(x, colour='k', ls='-', label=None, kde=None, weights=[], limits=[]):
@@ -596,7 +593,15 @@ def normalise_like(x, l, limits=[], samples=200):
 	norm = np.trapz(lf,xf)
 
 	return xf, lf/norm
+=======
+	x_axis, like = normalise_like(x_axis, like, limits=limits)
 
+	plt.plot(x_axis, like, colour, ls=ls, label=label)
+>>>>>>> f8a010311da1a321f6c0dad3626222023a2fd584
+
+	plt.xlim(x_axis.min(),x_axis.max())
+
+	return like
 
 def get_col(name, chain):
 	sections={'a_gi':'intrinsic_alignment_parameters',
@@ -623,6 +628,7 @@ def get_col(name, chain):
 		return []
 
 
+
 def make_panel(i, j, name1, name2, chain, label, blind, lims1, lims2, alpha, fill, ls, colour, kde=None, plots=None, trim=0, fontsize=14):
 	if 'c2' in name1:
 		scale1 = 5.0
@@ -638,6 +644,7 @@ def make_panel(i, j, name1, name2, chain, label, blind, lims1, lims2, alpha, fil
 
 		if len(x)==0:
 			return
+
 		like = make_1d_plot(x, colour=colour, ls=ls, kde=kde, label=label, weights=chain['weight'], limits=lims1)
 		if (i==0):
 			plt.legend(bbox_to_anchor=(1.1, 1), fontsize=10)
@@ -657,7 +664,7 @@ def make_panel(i, j, name1, name2, chain, label, blind, lims1, lims2, alpha, fil
 		level1, level2, total_mass = _find_contours(chain, like, x[n0:], y[n0:], n, x_axis[0], x_axis[-1], y_axis[0], y_axis[-1], contour1, contour2, trim=trim)
 
 		if fill:
-			print colour
+			print(colour)
 			plt.contourf(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls, alpha=alpha)
 			plt.contourf(x_axis, y_axis, like.T, [level1,level0], colors=[colour], linestyles=ls, alpha=alpha*2)
 			plt.contour(x_axis, y_axis, like.T, [level2,level0], colors=[colour], linestyles=ls)
@@ -671,6 +678,26 @@ def make_panel(i, j, name1, name2, chain, label, blind, lims1, lims2, alpha, fil
 
 	return like
 
+def normalise_like(x, l, limits=[], samples=200):
+
+	# Decide on the bounds for this parameter
+	# if they're not specified use the whole x axis range
+	if (len(limits)==0):
+		xmin = x.min()
+		xmax = x.max()
+	else:
+		xmin,xmax = limits
+
+	# set up a likelihood interpolator
+	L = spi.interp1d(x,l)
+
+	# and resample at a set of points defined by xmin,xmax
+	xf = np.linspace(xmin,xmax,samples)
+	lf = L(xf)
+
+	norm = np.trapz(lf,xf)
+
+	return xf, lf/norm
 
 
 
@@ -728,7 +755,7 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 	          's8':'cosmological_parameters',
 	          'w':'cosmological_parameters',
 	          'omega_m':'cosmological_parameters'}
-	print "Will make corner plot of %d parameters"%npar
+	print("Will make corner plot of %d parameters"%npar)
 	for i,name1 in enumerate(names):
 		fullname1 = "%s--%s"%(sections[name1], name1)
 		for j, name2 in enumerate(names):
@@ -737,12 +764,14 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 			if j>i:
 				continue
 			plt.subplot(naxis,naxis,ipanel, aspect="auto")
-			print i, j, fullname1, fullname2
+			print(i, j, fullname1, fullname2)
 
 			likemax = 0
 			likemin = 10000
 			for l,chain in enumerate(chains):
+
 				like = make_panel(i, j, name1, name2, chain, labels[l], blind[l], lims[name1], lims[name2], alpha[l], fill[l], ls[l], colours[l], kde=kde, plots=plots, trim=trim, fontsize=fontsize)
+
 				if like is None:
 					continue
 				else:
@@ -781,6 +810,7 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 			if i==naxis-1:
 				if not blind:
 					plt.xticks(np.arange(lims[name2][0], lims[name2][1], 1)[::2][1:],visible=True, fontsize=fontsize/2)
+
 				plt.xlabel(parameter_labels[name2], fontsize=fontsize)
 					
 			if len(lims)>0 and (i!=j):
@@ -788,14 +818,15 @@ def multinest_cornerplot(names, chains, colours=["purple"]*10, kde=None, plots=N
 				plt.ylim(lims[name1][0], lims[name1][1])
 			elif (i==j):
 				plt.ylim(likemin, likemax)
+
 			plt.xlim(lims[name2][0], lims[name2][1])
+
 			#plt.axhline(0,color="k", ls=":", alpha=0.5)
 			#plt.axvline(0,color="k", ls=":", alpha=0.5)
 
 	plt.subplots_adjust(hspace=0, wspace=0)
 
 	return 0
-
 
 def smooth_likelihood(x, mod):	
 	n = 150
@@ -807,7 +838,7 @@ def smooth_likelihood(x, mod):
 def get_1d_likelihood(name, kde=None, verbose=True):
 	x = self.samples[name]
 	if verbose:
-		print " - 1D likelihood ", name
+		print(" - 1D likelihood ", name)
 
 	if kde is None:
 		from cosmosis.plotting import kde

@@ -167,7 +167,7 @@ class fitscov:
 			di = (i1-i0)/2
 			trans = ax.get_xaxis_transform()
 			ax.annotate(labelsy[i], (i0+di-22,1.02), xycoords=trans, fontsize=fontsize)
-			ax.annotate(labels[i], (-400, (float(i0+di)/corr[0].size)-0.005), xycoords=trans, fontsize=fontsize)
+			ax.annotate(labels[i], (-410, (float(i0+di)/corr[0].size)-0.005), xycoords=trans, fontsize=fontsize)
 
 		plt.savefig(savename)
 		plt.close('all')
