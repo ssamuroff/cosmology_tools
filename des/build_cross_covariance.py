@@ -2,6 +2,7 @@ import numpy as np
 import fitsio as fi
 import argparse
 import yaml
+import os
 import scipy.special as sps
 
 
@@ -34,101 +35,101 @@ fsky = area/4./np.pi
 bessel_kernels = {'xip':0, 'xim':4, 'gammat':2, 'wtheta':0}
 corr_order = {'xip':0, 'xim':1, 'gammat':2, 'wtheta':3}
 
-def get_auto_cl(path, i,j, ctype='ss'):
-	# Decide whether a shot noise term is needed 
+def get_cl(path, i,j, ctype='ss', noise=True):
+
+	# Decide whether a noise term is needed 
 	k = (60.*180./np.pi)**2
-	if (ctype=='ss') and (i==j):
-		N = params['sigma_e'][j-1]*params['sigma_e'][j-1]/params['source_n_gal'][j-1]/k
+
+	if (not noise):
+		N = 0.0
+	elif (ctype=='ss') and (i==j):
+		ngal = params['source_n_gal'][j-1] * k
+		N = params['sigma_e'][j-1]*params['sigma_e'][j-1]/ngal/2
 	elif (ctype=='gg') and (i==j):
-		N = 1/params['lens_n_gal'][j-1]/k
+		ngal = params['lens_n_gal'][j-1] * k
+		N = 1/ngal
 	else:
 		N = 0.0
 
-	try:
+	if os.path.exists(path%(i,j)):
 		return np.genfromtxt(path%(i,j)) + N
-	except:
+	else:
 		return np.genfromtxt(path%(j,i)) + N
+
 
 class matrix:
 	def __init__(self, datavec, theory):
 		print 'Initialised covariance matrix'
 		self.base = theory
-		# Bad, bad, bad. I know. This is bad.
-		# Will fix this at some point
-		naxis = 2080 + 700 + 100
-		self.block = np.zeros((3560,3560)) + 1e-30
-	def choose_spectra(self, i, j, k, l, correlation1, correlation2, gtype):
+		# Use the FITS file to decide the shape of the covariance matrix
+		hdr = datavec['covmat'].read_header()
+		naxis = hdr['naxis1']
+		# Set up an empty square array to which to write 
+		self.block = np.zeros((naxis,naxis)) + 1e-30
+
+	def choose_spectra(self, i, j, k, l, correlation1, correlation2):
+		# Now we need to determine the four relevant Cl terms to use 
+		# for the cosmic variance part of the covariance 
+		# This is the fiddly bit
+
+		# eq : Cov[C_ab^ij, C_cd^kl] \prop (C_ac^ik x C_bd^jl + C_ad^il x C_bc^jk) 
+
+		path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
+		path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
+		path_gg = '%s/multicolour-3x2pt/galaxy_cl/'%(self.base) + 'bin_%d_%d.txt'
+
 		# For the (xi xi) part all of the required angular spectra are GG
-		# The red-blue information is subsumed into the index
+		# But the calculation should not include a shape noise term in the <xip xim> cross correlations 
 		if ('xi' in correlation1) and ('xi' in correlation2):
-			path = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			C1 = get_auto_cl(path, k, j, ctype='ss')
-			C2 = get_auto_cl(path, l, i, ctype='ss')
-			C3 = get_auto_cl(path, k, i, ctype='ss')
-			C4 = get_auto_cl(path, l, j, ctype='ss')
-		# For the (gammat gammat) all of the GG, gg and gG Cls are needed 
-		elif (correlation1==correlation2) and ('gammat' in correlation1):
-			path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			path_gg = '%s/multicolour-3x2pt/galaxy_cl/'%(self.base) + 'bin_%d_%d.txt'
-			if gtype[2]=='lens':
-                            C1 = np.genfromtxt(path_gs%(k,j))
-                        else:
-                            C1 = np.genfromtxt(path_gs%(j,k))
-			if gtype[3]=='lens':
-                            C2 = np.genfromtxt(path_gs%(l,i))
-                        else:
-                            C2 = np.genfromtxt(path_gs%(i,l))
-			C3 = get_auto_cl(path_ss, j,l, ctype='ss')
-			C4 = get_auto_cl(path_gg, i,k, ctype='gg')
+			include_noise = (correlation1==correlation2)
+			C1 = get_cl(path_ss, k, j, ctype='ss', noise=include_noise)
+			C2 = get_cl(path_ss, l, i, ctype='ss', noise=include_noise)
+			C3 = get_cl(path_ss, k, i, ctype='ss', noise=include_noise)
+			C4 = get_cl(path_ss, l, j, ctype='ss', noise=include_noise)
 
 		elif  (('gammat' in correlation2) and ('xi' in correlation1)):
-			path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			try:
-				C1 = np.genfromtxt(path_gs%(j,k))
-			except:
-				C1 = np.genfromtxt(path_gs%(k,j))
-			C2 = get_auto_cl(path_ss, l, i, ctype='ss')
-			C3 = get_auto_cl(path_ss, k, i, ctype='ss')
-			C4 = get_auto_cl(path_ss, l,j, ctype='ss')
+			C1 = get_cl(path_gs, k, i, ctype='gs')
+			C2 = get_cl(path_ss, j, l, ctype='ss')
+			C3 = get_cl(path_ss, i, l, ctype='ss')
+			C4 = get_cl(path_gs, k, j, ctype='gs')
 
-		elif (('gammat' in correlation1) and ('xi' in correlation2)):
-			path_ss = '%s/multicolour-3x2pt/shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			try:
-				C2 = np.genfromtxt(path_gs%(i,l))
-			except:
-				C2 = np.genfromtxt(path_gs%(l,i))
-			C1 = get_auto_cl(path_ss, k, j, ctype='ss')
-			C3 = get_auto_cl(path_ss, k, i, ctype='ss')
-			C4 = get_auto_cl(path_ss, l,j, ctype='ss')
+		elif  (('wtheta' in correlation2) and ('xi' in correlation1)):
+			C1 = get_cl(path_gs, k, i, ctype='gs')
+			C2 = get_cl(path_gs, l, j, ctype='gs')
+			C3 = get_cl(path_gs, l, i, ctype='gs')
+			C4 = get_cl(path_gs, k, j, ctype='gs')
 
-		else:
-			path_gs = '%s/multicolour-3x2pt/galaxy_shear_cl/'%(self.base) + 'bin_%d_%d.txt'
-			if gtype[1]=='lens':
-                            C1 = np.genfromtxt(path_gs%(j,k))
-                        else:
-                            C1 = np.genfromtxt(path_gs%(k,j))
-			if gtype[3]=='lens':
-                            C2 = np.genfromtxt(path_gs%(l,i))
-                        else:
-                            C2 = np.genfromtxt(path_gs%(i,l))
-			if gtype[2]=='lens':
-                            C3 = np.genfromtxt(path_gs%(k,i))
-			else:
-                            C3 = np.genfromtxt(path_gs%(i,k))
-                        if gtype[3]=='lens':
-                            C4 = np.genfromtxt(path_gs%(l,j))
-                        else:
-                            C4 = np.genfromtxt(path_gs%(j,l))
+		elif  (('gammat' in correlation2) and ('gammat' in correlation1)):
+			C1 = get_cl(path_gg, k, i, ctype='gg')
+			C2 = get_cl(path_ss, l, j, ctype='ss')
+			C3 = get_cl(path_gs, l, i, ctype='gs')
+			C4 = get_cl(path_gs, k, j, ctype='gs')
+
+		elif  (('wtheta' in correlation2) and ('gammat' in correlation1)):
+			C1 = get_cl(path_gg, k, i, ctype='gg')
+			C2 = get_cl(path_gs, l, j, ctype='gs')
+			C3 = get_cl(path_gg, l, i, ctype='gg')
+			C4 = get_cl(path_gs, k, j, ctype='gs')
+
+		elif  (('gammat' in correlation2) and ('wtheta' in correlation1)):
+			C1 = get_cl(path_gg, k, i, ctype='gg')
+			C2 = get_cl(path_gs, j, l, ctype='gs')
+			C3 = get_cl(path_gs, i, l, ctype='gs')
+			C4 = get_cl(path_gg, k, j, ctype='gg')
+
+		elif  (('wtheta' in correlation2) and ('wtheta' in correlation1)):
+			C1 = get_cl(path_gg, k, i, ctype='gg')
+			C2 = get_cl(path_gg, l, j, ctype='gg')
+			C3 = get_cl(path_gg, l, i, ctype='gg')
+			C4 = get_cl(path_gg, k, j, ctype='gg')
 
 		x = np.genfromtxt('%s/multicolour-3x2pt/shear_cl/ell.txt'%self.base)
 
 		return x, C1, C2, C3, C4
+
 	def find_element(self, t1, t2, i, j, k, l, gtype, correlation1, correlation2):
 		if not hasattr(self, gtype):
-			path = args.order.replace('multicolour', gtype).replace('_data','').replace('-v5', '')
+			path = args.order.replace('multicolour', gtype).replace('_data','').replace('-v7', '')
 			setattr(self, gtype, fi.FITS(path)['covmat'.upper()].read())
 			setattr(self, '%s_info'%gtype, fi.FITS(path)['covmat'.upper()].read_header())
 			setattr(self, '%s_%s'%(gtype, 'xip'), fi.FITS(path)['xip'].read())
@@ -210,17 +211,19 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 		for correlation2 in ['xip','xim','gammat','wtheta']:
 			for (itheta2, theta2, k, l) in zip(datavec[correlation2]['ANGBIN'][:], datavec[correlation2]['ANG'][:], datavec[correlation2]['BIN1'][:], datavec[correlation2]['BIN2'][:]):
 
+				# MPI handling
 				if (ielem%size!=rank):
 					ielem+=1
 					a+=1
 					continue
+
 				# If we can find this element by symmetry then do so
 				if (a!=b) and (abs(cov.block[a,b])>1e-30):
 					val = 1.0 * cov.block[a,b]
 					cov.block[b,a] = val
 					outfile.write('%d %d %e \n'%(a, b, val))
 					a+=1
-                                        ielem+=1
+					ielem+=1
 					continue
 
 				g1, g2, i0, j0 = cov.interpret_bin_indices(i, j, correlation1)
@@ -237,7 +240,7 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 				if (len(np.unique(source_types))>1):
 					#val = 1e-15
 
-					ell, C1, C2, C3, C4 = cov.choose_spectra(i, j, k, l, correlation1, correlation2, [g1,g2,g3,g4])
+					ell, C1, C2, C3, C4 = cov.choose_spectra(i, j, k, l, correlation1, correlation2)
 					n1 = bessel_kernels[correlation1]
 					n2 = bessel_kernels[correlation2]
 					J1 = sps.jn(n1, ell*theta1)
@@ -252,16 +255,15 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 					else:
 						gt = source_types[0]
 
-					try:
-						val = cov.find_element(itheta1, itheta2, i0, j0, k0, l0, gt, correlation1, correlation2)
-					except:
-						ell, C1, C2, C3, C4 = cov.choose_spectra(i, j, k, l, correlation1, correlation2, [g1,g2,g3,g4])
-						n1 = bessel_kernels[correlation1]
-						n2 = bessel_kernels[correlation2]
-						J1 = sps.jn(n1, ell*theta1)
-						J2 = sps.jn(n2, ell*theta2)
-						K = ell * J1 * J2 * (C1*C2 + C3*C4)
-						val = np.trapz(K, ell) / (8*np.pi*np.pi) / fsky
+					val = cov.find_element(itheta1, itheta2, i0, j0, k0, l0, gt, correlation1, correlation2)
+					#except:
+					#	ell, C1, C2, C3, C4 = cov.choose_spectra(i, j, k, l, correlation1, correlation2)
+					#	n1 = bessel_kernels[correlation1]
+					#	n2 = bessel_kernels[correlation2]
+					#	J1 = sps.jn(n1, ell*theta1)
+					#	J2 = sps.jn(n2, ell*theta2)
+					#	K = ell * J1 * J2 * (C1*C2 + C3*C4)
+					#	val = np.trapz(K, ell) / (8*np.pi*np.pi) / fsky
                                             
 					#val = 5e-14
 
@@ -276,7 +278,6 @@ for correlation1 in ['xip','xim','gammat','wtheta']:
 		a=0
 
 outfile.close()
-
 cov.export(suffix=rank)
 
 

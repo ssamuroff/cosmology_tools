@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 import scipy.spatial as sps
 import pyfits
-from cosmosis.datablock import names, option_section
+#from cosmosis.datablock import names, option_section
 import os
 
 import matplotlib.colors
@@ -29,7 +29,7 @@ def postprocess(filename, outdir, contours=False, extra_flags="", factor_kde=1.6
     print "executing command : %s"%comm
     os.system(comm)
 
-def get_double_or_array(options, param_name, section=option_section, default=0.0):
+def get_double_or_array(options, param_name, section='', default=0.0):
 	if (section, param_name) not in options.keys():
 		print "Found no parameter %s in section %s. Using default value ( %f ) "%(param_name, section, default)
 		return default
