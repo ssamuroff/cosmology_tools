@@ -1,0 +1,31 @@
+cosmology:
+  h: 0.701
+  Omb: 0.046
+  Omd: 0.22900000000000004
+  s8 : 0.8151772165163209
+  Om : 0.275
+  As : 2.283e-09
+  mnu : 0.06
+  Omk : 0.0
+  tau : 0.08
+  ns : 0.968
+  w : -1
+  wa : 0
+
+nuisance:
+  overwrite : /opt/local/Library/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/tools/iacorrs/scripts/blind_params.txt
+  bias : 1.0
+  a_ia : 1.0
+
+
+general:
+  kmax : 30
+  kmin : 0.8e-3
+  k_smooth : 0
+  nk : 5000
+  rmin : 1
+  rmax : 50
+  non_linear : 1
+  zmax : 0.063
+  zmin : 1.0
+
