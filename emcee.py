@@ -33,7 +33,7 @@ class chain(samp.sampler):
 				self.has_wt=True
 			except:
 				self.has_wt=False
-				print "No weight column"
+				print("No weight column")
 
 			self.wt = np.ones_like(self.post)
 			self.mask = np.ones_like(self.post)
@@ -72,7 +72,7 @@ class chain(samp.sampler):
 				self.samples.remove_column("weight")
 				self.has_wt=True
 			except:
-				print( "No weight column")
+				print("No weight column")
 				wt = np.ones_like(post)
 				self.has_wt=False
 
