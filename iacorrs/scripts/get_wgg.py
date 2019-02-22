@@ -1,5 +1,5 @@
 import numpy as np
-from tools.iacorrs.power_spectra import *
+#from tools.iacorrs.power_spectra import *
 import scipy
 from scipy.interpolate import interp1d
 from scipy.special import jn, jn_zeros
@@ -9,6 +9,7 @@ from tools.iacorrs.hankel_transform import *
 from astropy.cosmology import Planck15 #use Planck15 if you can
 import astropy.units as u
 import sys
+import yaml
 
 from matplotlib import rc
 rc('text', usetex=False)
@@ -43,10 +44,18 @@ def DZ_int(z=[0],cosmo=None,rtol=1.e-4,tol=1.e-5):
     dz=dz*2.5*cosmo.Om0*cosmo.H0**2
     return dz/dz[0] #check for normalization
 
-import yaml
-settings = yaml.load(open(sys.argv[-1],'rb'))
+import argparse
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument('--config', type=str, action='store')
+parser.add_argument('--redshift', type=float, action='store', default=-1.0)
+parser.add_argument('--process', type=str, action='store', nargs='+', required=True)
+parser.add_argument('--ind', type=int, action='store')
+args = parser.parse_args()
 
-correlations = sys.argv[1:-1]
+
+settings = yaml.load(open(args.config,'rb'))
+
+correlations = args.process
 print('%d correlations to process: '%len(correlations), correlations)
 nc = len(correlations)
 
@@ -57,16 +66,22 @@ for name in settings['cosmology'].keys():
 	print(name, cosmo_fid[name])
 
 pk_params=settings['general']
-#cosmo=Planck15.clone()
+cosmo=Planck15.clone()
 #cosmo_fid=dict({'h':cosmo.h,'Omb':cosmo.Ob0,'Omd':cosmo.Om0-cosmo.Ob0,'s8':0.817,'Om':cosmo.Om0,'As':2.12e-09,'mnu':cosmo.m_nu[-1].value,'Omk':cosmo.Ok0,'tau':0.06,'ns':0.965,'w':-1,'wa':0})
 
 # Generate the matter power spectrum
 # using CCL rather than class, just because this works on my laptop
-PS=Power_Spectra(cosmo_params=cosmo_fid,pk_params=pk_params)
-z = [settings['general']['zmin'],settings['general']['zmax']]
-print('redshift range', z)
+if (args.redshift==-1.0):
+	zlim = settings['general']['redshift']
+else:
+	zlim = args.redshift
+print('Generating theory for z=%3.3f'%zlim)
+
+#PS=Power_Spectra(cosmo_params=cosmo_fid,pk_params=pk_params)
+z = [zlim,zlim+0.001]
+
 #pk,kh =PS.class_pk(z=z)
-pk,kh = PS.ccl_pk(z=z)
+#pk,kh = PS.ccl_pk(z=z)
 
 pk = [np.loadtxt('/Users/hattifattener/coma/mbii/chains/example_output/galaxy_power_%1.3f/p_k.txt'%z[0])]
 kh = np.loadtxt('/Users/hattifattener/coma/mbii/chains/example_output/galaxy_power_%1.3f/k_h.txt'%z[0])
@@ -82,7 +97,7 @@ if 'wgp' in correlations:
 if 'wpp' in correlations:
 	jnu.append(4)
 
-HT = hankel_transform(rmin=settings['general']['rmin'],rmax=settings['general']['rmax'],kmax=settings['general']['kmax'],j_nu=jnu,n_zeros=28000,kmin=settings['general']['kmin'])
+HT = hankel_transform(rmin=settings['general']['rmin'],rmax=settings['general']['rmax'],kmax=settings['general']['kmax'],j_nu=jnu,n_zeros=111000,kmin=settings['general']['kmin'])
 #HT=hankel_transform(rmin=1,rmax=rmax,kmax=1,j_nu=[0,2],n_zeros=2800,kmin=1.e-2)#quick test... inaccurate
 
 pk_taper=HT.taper(k=kh, pk=pk[0],large_k_lower=5, large_k_upper=settings['general']['kmax'],low_k_lower=settings['general']['kmin'],low_k_upper=settings['general']['kmin']*2)
@@ -99,7 +114,7 @@ Dz = DZ_int(z=np.append([0],z),cosmo=cosmo)
 if 'overwrite' in settings['nuisance'].keys():
 	path = settings['nuisance']['overwrite']
 	print('Reading parameter values from %s'%path)
-	settings['nuisance']['bias'], settings['nuisance']['a_ia'] = np.loadtxt(path)
+	settings['nuisance']['bias'], settings['nuisance']['a_ia'] = np.loadtxt(path)[args.ind], np.loadtxt(path)[args.ind+1]
 
 wgg_f = settings['nuisance']['bias']**2
 wgp_f = settings['nuisance']['bias']*settings['nuisance']['a_ia']*C1_rhoC*omega_m/Dz
@@ -115,12 +130,17 @@ if 'wgg' in correlations:
 	print('Processing wgg')
 	#r_gg,wgg=HT.projected_correlation(k_pk=kh,pk=pk[0]*wgg_f,j_nu=0)
 	r_gg,wgg_taper = HT.projected_correlation(k_pk=kh,pk=pk_taper*wgg_f,j_nu=0)
-	export('wgg.txt', r_gg, wgg_taper)
+	interp_gg = interp1d(np.log10(r_gg), np.log10(wgg_taper))
+	R = np.array([ 0.11560133,  0.15448579,  0.20644969,  0.27589253,  0.36869363, 0.49270995,  0.65844125,  0.87991906,  1.17589468,  1.57142668, 2.10000253,  2.80637379,  3.75034493,  5.01183667,  6.69765243, 8.95052074, 11.9611793 , 15.98452361, 21.36118761, 28.5463832 ])
+	export('wgg_%3.3f.txt'%zlim, R, 10**(interp_gg(np.log10(R))))
+
 
 if 'wgp' in correlations:
 	print('Processing wg+')
 	r_gp,wgp = HT.projected_correlation(k_pk=kh,pk=pk_taper*wgp_f[1],j_nu=2)
-	export('wgp.txt', r_gp, wgp)
+	interp_gp = interp1d(np.log10(r_gp), np.log10(wgp))
+	R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
+	export('wgp_%3.3f.txt'%zlim, R, 10**(interp_gp(np.log10(R))))
 
 if 'wpp' in correlations:
 	print('Processing w++')
@@ -128,7 +148,9 @@ if 'wpp' in correlations:
 	r_pp0,wpp0 = HT.projected_correlation(k_pk=kh,pk=pk_taper*wpp_f[1],j_nu=0)
 	wpp0_intp = interp1d(r_pp0,wpp0,bounds_error=False,fill_value=np.nan)
 	wpp = wpp4 + wpp0_intp(r_pp) 
-	export('wpp.txt', r_pp, wpp)
+	interp_pp = interp1d(np.log10(r_pp), np.log10(wpp))
+	R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
+	export('wpp_%3.3f.txt'%zlim, R, 10**(interp_pp(np.log10(R))))
 
 
 print('Done all.')
