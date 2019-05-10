@@ -285,7 +285,7 @@ def execute(block, config):
 					pk_interpolated = np.exp(pk_interpolated)
 
 				pk_interpolated = apply_bias(block, power_spectrum_name, None, pk_interpolated, add_bias)
-				pk_interpolated = apply_rsd(block, power_spectrum_name, za, pk_interpolated, add_rsd)
+				#pk_interpolated = apply_rsd(block, power_spectrum_name, za, pk_interpolated, add_rsd)
 
 				# Outer integral with kernel calculated abov
 				integrand = W2d.T * pk_interpolated
