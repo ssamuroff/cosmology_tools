@@ -83,8 +83,8 @@ z = [zlim,zlim+0.001]
 #pk,kh =PS.class_pk(z=z)
 #pk,kh = PS.ccl_pk(z=z)
 
-pk = [np.loadtxt('/Users/hattifattener/coma/mbii/chains/example_output/galaxy_power_%1.3f/p_k.txt'%z[0])]
-kh = np.loadtxt('/Users/hattifattener/coma/mbii/chains/example_output/galaxy_power_%1.3f/k_h.txt'%z[0])
+pk = [np.loadtxt('/Users/hattifattener/Documents/ias/mbii/modelling_paper/data/theory/cosmosis/nla/example_output/galaxy_power_%1.3f/p_k.txt'%z[0])]
+kh = np.loadtxt('/Users/hattifattener/Documents/ias/mbii/modelling_paper/data/theory/cosmosis/nla/example_output/galaxy_power_%1.3f/k_h.txt'%z[0])
 
 #Setting up the Hankel Transform
 #This part is slower. But only needs to be run once. 
