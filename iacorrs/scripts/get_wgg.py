@@ -86,6 +86,7 @@ z = [zlim,zlim+0.001]
 #pk,kh =PS.class_pk(z=z)
 #pk,kh = PS.ccl_pk(z=z)
 
+
 pk = [np.loadtxt('%s/galaxy_power_%1.3f/p_k.txt'%(path,z[0]))]
 kh = np.loadtxt('%s/galaxy_power_%1.3f/k_h.txt'%(path,z[0]))
 
