@@ -100,7 +100,7 @@ if 'wgp' in correlations:
 if 'wpp' in correlations:
 	jnu.append(4)
 
-HT = hankel_transform(rmin=settings['general']['rmin'],rmax=settings['general']['rmax'],kmax=settings['general']['kmax'],j_nu=jnu,n_zeros=111000,kmin=settings['general']['kmin'])
+HT = hankel_transform(rmin=settings['general']['rmin'],rmax=settings['general']['rmax'],kmax=settings['general']['kmax'],j_nu=jnu,n_zeros=121000,kmin=settings['general']['kmin'])
 #HT=hankel_transform(rmin=1,rmax=rmax,kmax=1,j_nu=[0,2],n_zeros=2800,kmin=1.e-2)#quick test... inaccurate
 
 pk_taper=HT.taper(k=kh, pk=pk[0],large_k_lower=5, large_k_upper=settings['general']['kmax'],low_k_lower=settings['general']['kmin'],low_k_upper=settings['general']['kmin']*2)
@@ -133,17 +133,19 @@ if 'wgg' in correlations:
 	print('Processing wgg')
 	#r_gg,wgg=HT.projected_correlation(k_pk=kh,pk=pk[0]*wgg_f,j_nu=0)
 	r_gg,wgg_taper = HT.projected_correlation(k_pk=kh,pk=pk_taper*wgg_f,j_nu=0)
-	interp_gg = interp1d(np.log10(r_gg), np.log10(wgg_taper), fill_value='extrapolate')
-	R = np.array([ 0.11560133,  0.15448579,  0.20644969,  0.27589253,  0.36869363, 0.49270995,  0.65844125,  0.87991906,  1.17589468,  1.57142668, 2.10000253,  2.80637379,  3.75034493,  5.01183667,  6.69765243, 8.95052074, 11.9611793 , 15.98452361, 21.36118761, 28.5463832 ])
-	export('wgg_%3.3f.txt'%zlim, R, 10**(interp_gg(np.log10(R))))
+	#interp_gg = interp1d(np.log10(r_gg), np.log10(wgg_taper), fill_value='extrapolate')
+	#R = np.array([ 0.11560133,  0.15448579,  0.20644969,  0.27589253,  0.36869363, 0.49270995,  0.65844125,  0.87991906,  1.17589468,  1.57142668, 2.10000253,  2.80637379,  3.75034493,  5.01183667,  6.69765243, 8.95052074, 11.9611793 , 15.98452361, 21.36118761, 28.5463832 ])
+	#export('wgg_%3.3f.txt'%zlim, R, 10**(interp_gg(np.log10(R))))
+	export('wgg_%3.3f.txt'%zlim, r_gg, wgg_taper )
 
 
 if 'wgp' in correlations:
 	print('Processing wg+')
 	r_gp,wgp = HT.projected_correlation(k_pk=kh,pk=pk_taper*wgp_f[1],j_nu=2)
-	interp_gp = interp1d(np.log10(r_gp), np.log10(wgp), fill_value='extrapolate')
-	R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
-	export('wgp_%3.3f.txt'%zlim, R, 10**(interp_gp(np.log10(R))))
+	#interp_gp = interp1d(np.log10(r_gp), np.log10(wgp), fill_value='extrapolate')
+	#R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
+	#export('wgp_%3.3f.txt'%zlim, R, 10**(interp_gp(np.log10(R))))
+	export('wgp_%3.3f.txt'%zlim, r_gp, wgp )
 
 if 'wpp' in correlations:
 	print('Processing w++')
@@ -151,9 +153,10 @@ if 'wpp' in correlations:
 	r_pp0,wpp0 = HT.projected_correlation(k_pk=kh,pk=pk_taper*wpp_f[1],j_nu=0)
 	wpp0_intp = interp1d(r_pp0,wpp0,bounds_error=False,fill_value='extrapolate')
 	wpp = wpp4 + wpp0_intp(r_pp) 
-	interp_pp = interp1d(np.log10(r_pp), np.log10(wpp), fill_value='extrapolate')
-	R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
-	export('wpp_%3.3f.txt'%zlim, R, 10**(interp_pp(np.log10(R))))
+	#interp_pp = interp1d(np.log10(r_pp), np.log10(wpp), fill_value='extrapolate')
+	#R = np.array([ 0.13363669,  0.2386586 ,  0.42621476,  0.76116687,  1.35934994, 2.42763096,  4.33544879,  7.74257561, 13.82728292, 24.693818  ])
+	#export('wpp_%3.3f.txt'%zlim, R, 10**(interp_pp(np.log10(R))))
+	export('wpp_%3.3f.txt'%zlim, r_pp, wpp )
 
 
 print('Done all.')
