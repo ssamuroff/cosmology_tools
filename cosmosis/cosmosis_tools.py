@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import scipy.spatial as sps
-import pyfits
+#import pyfits
 #from cosmosis.datablock import names, option_section
 import os
 
@@ -18,20 +18,20 @@ constants={"c" : 299792458.0}
 
 def run_cosmosis(ini, values, extra_args="", sampler="test", outdir="cosmosis_output"):
 	comm = "cosmosis %s -p pipeline.values=%s runtime.sampler=%s %s.save_dir=%s %s"%(ini,values,sampler,sampler,outdir,extra_args)
-	print comm
+	print( comm)
 	os.system(comm)
 
 def postprocess(filename, outdir, contours=False, extra_flags="", factor_kde=1.6):
-    print "Will postprocess chain : %s"%filename
+    print("Will postprocess chain : %s"%filename)
     if not contours: contours = "--no-2d"
     else: contours = ""
     comm = "postprocess -o %s %s %s --factor-kde %2.2f %s"%(outdir, contours, extra_flags, factor_kde, filename)
-    print "executing command : %s"%comm
+    print("executing command : %s"%comm)
     os.system(comm)
 
 def get_double_or_array(options, param_name, section='', default=0.0):
 	if (section, param_name) not in options.keys():
-		print "Found no parameter %s in section %s. Using default value ( %f ) "%(param_name, section, default)
+		print ("Found no parameter %s in section %s. Using default value ( %f ) "%(param_name, section, default))
 		return default
 
 	else:

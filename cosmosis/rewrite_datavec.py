@@ -7,7 +7,7 @@ import scipy.interpolate as interp
 class output:
     def __init__(self, data):
         filename = data.replace('.fits','-mock.fits')
-        print 'Generating new file: %s'%filename
+        print('Generating new file: %s'%filename)
 
         os.system('cp %s %s'%(data,filename))
 
@@ -32,7 +32,7 @@ class output:
     def find_data(self, path, corrs=['xip','xim','gammat','wtheta']):
         
         for corr in corrs:
-            print corr
+            print(corr)
             dvec = self.fits[corr].read()
             out = np.zeros(dvec['VALUE'].size, dtype=dvec.dtype)
 
@@ -47,7 +47,7 @@ class output:
                 for i in dvec['BIN2']:
                     if (i,j) in done:
                         continue
-                    #print i, j
+                    #print(i, j)
                     xdat = dvec['ANG'][(dvec['BIN1']==j) & (dvec['BIN2']==i)]
                     if os.path.exists(pth%(j,i)):
                         simulated = np.loadtxt(pth%(j,i))
@@ -66,11 +66,11 @@ class output:
                     out['VALUE'][(dvec['BIN1']==j) & (dvec['BIN2']==i)] = interpolated
                     done.append((i,j))
 
-            print 'Saving to FITS file'
+            print('Saving to FITS file')
             self.fits[corr].write(out)
         self.fits.close()
 
-        print 'Done'
+        print('Done')
 
 
 def main(args):

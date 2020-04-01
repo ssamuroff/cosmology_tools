@@ -146,7 +146,7 @@ def cornerplot(theory1, theory2, data1, data2, show_cuts=False):
             if j>i:
                 continue
 
-            print i,j
+            print(i,j)
             xta,xip_theory_a,xim_theory_a = get_theory_spectra(i,j,theory1)
             xtb,xip_theory_b,xim_theory_b = get_theory_spectra(i,j,theory2)
             xip_a,xim_a = get_real_spectra(i,j,data1)
@@ -271,21 +271,27 @@ def parse_values(filename, args, blind=False):
         "b_4" : 0.0}}
 
     for i, name in enumerate(mean_vals["name"]):
-        if (name=="post") or (name=="weight"):
+        if ("post" in str(name)) or ("weight" in str(name)):
             continue
-        section, param = name.split("--")
-        print section, param,
+
+        try:
+            section, param = str(name).split("--")
+        except:
+            import pdb ; pdb.set_trace()
+        section = section.replace("b'",'')
+        #import pdb ; pdb.set_trace()
+        print( section, param,)
         value = mean_vals["mean"][i]
         params[section][param] = value
         if blind:
-            print "XXX"
+            print( "XXX")
         else:
-            print value
+            print( value)
 
     return params
 
 def export_values(mean_values_dict, export_to='output/values.ini'):
-    vals = Tm(open("/home/samuroff/local/python/lib/python2.7/site-packages/tools/cosmosis/values_template").read())
+    vals = Tm(open("/opt/local/Library/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/tools/cosmosis/values_template").read())
     vals_all = {}
     for name1 in mean_values_dict.keys():
         for  name2 in mean_values_dict[name1].keys():
@@ -293,7 +299,7 @@ def export_values(mean_values_dict, export_to='output/values.ini'):
 
     values_txt = vals.substitute(vals_all)
 
-    outfile = open(export_to, "wa")
+    outfile = open(export_to, "w")
     outfile.write(values_txt)
     outfile.close()
 
@@ -311,7 +317,7 @@ def replace_dz_values(source,values):
         mean_vals = {'early': [ -0.0218003622646,  -0.0398050264496, -0.008459663380,  -0.0442398688684],
                       'late': [-0.00348994944362, -0.00680842770299, 0.0297324014146, -0.00968806318733]}
         for i in [1,2,3,4]: 
-            print mean_vals[source][i-1]
+            print( mean_vals[source][i-1])
             new["wl_photoz_errors"]["bias_%d"%i] = mean_vals[source][i-1]
     return new
 
@@ -338,7 +344,7 @@ def main(args):
     if (args.chain1!='none') and (not args.disable_cosmosis):
          # postprocess the specified chains
         os.system("mkdir -p output1/")
-        print "Copying chain", args.chain1
+        print( "Copying chain", args.chain1)
         os.system("cp %s output1/chain1.txt"%args.chain1)
         ct.postprocess("output1/chain1.txt", "output1")
 
@@ -356,7 +362,7 @@ def main(args):
 
     if (args.chain2!='none') and (not args.disable_cosmosis):
         os.system("mkdir -p output2/")
-        print "Copying chain", args.chain2
+        print( "Copying chain", args.chain2)
         os.system("cp %s output2/chain2.txt"%args.chain2)
         ct.postprocess("output2/chain2.txt", "output2")
 
