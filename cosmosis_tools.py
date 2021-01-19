@@ -18,7 +18,7 @@ constants={"c" : 299792458.0}
 
 def get_double_or_array(options, param_name, section=option_section, default=0.0):
 	if (section, param_name) not in options.keys():
-		print "Found no parameter %s in section %s. Using default value ( %f ) "%(param_name, section, default)
+		print( "Found no parameter %s in section %s. Using default value ( %f ) "%(param_name, section, default))
 		return default
 
 	else:

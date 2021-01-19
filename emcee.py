@@ -5,7 +5,7 @@ import astropy.table as tb
 import os, pdb, copy
 import pylab as plt
 import imp
-emcee = imp.load_source('emcee', '/home/ssamurof/.local/lib/python2.7/site-packages/emcee')
+#emcee = imp.load_source('emcee', '/home/ssamurof/.local/lib/python2.7/site-packages/emcee')
 from tools import samplers as samp
 
 labels={"a1":"$A^{1}_\mathrm{IA}$","a2":"$A^{2}_\mathrm{IA}$","a3":"$A^{3}_\mathrm{IA}$","a4":"$A^{4}_\mathrm{IA}$","sigma8": "$\sigma_8$", "s8" : "$S_8 \equiv \sigma_8 ( \Omega_m / 0.31 ) ^{0.5}$", "w0":"$w_0$", "omega_m": "$\Omega _m$", "h" : '$h$', "ns":"$n_s$", "omega_b" : '$\Omega _b$', "shear--bias_1":"$\delta z^1$", "shear--bias_2":"$\delta z^2$", "shear--bias_3":"$\delta z^3$", "sz1":"$S_z ^1$", "sz2":"$S_z ^2$", "sz3":"$S_z ^3$", "redmagic--bias_1":"$\delta z^1$ (redmagic)", "redmagic--bias_2":"$\delta z^2$ (redmagic)", "redmagic--bias_3":"$\delta z^3$ (redmagic)", "a": "$A$", "eta": "$\eta$","A_II": "$A_{II}$", "eta_II": "$\eta_{II}$", "A_GI": "$A_{GI}$", "eta_GI": "$\eta_{GI}$", "m1":"$m_1$", "m2":"$m_2$", "m3":"$m_3$", "b_1": '$b_g^1$', "b_2" : '$b_g^2$', "b_3" : '$b_g^3$'}
@@ -151,6 +151,19 @@ class chain(samp.sampler):
 
 		self.header = self.header.replace("\tpost", "\t%s--%s\tpost"%(cosmosis_section, name))
 
+		self.header = self.header.replace("n_varied=%d"%self.npar, "n_varied=%d"%(self.npar+1))
+		self.npar+=1
+
+	def add_external_column(self, values, name, cosmosis_section="cosmological_parameters"):
+		"""Draw new samples from a uniform distribution over a specified range."""
+		"""Beware: this only works in python 2 (how the exec statement works has changed).
+		   Which is annoying. 
+		   Use add_s8 instead, if that's what you want to do."""
+		
+		num = len(self.samples)
+		newcol = tb.Column(values, name=cosmosis_section+"--"+name)
+		self.samples.add_column(newcol, index=len(self.samples.dtype))
+		self.header = self.header.replace("\tpost", "\t%s--%s\tpost"%(cosmosis_section, name))
 		self.header = self.header.replace("n_varied=%d"%self.npar, "n_varied=%d"%(self.npar+1))
 		self.npar+=1
 
@@ -483,6 +496,21 @@ class chain(samp.sampler):
 		
 
 		plt.axvline(len(samples), color="k", lw=2)
+
+	def get_bic(self, npts, verbose=False):
+		k = self.npar
+		lnP0 = self.samples['like'].max()
+		if verbose:
+			print(k,npts,lnP0)
+
+		return -2 * lnP0 + k * np.log(npts)
+
+	def get_chi2(self):
+		lnP0 = self.samples['like'].max()
+
+		return -2 * lnP0
+
+
 
 
 	def hist(self, param, bins=60, mark_fiducial=True, w=None, bounds=False, mean=False):
